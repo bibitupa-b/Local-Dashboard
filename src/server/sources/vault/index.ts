@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
+import { existsSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { relative as relativePath, sep } from 'node:path'
@@ -86,7 +87,7 @@ export function applyVaultChanges(
 export function createVaultSource(root: string): Source {
   return {
     id: 'vault',
-    configured: () => true,
+    configured: () => existsSync(root),
     async sync(db, now = new Date()) {
       const entries = await scanVault(root)
       applyVaultChanges(db, entries, now)
