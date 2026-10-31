@@ -15,6 +15,7 @@ import { createVaultSource, startVaultWatcher } from './sources/vault/index.js'
 import { createHealth, markFailure, markProgress, markSuccess } from './health.js'
 import { dueEventNotification, notify } from './notify.js'
 import { todayEvents } from './sources/calendar.js'
+import { backupDb } from './backup.js'
 
 try {
   process.loadEnvFile(join(process.cwd(), '.env'))
@@ -122,6 +123,14 @@ function maybeBrief(): void {
 
 schedule(`0 ${config.briefingHour} * * *`, maybeBrief)
 schedule('*/5 * * * *', checkEventNotifications)
+schedule('0 3 * * *', () => {
+  try {
+    const path = backupDb(db, config.dataDir)
+    if (path) console.log(`[backup] ${path}`)
+  } catch (error) {
+    console.error('[backup] failed:', error)
+  }
+})
 schedule('*/15 * * * *', () => {
   void syncAll().then(maybeBrief)
 })
@@ -142,6 +151,11 @@ void (async () => {
   await syncAll()
   ready = true
   maybeBrief()
+  try {
+    backupDb(db, config.dataDir)
+  } catch (error) {
+    console.error('[backup] failed:', error)
+  }
 })().catch((error) => console.error('[startup] sync failed:', error))
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
