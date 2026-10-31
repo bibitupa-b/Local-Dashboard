@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { schedule } from 'node-cron'
 import { buildApp } from './app.js'
 import { loadConfig } from './config.js'
-import { getSetting, openDb } from './db/index.js'
+import { getSetting, openDb, setSetting } from './db/index.js'
 import { createBriefing } from './briefing/index.js'
 import { shouldCatchUp } from './briefing/schedule.js'
 import { initLogging } from './log.js'
@@ -13,6 +13,8 @@ import { createImapMailApi } from './sources/mail-imap.js'
 import type { Source } from './sources/types.js'
 import { createVaultSource, startVaultWatcher } from './sources/vault/index.js'
 import { createHealth, markFailure, markProgress, markSuccess } from './health.js'
+import { dueEventNotification, notify } from './notify.js'
+import { todayEvents } from './sources/calendar.js'
 
 try {
   process.loadEnvFile(join(process.cwd(), '.env'))
@@ -86,8 +88,26 @@ const stopWatcher = startVaultWatcher(config.vaultPath, db)
 
 async function brief(trigger: 'auto' | 'manual'): Promise<void> {
   const result = await createBriefing(db, sources, config, { trigger })
-  if ('error' in result) console.error('[briefing]', result.error)
-  else console.log('[briefing] generated')
+  if ('error' in result) {
+    console.error('[briefing]', result.error)
+    return
+  }
+  console.log('[briefing] generated')
+  if (trigger === 'auto') {
+    notify('Daily briefing is ready', result.markdown.split('\n')[0]!.slice(0, 160))
+  }
+}
+
+function checkEventNotifications(): void {
+  if (!ready) return
+  const due = dueEventNotification(
+    todayEvents(db, new Date()),
+    new Date(),
+    getSetting(db, 'last_notified_event'),
+  )
+  if (!due) return
+  notify(due.title, due.message)
+  setSetting(db, 'last_notified_event', due.eventId)
 }
 
 function maybeBrief(): void {
@@ -101,6 +121,7 @@ function maybeBrief(): void {
 }
 
 schedule(`0 ${config.briefingHour} * * *`, maybeBrief)
+schedule('*/5 * * * *', checkEventNotifications)
 schedule('*/15 * * * *', () => {
   void syncAll().then(maybeBrief)
 })
