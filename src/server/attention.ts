@@ -3,7 +3,7 @@ import { parseNote } from './sources/vault/parse.js'
 import { isExcludedSender } from './settings.js'
 
 export type AttentionItem = {
-  kind: 'task' | 'mail' | 'calendar' | 'stale-project' | 'inbox' | 'drive'
+  kind: 'task' | 'mail' | 'reply' | 'calendar' | 'stale-project' | 'inbox' | 'drive'
   label: string
   detail: string
   count?: number
@@ -11,6 +11,14 @@ export type AttentionItem = {
 }
 
 const TEMPLATES = 'Templates/%'
+
+export function normalizeSubject(subject: string): string {
+  let value = subject.trim().toLowerCase()
+  while (/^(re|fwd|fw|aw|ответ):/.test(value)) {
+    value = value.replace(/^(re|fwd|fw|aw|ответ):\s*/, '')
+  }
+  return value.replace(/\s+/g, ' ').trim()
+}
 
 export function buildAttention(
   db: DatabaseSync,
@@ -44,6 +52,44 @@ export function buildAttention(
       detail: `${group.count} open in ${group.paths.size} note${group.paths.size === 1 ? '' : 's'}`,
       count: group.count,
       path,
+    })
+  }
+
+  const replyCutoff = new Date(now.getTime() - 24 * 3_600_000).toISOString()
+  const replyWindow = new Date(now.getTime() - 30 * 86_400_000).toISOString()
+  const candidates = db
+    .prepare(
+      `SELECT sender, subject, date FROM mail_messages
+       WHERE folder = 'INBOX' AND seen = 0 AND bulk = 0 AND date <= ? AND date >= ?
+       ORDER BY date ASC`,
+    )
+    .all(replyCutoff, replyWindow) as Array<{ sender: string; subject: string; date: string }>
+
+  const sent = db
+    .prepare(
+      `SELECT subject, date FROM mail_messages WHERE folder LIKE '%Sent%' AND date >= ?`,
+    )
+    .all(replyWindow) as Array<{ subject: string; date: string }>
+  const repliedAt = new Map<string, number>()
+  for (const message of sent) {
+    const key = normalizeSubject(message.subject)
+    repliedAt.set(key, Math.max(repliedAt.get(key) ?? 0, Date.parse(message.date)))
+  }
+
+  const waiting = candidates.filter(
+    (message) =>
+      !isExcludedSender(db, message.sender) &&
+      !((repliedAt.get(normalizeSubject(message.subject)) ?? 0) > Date.parse(message.date)),
+  )
+  if (waiting.length > 0) {
+    items.push({
+      kind: 'reply',
+      label: `${waiting.length} awaiting your reply`,
+      detail: waiting
+        .slice(0, 3)
+        .map((message) => message.sender.split('<')[0]!.trim() || message.sender)
+        .join(', '),
+      count: waiting.length,
     })
   }
 
@@ -134,6 +180,6 @@ export function buildAttention(
     items.push({ kind: 'drive', label: change.name, detail: `Drive: ${change.kind}` })
   }
 
-  const order = { task: 0, mail: 1, calendar: 2, 'stale-project': 3, inbox: 4, drive: 5 } as const
+  const order = { task: 0, mail: 1, reply: 2, calendar: 3, 'stale-project': 4, inbox: 5, drive: 6 } as const
   return items.sort((a, b) => order[a.kind] - order[b.kind] || (b.count ?? 1) - (a.count ?? 1))
 }

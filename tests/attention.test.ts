@@ -91,6 +91,28 @@ test('bulk mail and excluded senders do not count as unread', async () => {
   expect(items.find((item) => item.kind === 'mail')?.count).toBe(1)
 })
 
+test('only old, unreplied personal mail counts as awaiting a reply', async () => {
+  const db = openDb(':memory:')
+  const insert = db.prepare(
+    `INSERT INTO mail_messages (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, 0, '', NULL, '[]', ?)`,
+  )
+  const old = new Date(NOW.getTime() - 3 * 86_400_000).toISOString()
+  const older = new Date(NOW.getTime() - 5 * 86_400_000).toISOString()
+  const recent = new Date(NOW.getTime() - 3_600_000).toISOString()
+
+  insert.run('INBOX', 1, 'Alice <a@x.com>', 'Project plan', old, 0, 0)
+  insert.run('INBOX', 2, 'Bob <b@x.com>', 'Invoice question', older, 0, 0)
+  insert.run('[Gmail]/Sent Mail', 3, 'Me <me@x.com>', 'Re: Invoice question', old, 1, 0)
+  insert.run('INBOX', 4, 'Shop <s@x.com>', 'Sale', old, 0, 1)
+  insert.run('INBOX', 5, 'Carol <c@x.com>', 'Fresh ping', recent, 0, 0)
+
+  const items = buildAttention(db, NOW, { staleDays: 14, inboxDays: 3 })
+  const reply = items.find((item) => item.kind === 'reply')
+  expect(reply?.count).toBe(1)
+  expect(reply?.detail).toContain('Alice')
+})
+
 test('untagged tasks appear once and the first item is the loudest group', () => {
   const db = openDb(':memory:')
   task(db, 'Inbox/Idea.md', 'single task', null)
