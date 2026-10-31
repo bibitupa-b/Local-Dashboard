@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { parseNote } from './sources/vault/parse.js'
 
 export type AttentionItem = {
-  kind: 'task' | 'stale-project' | 'inbox' | 'drive'
+  kind: 'task' | 'mail' | 'calendar' | 'stale-project' | 'inbox' | 'drive'
   label: string
   detail: string
   count?: number
@@ -43,6 +43,49 @@ export function buildAttention(
       detail: `${group.count} open in ${group.paths.size} note${group.paths.size === 1 ? '' : 's'}`,
       count: group.count,
       path,
+    })
+  }
+
+  const nextEvent = db
+    .prepare(
+      `SELECT summary, start FROM calendar_events
+       WHERE start >= ? AND status != 'cancelled' ORDER BY start LIMIT 1`,
+    )
+    .get(now.toISOString()) as { summary: string; start: string } | undefined
+  if (nextEvent) {
+    items.push({
+      kind: 'calendar',
+      label: nextEvent.summary,
+      detail: `Next at ${new Date(nextEvent.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+    })
+  }
+
+  const mailWindow = new Date(now.getTime() - 30 * 86_400_000).toISOString()
+  const mailStats = db
+    .prepare(
+      `SELECT COALESCE(SUM(seen = 0), 0) AS unread, COALESCE(SUM(starred = 1), 0) AS starred
+       FROM mail_messages
+       WHERE folder IN ('INBOX', '[Gmail]/Important') AND date >= ?`,
+    )
+    .get(mailWindow) as { unread: number; starred: number }
+  if (mailStats.unread > 0) {
+    const senders = db
+      .prepare(
+        `SELECT sender, COUNT(*) AS n FROM mail_messages
+         WHERE folder IN ('INBOX', '[Gmail]/Important') AND seen = 0 AND date >= ?
+         GROUP BY sender ORDER BY n DESC LIMIT 3`,
+      )
+      .all(mailWindow) as Array<{ sender: string; n: number }>
+    items.push({
+      kind: 'mail',
+      label: `Mail: ${mailStats.unread} unread`,
+      detail: [
+        mailStats.starred > 0 ? `${mailStats.starred} starred` : '',
+        senders.map((row) => row.sender).join(', '),
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      count: mailStats.unread,
     })
   }
 
@@ -87,6 +130,6 @@ export function buildAttention(
     items.push({ kind: 'drive', label: change.name, detail: `Drive: ${change.kind}` })
   }
 
-  const order = { task: 0, 'stale-project': 1, inbox: 2, drive: 3 } as const
+  const order = { task: 0, mail: 1, calendar: 2, 'stale-project': 3, inbox: 4, drive: 5 } as const
   return items.sort((a, b) => order[a.kind] - order[b.kind] || (b.count ?? 1) - (a.count ?? 1))
 }

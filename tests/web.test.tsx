@@ -8,12 +8,16 @@ const responses: Record<string, unknown> = {
   '/api/feed?days=7': { days: [] },
   '/api/attention': [],
   '/api/briefings?limit=10': { items: [] },
+  '/api/today': { events: [] },
   '/api/settings': {
     vaultPath: 'C:/notes',
     briefingHour: 8,
     hasDeepSeekKey: false,
     googleConfigured: false,
     driveConnected: false,
+    mailConfigured: false,
+    mailConnected: false,
+    calendarConnected: false,
   },
 }
 

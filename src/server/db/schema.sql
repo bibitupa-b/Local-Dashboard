@@ -61,3 +61,41 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS mail_folders (
+  path TEXT PRIMARY KEY,
+  uid_validity TEXT NOT NULL,
+  last_uid INTEGER NOT NULL DEFAULT 0,
+  last_sync TEXT
+);
+
+CREATE TABLE IF NOT EXISTS mail_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  folder TEXT NOT NULL,
+  uid INTEGER NOT NULL,
+  message_id TEXT,
+  sender TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  date TEXT NOT NULL,
+  seen INTEGER NOT NULL DEFAULT 0,
+  starred INTEGER NOT NULL DEFAULT 0,
+  snippet TEXT NOT NULL DEFAULT '',
+  body TEXT,
+  attachments TEXT NOT NULL DEFAULT '[]',
+  UNIQUE (folder, uid)
+);
+
+CREATE INDEX IF NOT EXISTS mail_messages_recent ON mail_messages (folder, date);
+CREATE INDEX IF NOT EXISTS mail_messages_unread ON mail_messages (seen, folder);
+
+CREATE TABLE IF NOT EXISTS calendar_events (
+  id TEXT PRIMARY KEY,
+  calendar_id TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  start TEXT NOT NULL,
+  end TEXT NOT NULL,
+  location TEXT,
+  status TEXT NOT NULL DEFAULT 'confirmed'
+);
+
+CREATE INDEX IF NOT EXISTS calendar_events_start ON calendar_events (start);

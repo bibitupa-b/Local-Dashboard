@@ -45,6 +45,12 @@ export async function createBriefing(
     tasks: tasks.map((task) => ({ text: task.text, done: task.done === 1, tag: task.tag })),
     attention: buildAttention(db, now, { staleDays: 14, inboxDays: 3 }),
     driveChanges,
+    extra: sources
+      .filter((source) => source.id === 'mail' || source.id === 'calendar')
+      .map((source) => ({
+        title: source.id === 'mail' ? 'Mail' : 'Calendar',
+        lines: source.digest(db, since),
+      })),
   })
 
   try {

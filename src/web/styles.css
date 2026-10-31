@@ -39,6 +39,11 @@ button:disabled { opacity: 0.5; cursor: default; }
 .ghost { background: transparent; color: var(--ink); border-color: var(--line); }
 
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+
+.today { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; font-size: 13px; }
+.today-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-right: 4px; }
+.event { background: var(--card); border: 1px solid var(--line); border-radius: 99px; padding: 5px 11px; }
+.event b { font-weight: 600; color: var(--accent); }
 .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .card-head h2 { margin: 0; }
 

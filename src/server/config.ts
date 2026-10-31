@@ -10,6 +10,8 @@ export type Config = {
   googleClientId: string | null
   googleClientSecret: string | null
   briefingHour: number
+  gmailUser: string | null
+  gmailPassword: string | null
 }
 
 function value(env: NodeJS.ProcessEnv, key: string): string | null {
@@ -28,5 +30,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     googleClientId: value(env, 'GOOGLE_CLIENT_ID'),
     googleClientSecret: value(env, 'GOOGLE_CLIENT_SECRET'),
     briefingHour: Number(env.BRIEFING_HOUR) || 8,
+    gmailUser: value(env, 'GMAIL_USER'),
+    gmailPassword: value(env, 'GMAIL_APP_PASSWORD'),
   }
 }

@@ -5,7 +5,8 @@ import type { Config } from './config.js'
 import { buildAttention } from './attention.js'
 import { createBriefing } from './briefing/index.js'
 import type { Source } from './sources/types.js'
-import { googleAuthUrl, saveGoogleCode } from './sources/drive.js'
+import { googleAuthUrl, saveGoogleCode } from './google.js'
+import { todayEvents } from './sources/calendar.js'
 import { getSetting, setSetting } from './db/index.js'
 
 export type RouteDeps = {
@@ -121,12 +122,17 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     }
   })
 
+  app.get('/api/today', async () => ({ events: todayEvents(db, new Date()) }))
+
   app.get('/api/settings', async () => ({
     vaultPath: config.vaultPath,
     briefingHour: config.briefingHour,
     hasDeepSeekKey: Boolean(config.deepseekKey),
     googleConfigured: Boolean(config.googleClientId && config.googleClientSecret),
     driveConnected: Boolean(getSetting(db, 'drive_cursor')),
+    mailConfigured: Boolean(config.gmailUser && config.gmailPassword),
+    mailConnected: Boolean(getSetting(db, 'last_sync_mail')),
+    calendarConnected: Boolean(getSetting(db, 'last_sync_calendar')),
   }))
 
   app.put('/api/settings', async (request) => {

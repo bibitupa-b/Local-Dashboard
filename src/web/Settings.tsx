@@ -36,13 +36,15 @@ export function SettingsPanel({
       </label>
       <p className="detail">
         DeepSeek key: {settings.hasDeepSeekKey ? 'configured' : 'missing in .env'} · Drive:{' '}
-        {settings.driveConnected ? 'connected' : settings.googleConfigured ? 'not connected' : 'credentials missing'}
+        {settings.driveConnected ? 'connected' : settings.googleConfigured ? 'not connected' : 'credentials missing'} · Mail:{' '}
+        {settings.mailConnected ? 'synced' : settings.mailConfigured ? 'not synced' : 'missing in .env'} · Calendar:{' '}
+        {settings.calendarConnected ? 'connected' : 'not connected'}
       </p>
       <div className="row">
         <button type="submit">Save</button>
-        {settings.googleConfigured && !settings.driveConnected && (
+        {settings.googleConfigured && (!settings.driveConnected || !settings.calendarConnected) && (
           <a className="ghost" href="/api/oauth/google/start">
-            Connect Google Drive
+            {settings.driveConnected ? 'Grant calendar access' : 'Connect Google Drive & Calendar'}
           </a>
         )}
       </div>

@@ -15,7 +15,9 @@ One Node process:
 - **Storage** — SQLite through the built-in `node:sqlite`. No ORM, no native dependencies.
 - **Vault source** — `chokidar` watches `<VAULT_PATH>`, hashes changed notes, stores a snapshot plus a line diff.
 - **Drive source** — `googleapis` polls `files.list` with `modifiedTime` ordering and a stored cursor; read-only scope.
-- **Scheduler** — `node-cron`, daily briefing at 08:00 with catch-up on start.
+- **Mail source** — `imapflow` + `mailparser` over Gmail IMAP: all folders except All Mail, incremental by UID, bodies kept for 90 days, attachments by name only.
+- **Calendar source** — `googleapis` Calendar API, primary calendar, window of −1 to +7 days.
+- **Scheduler** — `node-cron`, daily briefing at 08:00 with catch-up on start and retry every 15 minutes until today's briefing exists.
 - **Briefing** — POST to `https://api.deepseek.com/chat/completions`, model `deepseek-chat`.
 
 ### Planned layout
@@ -28,6 +30,10 @@ src/
     db/index.ts         open DB, typed query helpers
     sources/vault.ts    scan, watch, diff, task extraction
     sources/drive.ts    OAuth, sync, change detection
+    sources/mail.ts     IMAP sync, mail digest
+    sources/mail-imap.ts imapflow adapter
+    sources/calendar.ts Calendar sync, today's events
+    google.ts           shared OAuth client, scopes, token store
     briefing.ts         digest assembly + DeepSeek call
     routes.ts           HTTP API
   web/                  React app
@@ -51,11 +57,12 @@ These were agreed with the user; do not re-litigate them without asking.
 - Local web app first; a Tauri shell is optional later.
 - Read-only everywhere. Never write to notes, the vault, or Drive.
 - Two dashboard halves: **history** (diff-backed activity log) and **attention queue**.
-- Sources for phase 1: the Obsidian vault and Google Drive. Gmail and Calendar come later.
-- Only a **digest** goes to DeepSeek — never raw vault content, never whole files. Prefer counts, paths, task text and short excerpts.
+- Sources for phase 1: the Obsidian vault, Google Drive, Gmail (read-only IMAP) and Google Calendar.
+- Mail keeps message bodies for 90 days; older messages keep headers and subject only. Attachments are never downloaded, only their names are stored.
+- Only a **digest** goes to DeepSeek — never raw vault content, never whole files. For mail the digest may carry subjects, senders and the first ~200 characters of unread messages; bodies and attachments never leave the machine.
 - Briefing target: 5–7 bullets covering what moved, what is stuck, one suggestion. Stored in SQLite, previous ones kept.
 - Scheduled 08:00 by default; generate on startup if today's briefing is missing.
-- Attention queue rules: open tasks grouped by tag (recurring tags such as `#vitamins` collapse into one row with a count), notes with frontmatter `status: Undone` untouched for 14+ days, notes sitting in `Inbox` for 3+ days, recent Drive changes.
+- Attention queue rules: open tasks grouped by tag (recurring tags such as `#vitamins` collapse into one row with a count), notes with frontmatter `status: Undone` untouched for 14+ days, notes sitting in `Inbox` for 3+ days, unread mail from the last 30 days and the next calendar event.
 - Autostart via a `.vbs` shortcut in `shell:startup` that runs the server hidden.
 
 ## Data model
@@ -68,6 +75,9 @@ These were agreed with the user; do not re-litigate them without asking.
 | `drive_changes` | file id, kind, detected at |
 | `tasks` | note path, task text, tag, done state, first/last seen |
 | `briefings` | created at, trigger (auto/manual), markdown, digest metadata |
+| `mail_folders` | folder path, UIDVALIDITY, last synced UID, last sync time |
+| `mail_messages` | folder, UID, sender, subject, date, seen/starred, snippet, body (90 days), attachment names |
+| `calendar_events` | Google event id, calendar, summary, start/end, location, status |
 | `settings` | key/value: vault path, schedule, exclusions, last sync cursors |
 
 Snapshots are affordable: the vault is small (tens of notes). Keep them; they make diffs and "what did I write last week" work without rescanning history.

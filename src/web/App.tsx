@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react'
-import { api, type AttentionItem, type Briefing, type FeedDay, type Settings, type Status } from './api.js'
+import {
+  api,
+  type AttentionItem,
+  type Briefing,
+  type CalendarEvent,
+  type FeedDay,
+  type Settings,
+  type Status,
+} from './api.js'
 import { SettingsPanel } from './Settings.js'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -22,6 +30,7 @@ export function App() {
   const [feed, setFeed] = useState<FeedDay[]>([])
   const [attention, setAttention] = useState<AttentionItem[]>([])
   const [briefings, setBriefings] = useState<Briefing[]>([])
+  const [today, setToday] = useState<CalendarEvent[]>([])
   const [settings, setSettings] = useState<Settings | null>(null)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
@@ -29,18 +38,21 @@ export function App() {
 
   async function load() {
     try {
-      const [nextStatus, nextFeed, nextAttention, nextBriefings, nextSettings] = await Promise.all([
-        api.status(),
-        api.feed(),
-        api.attention(),
-        api.briefings(),
-        api.settings(),
-      ])
+      const [nextStatus, nextFeed, nextAttention, nextBriefings, nextSettings, nextToday] =
+        await Promise.all([
+          api.status(),
+          api.feed(),
+          api.attention(),
+          api.briefings(),
+          api.settings(),
+          api.today(),
+        ])
       setStatus(nextStatus)
       setFeed(nextFeed.days)
       setAttention(nextAttention)
       setBriefings(nextBriefings.items)
       setSettings(nextSettings)
+      setToday(nextToday.events)
     } catch (error) {
       setNote(error instanceof Error ? error.message : 'Backend is not reachable')
     }
@@ -102,6 +114,20 @@ export function App() {
       </header>
 
       {note && <p className="note">{note}</p>}
+
+      {today.length > 0 && (
+        <section className="today">
+          <span className="today-label">Today</span>
+          {today.map((event) => (
+            <span key={event.id} className="event">
+              <b>
+                {new Date(event.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </b>{' '}
+              {event.summary}
+            </span>
+          ))}
+        </section>
+      )}
 
       {showSettings && settings && (
         <SettingsPanel

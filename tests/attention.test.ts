@@ -44,6 +44,35 @@ test('groups recurring tags and hides done, template and fresh items', () => {
   expect(items.some((item) => item.path === 'Inbox/Fresh.md')).toBe(false)
 })
 
+test('mail and calendar surface as attention items', () => {
+  const db = openDb(':memory:')
+  const insert = db.prepare(
+    `INSERT INTO mail_messages (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments)
+     VALUES ('INBOX', ?, NULL, ?, ?, ?, ?, ?, '', NULL, '[]')`,
+  )
+  const fresh = new Date(NOW.getTime() - 3_600_000).toISOString()
+  insert.run(1, 'Alice <a@x.com>', 'One', fresh, 0, 0)
+  insert.run(2, 'Alice <a@x.com>', 'Two', fresh, 0, 1)
+  insert.run(3, 'Bob <b@x.com>', 'Three', fresh, 0, 0)
+  insert.run(4, 'Spam <s@x.com>', 'Spam', fresh, 0, 0)
+
+  const start = new Date(NOW.getTime() + 3_600_000).toISOString()
+  const end = new Date(NOW.getTime() + 7_200_000).toISOString()
+  db.prepare(
+    `INSERT INTO calendar_events (id, calendar_id, summary, start, end, location, status)
+     VALUES ('e1', 'primary', 'Standup', ?, ?, NULL, 'confirmed')`,
+  ).run(start, end)
+
+  const items = buildAttention(db, NOW, { staleDays: 14, inboxDays: 3 })
+  const mail = items.find((item) => item.kind === 'mail')
+  expect(mail?.count).toBe(4)
+  expect(mail?.detail).toContain('Alice')
+  expect(items.find((item) => item.kind === 'calendar')?.label).toBe('Standup')
+  expect(items.findIndex((item) => item.kind === 'mail')).toBeLessThan(
+    items.findIndex((item) => item.kind === 'calendar'),
+  )
+})
+
 test('untagged tasks appear once and the first item is the loudest group', () => {
   const db = openDb(':memory:')
   task(db, 'Inbox/Idea.md', 'single task', null)

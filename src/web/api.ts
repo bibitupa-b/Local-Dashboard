@@ -10,19 +10,31 @@ export type FeedItem = {
 }
 export type FeedDay = { date: string; items: FeedItem[] }
 export type AttentionItem = {
-  kind: 'task' | 'stale-project' | 'inbox' | 'drive'
+  kind: 'task' | 'mail' | 'calendar' | 'stale-project' | 'inbox' | 'drive'
   label: string
   detail: string
   count?: number
   path?: string
 }
 export type Briefing = { id: number; created_at: string; trigger: string; markdown: string }
+export type CalendarEvent = {
+  id: string
+  calendarId: string
+  summary: string
+  start: string
+  end: string
+  location: string | null
+  status: string
+}
 export type Settings = {
   vaultPath: string
   briefingHour: number
   hasDeepSeekKey: boolean
   googleConfigured: boolean
   driveConnected: boolean
+  mailConfigured: boolean
+  mailConnected: boolean
+  calendarConnected: boolean
 }
 
 async function get<T>(url: string): Promise<T> {
@@ -37,6 +49,7 @@ export const api = {
   attention: () => get<AttentionItem[]>('/api/attention'),
   briefings: () => get<{ items: Briefing[] }>('/api/briefings?limit=10'),
   settings: () => get<Settings>('/api/settings'),
+  today: () => get<{ events: CalendarEvent[] }>('/api/today'),
   generate: async (): Promise<{ markdown: string } | { error: string }> => {
     const res = await fetch('/api/briefings/generate', { method: 'POST' })
     return res.json()

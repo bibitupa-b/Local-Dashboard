@@ -1,8 +1,6 @@
-import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import type { DatabaseSync } from 'node:sqlite'
 import { google } from 'googleapis'
 import { getSetting, setSetting } from '../db/index.js'
+import { authorizedClient } from '../google.js'
 import type { Source } from './types.js'
 import type { Config } from '../config.js'
 
@@ -62,49 +60,9 @@ export function createDriveSource(api: DriveApi | null): Source {
   }
 }
 
-const SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
-
-function redirectUri(config: Config): string {
-  return `http://127.0.0.1:${config.port}/api/oauth/google/callback`
-}
-
-function tokenPath(config: Config): string {
-  return join(config.dataDir, 'google-token.json')
-}
-
-function oauthClient(config: Config) {
-  if (!config.googleClientId || !config.googleClientSecret) return null
-  return new google.auth.OAuth2(config.googleClientId, config.googleClientSecret, redirectUri(config))
-}
-
-export function googleAuthUrl(config: Config, state: string): string | null {
-  const client = oauthClient(config)
-  if (!client) return null
-  return client.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: SCOPES, state })
-}
-
-export async function saveGoogleCode(config: Config, code: string): Promise<void> {
-  const client = oauthClient(config)
-  if (!client) throw new Error('Google credentials are not configured')
-  const { tokens } = await client.getToken(code)
-  await writeFile(tokenPath(config), JSON.stringify(tokens, null, 2), 'utf8')
-}
-
 export async function createGoogleDriveApi(config: Config): Promise<DriveApi | null> {
-  const client = oauthClient(config)
+  const client = await authorizedClient(config)
   if (!client) return null
-
-  let tokens
-  try {
-    tokens = JSON.parse(await readFile(tokenPath(config), 'utf8'))
-  } catch {
-    return null
-  }
-
-  client.setCredentials(tokens)
-  client.on('tokens', (fresh) => {
-    void writeFile(tokenPath(config), JSON.stringify({ ...tokens, ...fresh }, null, 2), 'utf8')
-  })
   const drive = google.drive({ version: 'v3', auth: client })
 
   return {
@@ -136,3 +94,5 @@ export async function createGoogleDriveApi(config: Config): Promise<DriveApi | n
     },
   }
 }
+
+export { googleAuthUrl, saveGoogleCode } from '../google.js'

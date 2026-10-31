@@ -6,6 +6,9 @@ import { getSetting, openDb } from './db/index.js'
 import { createBriefing } from './briefing/index.js'
 import { shouldCatchUp } from './briefing/schedule.js'
 import { createDriveSource, createGoogleDriveApi } from './sources/drive.js'
+import { createCalendarSource, createGoogleCalendarApi } from './sources/calendar.js'
+import { createMailSource } from './sources/mail.js'
+import { createImapMailApi } from './sources/mail-imap.js'
 import type { Source } from './sources/types.js'
 import { createVaultSource, startVaultWatcher } from './sources/vault/index.js'
 
@@ -24,6 +27,8 @@ config.briefingHour = Number(getSetting(db, 'briefing_hour')) || config.briefing
 const sources: Source[] = [
   createVaultSource(config.vaultPath),
   createDriveSource(await createGoogleDriveApi(config)),
+  createMailSource(createImapMailApi(config)),
+  createCalendarSource(await createGoogleCalendarApi(config)),
 ]
 
 const webRoot = join(process.cwd(), 'dist', 'web')
@@ -33,23 +38,19 @@ const app = buildApp({
   sources,
   webRoot,
   onDriveConnected: () => {
-    void createGoogleDriveApi(config)
-      .then(async (api) => {
-        if (!api) return
-        sources[1] = createDriveSource(api)
-        await sources[1]!.sync(db)
-      })
-      .catch((error) => console.error('[drive] reconnect failed:', error))
+    void (async () => {
+      const drive = await createGoogleDriveApi(config)
+      const calendar = await createGoogleCalendarApi(config)
+      const driveIndex = sources.findIndex((source) => source.id === 'drive')
+      const calendarIndex = sources.findIndex((source) => source.id === 'calendar')
+      if (drive && driveIndex >= 0) sources[driveIndex] = createDriveSource(drive)
+      if (calendar && calendarIndex >= 0) sources[calendarIndex] = createCalendarSource(calendar)
+      await Promise.all(
+        sources.map((source) => source.sync(db).catch((error) => console.error(`[${source.id}]`, error))),
+      )
+    })().catch((error) => console.error('[google] reconnect failed:', error))
   },
 })
-
-for (const source of sources) {
-  try {
-    await source.sync(db)
-  } catch (error) {
-    console.error(`[${source.id}] sync failed:`, error)
-  }
-}
 
 const stopWatcher = startVaultWatcher(config.vaultPath, db)
 
@@ -68,8 +69,6 @@ function maybeBrief(): void {
   }
 }
 
-maybeBrief()
-
 schedule(`0 ${config.briefingHour} * * *`, maybeBrief)
 schedule('*/15 * * * *', () => {
   for (const source of sources) void source.sync(db).catch((error) => console.error(`[${source.id}]`, error))
@@ -78,6 +77,18 @@ schedule('*/15 * * * *', () => {
 
 await app.listen({ host: '127.0.0.1', port: config.port })
 console.log(`Local Dashboard on http://localhost:${config.port}`)
+
+// The UI is served immediately; a slow mailbox must not block startup.
+void (async () => {
+  for (const source of sources) {
+    try {
+      await source.sync(db)
+    } catch (error) {
+      console.error(`[${source.id}] sync failed:`, error)
+    }
+  }
+  maybeBrief()
+})().catch((error) => console.error('[startup] sync failed:', error))
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, async () => {

@@ -8,6 +8,7 @@ export type DigestInput = {
   tasks: Array<{ text: string; done: boolean; tag: string | null }>
   attention: AttentionItem[]
   driveChanges: Array<{ name: string; kind: string }>
+  extra?: Array<{ title: string; lines: string[] }>
 }
 
 function clip(text: string): string {
@@ -45,6 +46,11 @@ export function buildDigest(input: DigestInput): string {
 
   lines.push('', '## Tasks')
   lines.push(...groupTasks(input.tasks))
+
+  for (const section of input.extra ?? []) {
+    lines.push('', `## ${section.title}`)
+    lines.push(...(section.lines.length > 0 ? section.lines : ['Nothing']))
+  }
 
   lines.push('', '## Needs attention')
   if (input.attention.length === 0) lines.push('Nothing needs attention')
