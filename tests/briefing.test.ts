@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { openDb } from '../src/server/db/index.js'
+import { openDb, setSetting } from '../src/server/db/index.js'
 import { loadConfig } from '../src/server/config.js'
 import { createBriefing } from '../src/server/briefing/index.js'
 import { BriefingError, generateBriefing } from '../src/server/briefing/deepseek.js'
@@ -36,6 +36,32 @@ test('missing key refuses without calling the API', async () => {
   const result = await createBriefing(openDb(':memory:'), [], loadConfig({}), { fetchFn })
   expect(result).toEqual({ error: 'no-key' })
   expect(called).toBe(false)
+})
+
+test('excluded vault folders keep their tasks and attention out of the digest', async () => {
+  const db = openDb(':memory:')
+  setSetting(db, 'vault_excluded_prefixes', '02 areas/💪 body and health')
+
+  const insertTask = db.prepare(
+    `INSERT INTO tasks (path, text, occurrence, tag, done, first_seen, last_seen)
+     VALUES (?, ?, 0, ?, 0, ?, ?)`,
+  )
+  const now = new Date()
+  insertTask.run('02 Areas/💪 Body and Health/day.md', '#vitamins Zinc', 'vitamins', now.toISOString(), now.toISOString())
+  insertTask.run('01 Projects/Live.md', 'real work item', null, now.toISOString(), now.toISOString())
+
+  let sent = ''
+  const fetchFn = (async (_url: string, init: RequestInit) => {
+    sent = JSON.parse(String(init.body)).messages[1].content
+    return new Response(JSON.stringify({ choices: [{ message: { content: '- ok' } }] }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })
+  }) as unknown as typeof fetch
+
+  await createBriefing(db, [], config, { fetchFn })
+  expect(sent).not.toContain('vitamins')
+  expect(sent).toContain('real work item')
 })
 
 test('catch-up decision', () => {

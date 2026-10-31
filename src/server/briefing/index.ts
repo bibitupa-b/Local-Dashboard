@@ -39,9 +39,16 @@ export async function createBriefing(
       )
     : []
 
-  const tasks = db
-    .prepare('SELECT text, done, tag FROM tasks WHERE last_seen >= ?')
-    .all(since.toISOString()) as Array<{ text: string; done: number; tag: string | null }>
+  const tasks = (
+    db
+      .prepare('SELECT path, text, done, tag FROM tasks WHERE last_seen >= ?')
+      .all(since.toISOString()) as Array<{
+      path: string
+      text: string
+      done: number
+      tag: string | null
+    }>
+  ).filter((task) => !isExcludedVaultPath(db, task.path))
 
   const driveChanges = isSourceEnabled(db, 'drive')
     ? (db
@@ -55,7 +62,8 @@ export async function createBriefing(
   const attention = buildAttention(db, now, { staleDays: 14, inboxDays: 3 }).filter(
     (item) =>
       (item.kind !== 'mail' || isSourceEnabled(db, 'mail')) &&
-      (item.kind !== 'calendar' || isSourceEnabled(db, 'calendar')),
+      (item.kind !== 'calendar' || isSourceEnabled(db, 'calendar')) &&
+      (!item.path || !isExcludedVaultPath(db, item.path)),
   )
 
   const digest = buildDigest({

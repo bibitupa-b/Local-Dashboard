@@ -35,8 +35,21 @@ export function isExcludedFolder(db: DatabaseSync, path: string): boolean {
 }
 
 export function isExcludedVaultPath(db: DatabaseSync, path: string): boolean {
-  const haystack = path.toLowerCase()
-  return getList(db, LIST_KEYS.vaultPrefixes).some((prefix) => haystack.startsWith(prefix))
+  const haystack = path.replace(/\\/g, '/').toLowerCase()
+  return getList(db, LIST_KEYS.vaultPrefixes).some((prefix) =>
+    haystack.startsWith(prefix.replace(/\\/g, '/').replace(/^\/+/, '')),
+  )
+}
+
+/** Accepts absolute Windows paths, backslashes and stray slashes; stores vault-relative prefixes. */
+export function normalizeVaultPrefixes(values: string[], vaultPath: string): string[] {
+  const root = vaultPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  return values
+    .map((value) => value.replace(/\\/g, '/').trim().toLowerCase())
+    .map((value) => (value.startsWith(root) ? value.slice(root.length) : value))
+    .map((value) => value.replace(/^\/+/, ''))
+    .map((value) => value.replace(/\/+$/, ''))
+    .filter(Boolean)
 }
 
 export function digestWindowHours(db: DatabaseSync): number {

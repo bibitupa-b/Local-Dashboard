@@ -13,6 +13,7 @@ import {
   LIST_KEYS,
   digestWindowHours,
   getList,
+  normalizeVaultPrefixes,
   setList,
 } from './settings.js'
 
@@ -240,7 +241,11 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     if (Array.isArray(body.excludedMailFolders))
       setList(db, LIST_KEYS.mailFolders, body.excludedMailFolders)
     if (Array.isArray(body.excludedVaultPrefixes))
-      setList(db, LIST_KEYS.vaultPrefixes, body.excludedVaultPrefixes)
+      setList(
+        db,
+        LIST_KEYS.vaultPrefixes,
+        normalizeVaultPrefixes(body.excludedVaultPrefixes, config.vaultPath),
+      )
     if (Array.isArray(body.enabledSources)) setList(db, 'enabled_sources', body.enabledSources)
     if (typeof body.digestWindowHours === 'number' && body.digestWindowHours >= 1) {
       setSetting(db, 'digest_window_hours', String(body.digestWindowHours))

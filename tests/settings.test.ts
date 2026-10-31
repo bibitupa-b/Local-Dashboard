@@ -35,9 +35,21 @@ test('sources are enabled by default and can be switched off', () => {
   expect(isSourceEnabled(db, 'vault')).toBe(true)
 })
 
+test('normalizes absolute Windows paths to vault-relative prefixes', async () => {
+  const { normalizeVaultPrefixes } = await import('../src/server/settings.js')
+  const vault = 'C:\\Users\\ivans\\Documents\\Main Obsidian Vault'
+  expect(
+    normalizeVaultPrefixes(
+      ['C:\\Users\\ivans\\Documents\\Main Obsidian Vault\\02 Areas\\💪 Body and Health', '\\04 Archives\\'],
+      vault,
+    ),
+  ).toEqual(['02 areas/💪 body and health', '04 archives'])
+})
+
 test('digest window defaults to 24 hours', () => {
   const db = openDb(':memory:')
   expect(digestWindowHours(db)).toBe(24)
   setSetting(db, 'digest_window_hours', '6')
   expect(digestWindowHours(db)).toBe(6)
 })
+
