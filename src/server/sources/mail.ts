@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { setSetting } from '../db/index.js'
+import { isExcludedFolder, isExcludedSender } from '../settings.js'
 import type { Source } from './types.js'
 
 export type MailFolder = { path: string }
@@ -15,6 +16,7 @@ export type MailMessage = {
   snippet: string
   body: string | null
   attachments: string[]
+  bulk?: boolean
 }
 export type MailFlags = { uid: number; seen: boolean; starred: boolean }
 export type MailApi = {
@@ -34,7 +36,9 @@ export function createMailSource(api: MailApi | null): Source {
     configured: () => api !== null,
     async sync(db, now = new Date(), progress) {
       if (!api) return
-      const folders = (await api.folders()).filter((folder) => !IGNORED_FOLDER.test(folder.path))
+      const folders = (await api.folders()).filter(
+        (folder) => !IGNORED_FOLDER.test(folder.path) && !isExcludedFolder(db, folder.path),
+      )
       let index = 0
       progress?.(0, folders.length)
       const findFolder = db.prepare('SELECT uid_validity, last_uid FROM mail_folders WHERE path = ?')
@@ -51,9 +55,10 @@ export function createMailSource(api: MailApi | null): Source {
       )
       const insertMessage = db.prepare(
         `INSERT INTO mail_messages
-           (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(folder, uid) DO UPDATE SET seen = excluded.seen, starred = excluded.starred`,
+           (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(folder, uid) DO UPDATE SET seen = excluded.seen, starred = excluded.starred,
+           bulk = excluded.bulk`,
       )
       const updateFlags = db.prepare(
         'UPDATE mail_messages SET seen = ?, starred = ? WHERE folder = ? AND uid = ?',
@@ -88,6 +93,7 @@ export function createMailSource(api: MailApi | null): Source {
               message.snippet,
               message.body,
               JSON.stringify(message.attachments),
+              message.bulk ? 1 : 0,
             )
           }
           for (const flag of flags) {
@@ -113,26 +119,32 @@ export function createMailSource(api: MailApi | null): Source {
       (db.prepare("SELECT value FROM settings WHERE key = 'last_sync_mail'").get() as
         | { value: string }
         | undefined)?.value ?? null,
-    digest: (db) => {
-      const since = new Date(Date.now() - UNREAD_WINDOW_DAYS * 86_400_000).toISOString()
-      const unread = db
+    digest: (db, since) => {
+      const rows = db
         .prepare(
-          `SELECT sender, subject, snippet FROM mail_messages
-           WHERE seen = 0 AND folder IN ('INBOX', '[Gmail]/Important') AND date >= ?
-           GROUP BY COALESCE(message_id, folder || ':' || uid)
-           ORDER BY MAX(date) DESC LIMIT 12`,
+          `SELECT sender, subject, snippet, COALESCE(message_id, folder || ':' || uid) AS key
+           FROM mail_messages
+           WHERE seen = 0 AND bulk = 0 AND folder IN ('INBOX', '[Gmail]/Important') AND date >= ?
+           ORDER BY date DESC`,
         )
-        .all(since) as Array<{ sender: string; subject: string; snippet: string }>
-      const total = db
-        .prepare(
-          `SELECT COUNT(DISTINCT COALESCE(message_id, folder || ':' || uid)) AS n FROM mail_messages
-           WHERE seen = 0 AND folder IN ('INBOX', '[Gmail]/Important') AND date >= ?`,
-        )
-        .get(since) as { n: number }
-      if (unread.length === 0) return [`Unread mail: ${total.n}`]
+        .all(since.toISOString()) as Array<{
+        sender: string
+        subject: string
+        snippet: string
+        key: string
+      }>
+      const seen = new Set<string>()
+      const fresh = rows.filter((message) => {
+        if (seen.has(message.key) || isExcludedSender(db, message.sender)) return false
+        seen.add(message.key)
+        return true
+      })
+      if (fresh.length === 0) return ['Unread mail: 0']
       return [
-        `Unread mail: ${total.n}`,
-        ...unread.map((message) => `${message.sender}: ${message.subject} — ${message.snippet}`),
+        `Unread mail: ${fresh.length}`,
+        ...fresh
+          .slice(0, 12)
+          .map((message) => `${message.sender}: ${message.subject} — ${message.snippet}`),
       ]
     },
   }

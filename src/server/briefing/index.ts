@@ -4,6 +4,11 @@ import { buildAttention } from '../attention.js'
 import type { Source } from '../sources/types.js'
 import { buildDigest } from './digest.js'
 import { generateBriefing } from './deepseek.js'
+import {
+  digestWindowHours,
+  isExcludedVaultPath,
+  isSourceEnabled,
+} from '../settings.js'
 
 export type BriefingTrigger = 'auto' | 'manual'
 export type BriefingResult = { markdown: string } | { error: string }
@@ -22,31 +27,46 @@ export async function createBriefing(
   const last = db.prepare('SELECT created_at FROM briefings ORDER BY id DESC LIMIT 1').get() as
     | { created_at: string }
     | undefined
-  const since = last ? new Date(last.created_at) : new Date(now.getTime() - 86_400_000)
 
-  const vaultChanges = db
-    .prepare('SELECT path, added, removed FROM vault_changes WHERE detected_at >= ?')
-    .all(since.toISOString()) as Array<{ path: string; added: number; removed: number }>
+  const windowStart = now.getTime() - digestWindowHours(db) * 3_600_000
+  const since = new Date(Math.max(last ? Date.parse(last.created_at) : 0, windowStart))
+
+  const vaultChanges = isSourceEnabled(db, 'vault')
+    ? (db
+        .prepare('SELECT path, added, removed FROM vault_changes WHERE detected_at >= ?')
+        .all(since.toISOString()) as Array<{ path: string; added: number; removed: number }>).filter(
+        (change) => !isExcludedVaultPath(db, change.path),
+      )
+    : []
 
   const tasks = db
     .prepare('SELECT text, done, tag FROM tasks WHERE last_seen >= ?')
     .all(since.toISOString()) as Array<{ text: string; done: number; tag: string | null }>
 
-  const driveChanges = db
-    .prepare(
-      `SELECT COALESCE(f.name, c.file_id) AS name, c.kind FROM drive_changes c
-       LEFT JOIN drive_files f ON f.id = c.file_id WHERE c.detected_at >= ?`,
-    )
-    .all(since.toISOString()) as Array<{ name: string; kind: string }>
+  const driveChanges = isSourceEnabled(db, 'drive')
+    ? (db
+        .prepare(
+          `SELECT COALESCE(f.name, c.file_id) AS name, c.kind FROM drive_changes c
+           LEFT JOIN drive_files f ON f.id = c.file_id WHERE c.detected_at >= ?`,
+        )
+        .all(since.toISOString()) as Array<{ name: string; kind: string }>)
+    : []
+
+  const attention = buildAttention(db, now, { staleDays: 14, inboxDays: 3 }).filter(
+    (item) =>
+      (item.kind !== 'mail' || isSourceEnabled(db, 'mail')) &&
+      (item.kind !== 'calendar' || isSourceEnabled(db, 'calendar')),
+  )
 
   const digest = buildDigest({
     since,
     vaultChanges,
     tasks: tasks.map((task) => ({ text: task.text, done: task.done === 1, tag: task.tag })),
-    attention: buildAttention(db, now, { staleDays: 14, inboxDays: 3 }),
+    attention,
     driveChanges,
     extra: sources
       .filter((source) => (source.id === 'mail' || source.id === 'calendar') && source.configured())
+      .filter((source) => isSourceEnabled(db, source.id))
       .map((source) => ({
         title: source.id === 'mail' ? 'Mail' : 'Calendar',
         lines: source.digest(db, since),

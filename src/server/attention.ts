@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { parseNote } from './sources/vault/parse.js'
+import { isExcludedSender } from './settings.js'
 
 export type AttentionItem = {
   kind: 'task' | 'mail' | 'calendar' | 'stale-project' | 'inbox' | 'drive'
@@ -61,33 +62,34 @@ export function buildAttention(
   }
 
   const mailWindow = new Date(now.getTime() - 30 * 86_400_000).toISOString()
-  const mailStats = db
+  const mailRows = db
     .prepare(
-      `SELECT COUNT(DISTINCT COALESCE(message_id, folder || ':' || uid)) AS unread,
-              COUNT(DISTINCT CASE WHEN starred = 1 THEN COALESCE(message_id, folder || ':' || uid) END) AS starred
+      `SELECT sender, starred, COALESCE(message_id, folder || ':' || uid) AS key
        FROM mail_messages
-       WHERE folder IN ('INBOX', '[Gmail]/Important') AND date >= ? AND seen = 0`,
+       WHERE folder IN ('INBOX', '[Gmail]/Important') AND seen = 0 AND bulk = 0 AND date >= ?`,
     )
-    .get(mailWindow) as { unread: number; starred: number }
-  if (mailStats.unread > 0) {
-    const senders = db
-      .prepare(
-        `SELECT sender, COUNT(DISTINCT COALESCE(message_id, folder || ':' || uid)) AS n
-         FROM mail_messages
-         WHERE folder IN ('INBOX', '[Gmail]/Important') AND seen = 0 AND date >= ?
-         GROUP BY sender ORDER BY n DESC LIMIT 3`,
-      )
-      .all(mailWindow) as Array<{ sender: string; n: number }>
+    .all(mailWindow) as Array<{ sender: string; starred: number; key: string }>
+
+  const seenKeys = new Set<string>()
+  const senders = new Map<string, number>()
+  let unread = 0
+  let starred = 0
+  for (const row of mailRows) {
+    if (seenKeys.has(row.key)) continue
+    seenKeys.add(row.key)
+    if (isExcludedSender(db, row.sender)) continue
+    unread++
+    senders.set(row.sender, (senders.get(row.sender) ?? 0) + 1)
+    if (row.starred === 1) starred++
+  }
+
+  if (unread > 0) {
+    const top = [...senders].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([sender]) => sender)
     items.push({
       kind: 'mail',
-      label: `Mail: ${mailStats.unread} unread`,
-      detail: [
-        mailStats.starred > 0 ? `${mailStats.starred} starred` : '',
-        senders.map((row) => row.sender).join(', '),
-      ]
-        .filter(Boolean)
-        .join(' · '),
-      count: mailStats.unread,
+      label: `Mail: ${unread} unread`,
+      detail: [starred > 0 ? `${starred} starred` : '', top.join(', ')].filter(Boolean).join(' · '),
+      count: unread,
     })
   }
 

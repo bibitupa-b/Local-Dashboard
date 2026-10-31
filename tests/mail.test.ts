@@ -150,6 +150,38 @@ test('digest lists unread subjects and counts', async () => {
   expect(text).not.toContain('Win money')
 })
 
+test('bulk detection reads unsubscribe and precedence headers', async () => {
+  const { isBulkMessage } = await import('../src/server/sources/mail-imap.js')
+  const headers = (values: Record<string, string>) => ({
+    get: (name: string) => values[name.toLowerCase()],
+  })
+  expect(isBulkMessage(headers({ 'list-unsubscribe': '<mailto:x@y>' }))).toBe(true)
+  expect(isBulkMessage(headers({ precedence: 'bulk' }))).toBe(true)
+  expect(isBulkMessage(headers({ 'auto-submitted': 'auto-generated' }))).toBe(true)
+  expect(isBulkMessage(headers({ 'auto-submitted': 'no' }))).toBe(false)
+  expect(isBulkMessage(headers({}))).toBe(false)
+})
+
+test('digest covers only mail since the previous briefing', () => {
+  const db = openDb(':memory:')
+  const insert = db.prepare(
+    `INSERT INTO mail_messages (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
+     VALUES ('INBOX', ?, NULL, ?, ?, ?, 0, 0, '', NULL, '[]', 0)`,
+  )
+  const now = Date.now()
+  insert.run(1, 'Old <o@x.com>', 'Two days ago', new Date(now - 2 * 86_400_000).toISOString())
+  insert.run(2, 'New <n@x.com>', 'An hour ago', new Date(now - 3_600_000).toISOString())
+
+  const source = createMailSource({
+    folders: async () => [],
+    syncFolder: async () => ({ messages: [], uidValidity: '1', flags: [] }),
+  })
+  const since = new Date(now - 86_400_000)
+  const text = source.digest(db, since).join('\n')
+  expect(text).toContain('An hour ago')
+  expect(text).not.toContain('Two days ago')
+})
+
 test('the same message in INBOX and Important counts once', () => {
   const db = openDb(':memory:')
   const insert = db.prepare(

@@ -42,6 +42,11 @@ export type Settings = {
   mailConfigured: boolean
   mailConnected: boolean
   calendarConnected: boolean
+  excludedSenders: string[]
+  excludedMailFolders: string[]
+  excludedVaultPrefixes: string[]
+  digestWindowHours: number
+  enabledSources: string[]
 }
 
 async function get<T>(url: string): Promise<T> {
@@ -64,7 +69,14 @@ export const api = {
     const res = await fetch('/api/briefings/generate', { method: 'POST' })
     return res.json()
   },
-  saveSettings: async (body: { vaultPath?: string; briefingHour?: number }): Promise<void> => {
+  saveSettings: async (body: {
+    vaultPath?: string
+    briefingHour?: number
+    excludedSenders?: string[]
+    excludedVaultPrefixes?: string[]
+    digestWindowHours?: number
+    enabledSources?: string[]
+  }): Promise<void> => {
     await fetch('/api/settings', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },

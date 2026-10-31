@@ -18,6 +18,11 @@ const responses: Record<string, unknown> = {
     mailConfigured: false,
     mailConnected: false,
     calendarConnected: false,
+    excludedSenders: [],
+    excludedMailFolders: [],
+    excludedVaultPrefixes: [],
+    digestWindowHours: 24,
+    enabledSources: [],
   },
 }
 

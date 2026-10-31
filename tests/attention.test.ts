@@ -73,6 +73,24 @@ test('mail and calendar surface as attention items', () => {
   )
 })
 
+test('bulk mail and excluded senders do not count as unread', async () => {
+  const db = openDb(':memory:')
+  const { setList, LIST_KEYS } = await import('../src/server/settings.js')
+  setList(db, LIST_KEYS.mailSenders, ['noreply'])
+
+  const insert = db.prepare(
+    `INSERT INTO mail_messages (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
+     VALUES ('INBOX', ?, NULL, ?, ?, ?, 0, 0, '', NULL, '[]', ?)`,
+  )
+  const fresh = new Date(NOW.getTime() - 3_600_000).toISOString()
+  insert.run(1, 'Alice <a@x.com>', 'Real', fresh, 0)
+  insert.run(2, 'Shop <shop@x.com>', 'Newsletter', fresh, 1)
+  insert.run(3, 'NoReply <noreply@x.com>', 'Receipt', fresh, 0)
+
+  const items = buildAttention(db, NOW, { staleDays: 14, inboxDays: 3 })
+  expect(items.find((item) => item.kind === 'mail')?.count).toBe(1)
+})
+
 test('untagged tasks appear once and the first item is the loudest group', () => {
   const db = openDb(':memory:')
   task(db, 'Inbox/Idea.md', 'single task', null)

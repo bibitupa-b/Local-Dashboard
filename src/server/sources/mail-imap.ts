@@ -31,6 +31,16 @@ function senderOf(envelope: Envelope | undefined): string {
   return from.name ? `${from.name} <${from.address}>` : from.address
 }
 
+type HeadersLike = { get(name: string): unknown }
+
+export function isBulkMessage(headers: HeadersLike): boolean {
+  if (headers.get('list-unsubscribe')) return true
+  const precedence = String(headers.get('precedence') ?? '').toLowerCase()
+  if (precedence === 'bulk' || precedence === 'list') return true
+  const auto = String(headers.get('auto-submitted') ?? '').toLowerCase()
+  return auto !== '' && auto !== 'no'
+}
+
 export function createImapMailApi(config: Config): MailApi | null {
   if (!config.gmailUser || !config.gmailPassword) return null
   const user = config.gmailUser
@@ -96,7 +106,10 @@ export function createImapMailApi(config: Config): MailApi | null {
           .filter((item) => (item.size ?? 0) <= MAX_SOURCE_BYTES)
           .slice(-BODY_LIMIT)
 
-        const parsed = new Map<number, { body: string; snippet: string; attachments: string[] }>()
+        const parsed = new Map<
+          number,
+          { body: string; snippet: string; attachments: string[]; bulk: boolean }
+        >()
         if (withBody.length > 0) {
           const bodyRange = withBody.map((item) => item.uid).join(',')
           for await (const item of connection_.fetch(bodyRange, { uid: true, source: true }, { uid: true })) {
@@ -111,6 +124,7 @@ export function createImapMailApi(config: Config): MailApi | null {
                 attachments: mail.attachments
                   .map((attachment) => attachment.filename)
                   .filter((name): name is string => Boolean(name)),
+                bulk: isBulkMessage(mail.headers),
               })
             } catch (error) {
               console.warn(`[mail] could not parse uid ${message.uid} in ${folder}:`, error)
@@ -132,6 +146,7 @@ export function createImapMailApi(config: Config): MailApi | null {
             snippet: extra?.snippet ?? '',
             body: extra?.body ?? null,
             attachments: extra?.attachments ?? [],
+            bulk: extra?.bulk ?? false,
           })
         }
 

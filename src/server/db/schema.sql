@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS mail_messages (
   snippet TEXT NOT NULL DEFAULT '',
   body TEXT,
   attachments TEXT NOT NULL DEFAULT '[]',
+  bulk INTEGER NOT NULL DEFAULT 0,
   UNIQUE (folder, uid)
 );
 

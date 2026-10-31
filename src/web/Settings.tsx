@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { api, type Settings } from './api.js'
 
+const SOURCES = ['vault', 'drive', 'mail', 'calendar'] as const
+
 export function SettingsPanel({
   settings,
   onSaved,
@@ -10,11 +12,33 @@ export function SettingsPanel({
 }) {
   const [vaultPath, setVaultPath] = useState(settings.vaultPath)
   const [briefingHour, setBriefingHour] = useState(settings.briefingHour)
+  const [senders, setSenders] = useState(settings.excludedSenders.join('\n'))
+  const [vaultPrefixes, setVaultPrefixes] = useState(settings.excludedVaultPrefixes.join('\n'))
+  const [windowHours, setWindowHours] = useState(settings.digestWindowHours)
+  const [enabled, setEnabled] = useState<string[]>(
+    settings.enabledSources.length > 0 ? settings.enabledSources : [...SOURCES],
+  )
 
   async function save(event: React.FormEvent) {
     event.preventDefault()
-    await api.saveSettings({ vaultPath, briefingHour })
-    onSaved({ ...settings, vaultPath, briefingHour })
+    const next = {
+      ...settings,
+      vaultPath,
+      briefingHour,
+      excludedSenders: lines(senders),
+      excludedVaultPrefixes: lines(vaultPrefixes),
+      digestWindowHours: windowHours,
+      enabledSources: enabled,
+    }
+    await api.saveSettings({
+      vaultPath,
+      briefingHour,
+      excludedSenders: next.excludedSenders,
+      excludedVaultPrefixes: next.excludedVaultPrefixes,
+      digestWindowHours: windowHours,
+      enabledSources: enabled,
+    })
+    onSaved(next)
   }
 
   return (
@@ -34,6 +58,46 @@ export function SettingsPanel({
           onChange={(event) => setBriefingHour(Number(event.target.value))}
         />
       </label>
+      <label>
+        Digest window, hours
+        <input
+          type="number"
+          min={1}
+          value={windowHours}
+          onChange={(event) => setWindowHours(Number(event.target.value))}
+        />
+      </label>
+      <label>
+        Never mention these mail senders (one per line)
+        <textarea rows={3} value={senders} onChange={(event) => setSenders(event.target.value)} />
+      </label>
+      <label>
+        Hide vault folders from the briefing (prefixes, one per line)
+        <textarea
+          rows={2}
+          value={vaultPrefixes}
+          onChange={(event) => setVaultPrefixes(event.target.value)}
+        />
+      </label>
+      <fieldset className="sources">
+        <legend>Sources in the briefing</legend>
+        {SOURCES.map((source) => (
+          <label key={source} className="check">
+            <input
+              type="checkbox"
+              checked={enabled.includes(source)}
+              onChange={(event) =>
+                setEnabled((current) =>
+                  event.target.checked
+                    ? [...current, source]
+                    : current.filter((item) => item !== source),
+                )
+              }
+            />
+            {source}
+          </label>
+        ))}
+      </fieldset>
       <p className="detail">
         DeepSeek key: {settings.hasDeepSeekKey ? 'configured' : 'missing in .env'} · Drive:{' '}
         {settings.driveConnected ? 'connected' : settings.googleConfigured ? 'not connected' : 'credentials missing'} · Mail:{' '}
@@ -50,4 +114,11 @@ export function SettingsPanel({
       </div>
     </form>
   )
+}
+
+function lines(value: string): string[] {
+  return value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
 }

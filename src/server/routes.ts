@@ -9,6 +9,12 @@ import { googleAuthUrl, saveGoogleCode } from './google.js'
 import { todayEvents } from './sources/calendar.js'
 import type { HealthMap } from './health.js'
 import { getSetting, setSetting } from './db/index.js'
+import {
+  LIST_KEYS,
+  digestWindowHours,
+  getList,
+  setList,
+} from './settings.js'
 
 export type RouteDeps = {
   db: DatabaseSync
@@ -146,10 +152,23 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     mailConfigured: Boolean(config.gmailUser && config.gmailPassword),
     mailConnected: Boolean(getSetting(db, 'last_sync_mail')),
     calendarConnected: Boolean(getSetting(db, 'last_sync_calendar')),
+    excludedSenders: getList(db, LIST_KEYS.mailSenders),
+    excludedMailFolders: getList(db, LIST_KEYS.mailFolders),
+    excludedVaultPrefixes: getList(db, LIST_KEYS.vaultPrefixes),
+    digestWindowHours: digestWindowHours(db),
+    enabledSources: getList(db, 'enabled_sources'),
   }))
 
   app.put('/api/settings', async (request) => {
-    const body = (request.body ?? {}) as { vaultPath?: string; briefingHour?: number }
+    const body = (request.body ?? {}) as {
+      vaultPath?: string
+      briefingHour?: number
+      excludedSenders?: string[]
+      excludedMailFolders?: string[]
+      excludedVaultPrefixes?: string[]
+      digestWindowHours?: number
+      enabledSources?: string[]
+    }
     if (typeof body.vaultPath === 'string' && body.vaultPath.trim()) {
       const next = body.vaultPath.trim()
       if (next !== config.vaultPath) {
@@ -162,6 +181,15 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     if (typeof body.briefingHour === 'number' && body.briefingHour >= 0 && body.briefingHour <= 23) {
       config.briefingHour = body.briefingHour
       setSetting(db, 'briefing_hour', String(body.briefingHour))
+    }
+    if (Array.isArray(body.excludedSenders)) setList(db, LIST_KEYS.mailSenders, body.excludedSenders)
+    if (Array.isArray(body.excludedMailFolders))
+      setList(db, LIST_KEYS.mailFolders, body.excludedMailFolders)
+    if (Array.isArray(body.excludedVaultPrefixes))
+      setList(db, LIST_KEYS.vaultPrefixes, body.excludedVaultPrefixes)
+    if (Array.isArray(body.enabledSources)) setList(db, 'enabled_sources', body.enabledSources)
+    if (typeof body.digestWindowHours === 'number' && body.digestWindowHours >= 1) {
+      setSetting(db, 'digest_window_hours', String(body.digestWindowHours))
     }
     return { ok: true }
   })

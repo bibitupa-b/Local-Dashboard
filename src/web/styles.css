@@ -79,4 +79,9 @@ li:last-child { border-bottom: 0; }
 
 .settings label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
 .settings input { display: block; width: 100%; margin-top: 4px; padding: 8px 10px; font: inherit; border: 1px solid var(--line); border-radius: 7px; background: #fbfaf7; }
+.settings textarea { display: block; width: 100%; margin-top: 4px; padding: 8px 10px; font: inherit; border: 1px solid var(--line); border-radius: 7px; background: #fbfaf7; resize: vertical; }
 .settings .row { display: flex; gap: 10px; align-items: center; }
+.sources { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
+.sources legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
+.check { display: inline-flex; gap: 6px; align-items: center; margin-right: 14px; }
+.check input { width: auto; margin: 0; }
