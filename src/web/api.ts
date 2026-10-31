@@ -33,6 +33,11 @@ export type CalendarEvent = {
   location: string | null
   status: string
 }
+export type Today = {
+  events: CalendarEvent[]
+  free: Array<{ from: string; to: string }>
+  conflicts: string[]
+}
 export type Settings = {
   vaultPath: string
   briefingHour: number
@@ -61,7 +66,7 @@ export const api = {
   attention: () => get<AttentionItem[]>('/api/attention'),
   briefings: () => get<{ items: Briefing[] }>('/api/briefings?limit=10'),
   settings: () => get<Settings>('/api/settings'),
-  today: () => get<{ events: CalendarEvent[] }>('/api/today'),
+  today: () => get<Today>('/api/today'),
   sync: async (): Promise<void> => {
     await fetch('/api/sync', { method: 'POST' })
   },

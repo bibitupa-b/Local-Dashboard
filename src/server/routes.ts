@@ -6,7 +6,7 @@ import { buildAttention } from './attention.js'
 import { createBriefing } from './briefing/index.js'
 import type { Source } from './sources/types.js'
 import { googleAuthUrl, saveGoogleCode } from './google.js'
-import { todayEvents } from './sources/calendar.js'
+import { todayEvents, dayPlan } from './sources/calendar.js'
 import type { HealthMap } from './health.js'
 import { getSetting, setSetting } from './db/index.js'
 import {
@@ -141,7 +141,11 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     }
   })
 
-  app.get('/api/today', async () => ({ events: todayEvents(db, new Date()) }))
+  app.get('/api/today', async () => {
+    const now = new Date()
+    const events = todayEvents(db, now)
+    return { events, ...dayPlan(events, now) }
+  })
 
   app.get('/api/settings', async () => ({
     vaultPath: config.vaultPath,

@@ -3,10 +3,10 @@ import {
   api,
   type AttentionItem,
   type Briefing,
-  type CalendarEvent,
   type FeedDay,
   type Settings,
   type Status,
+  type Today,
 } from './api.js'
 import { SettingsPanel } from './Settings.js'
 
@@ -30,7 +30,7 @@ export function App() {
   const [feed, setFeed] = useState<FeedDay[]>([])
   const [attention, setAttention] = useState<AttentionItem[]>([])
   const [briefings, setBriefings] = useState<Briefing[]>([])
-  const [today, setToday] = useState<CalendarEvent[]>([])
+  const [today, setToday] = useState<Today | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
@@ -52,7 +52,7 @@ export function App() {
       setAttention(nextAttention)
       setBriefings(nextBriefings.items)
       setSettings(nextSettings)
-      setToday(nextToday.events)
+      setToday(nextToday)
     } catch (error) {
       setNote(error instanceof Error ? error.message : 'Backend is not reachable')
     }
@@ -139,15 +139,23 @@ export function App() {
 
       {note && <p className="note">{note}</p>}
 
-      {today.length > 0 && (
+      {today && today.events.length > 0 && (
         <section className="today">
           <span className="today-label">Today</span>
-          {today.map((event) => (
+          {today.events.map((event) => (
             <span key={event.id} className="event">
               <b>
                 {new Date(event.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </b>{' '}
               {event.summary}
+            </span>
+          ))}
+          {today.conflicts.length > 0 && (
+            <span className="event conflict">Conflict: {today.conflicts.join(', ')}</span>
+          )}
+          {today.free.slice(0, 2).map((window) => (
+            <span key={window.from} className="event free">
+              Free {time(window.from)}–{time(window.to)}
             </span>
           ))}
         </section>

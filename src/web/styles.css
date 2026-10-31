@@ -45,6 +45,8 @@ button:disabled { opacity: 0.5; cursor: default; }
 .today-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-right: 4px; }
 .event { background: var(--card); border: 1px solid var(--line); border-radius: 99px; padding: 5px 11px; }
 .event b { font-weight: 600; color: var(--accent); }
+.event.conflict { color: #a33b2f; border-color: #e8c4c4; }
+.event.free { color: var(--accent); }
 .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .card-head h2 { margin: 0; }
 

@@ -136,3 +136,59 @@ export function todayEvents(db: DatabaseSync, now: Date): CalendarEvent[] {
     )
     .all(to, from) as CalendarEvent[]
 }
+
+export type DayPlan = {
+  free: Array<{ from: string; to: string }>
+  conflicts: string[]
+}
+
+const WORK_START = 9
+const WORK_END = 19
+const MIN_GAP_MS = 30 * 60_000
+
+export function dayPlan(events: CalendarEvent[], now: Date): DayPlan {
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), WORK_START)
+  const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), WORK_END)
+  const from = Math.max(dayStart.getTime(), now.getTime())
+
+  const busy = events
+    .filter((event) => event.status !== 'cancelled')
+    .filter((event) => Date.parse(event.end) - Date.parse(event.start) < 23 * 3_600_000)
+    .map((event) => ({
+      start: Math.max(Date.parse(event.start), from),
+      end: Math.min(Date.parse(event.end), dayEnd.getTime()),
+      summary: event.summary,
+    }))
+    .filter((slot) => slot.end > slot.start)
+    .sort((a, b) => a.start - b.start)
+
+  const merged: Array<{ start: number; end: number }> = []
+  const conflicts: string[] = []
+  for (const slot of busy) {
+    const last = merged.at(-1)
+    if (!last) {
+      merged.push({ start: slot.start, end: slot.end })
+      continue
+    }
+    if (slot.start < last.end) {
+      conflicts.push(slot.summary)
+      last.end = Math.max(last.end, slot.end)
+    } else {
+      merged.push({ start: slot.start, end: slot.end })
+    }
+  }
+
+  const free: Array<{ from: string; to: string }> = []
+  let cursor = from
+  for (const slot of merged) {
+    if (slot.start - cursor >= MIN_GAP_MS) {
+      free.push({ from: new Date(cursor).toISOString(), to: new Date(slot.start).toISOString() })
+    }
+    cursor = Math.max(cursor, slot.end)
+  }
+  if (dayEnd.getTime() - cursor >= MIN_GAP_MS) {
+    free.push({ from: new Date(cursor).toISOString(), to: dayEnd.toISOString() })
+  }
+
+  return { free, conflicts: [...new Set(conflicts)] }
+}
