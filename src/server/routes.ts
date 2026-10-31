@@ -173,7 +173,8 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       .prepare(
         `SELECT sender, subject, date FROM mail_messages
          WHERE subject LIKE ? ESCAPE '\\' OR sender LIKE ? ESCAPE '\\' OR snippet LIKE ? ESCAPE '\\'
-         ORDER BY date DESC LIMIT 10`,
+         GROUP BY COALESCE(message_id, folder || ':' || uid)
+         ORDER BY MAX(date) DESC LIMIT 10`,
       )
       .all(like, like, like)
 
