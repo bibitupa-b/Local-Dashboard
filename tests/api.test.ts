@@ -96,6 +96,45 @@ test('status carries health and the sync endpoint runs a sync', async () => {
   await app.close()
 })
 
+test('search covers notes, mail and drive names', async () => {
+  const { app, db } = harness()
+  db.prepare(
+    `INSERT INTO vault_files (path, hash, mtime, size, previous_text) VALUES ('01 Projects/Zen.md', 'h', '2026-10-31T10:00:00.000Z', 10, 'a note about zen gardens')`,
+  ).run()
+  db.prepare(
+    `INSERT INTO mail_messages (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
+     VALUES ('INBOX', 1, NULL, 'Zen <z@x.com>', 'Zen retreat', '2026-10-30T10:00:00.000Z', 0, 0, 'zen', NULL, '[]', 0)`,
+  ).run()
+  db.prepare(
+    `INSERT INTO drive_files (id, name, mime_type, modified_time, parents) VALUES ('f1', 'Zen budget.xlsx', 'sheet', '2026-10-29T10:00:00.000Z', '[]')`,
+  ).run()
+
+  const res = await app.inject({ method: 'GET', url: '/api/search?q=zen' })
+  expect(res.statusCode).toBe(200)
+  const body = res.json()
+  expect(body.notes[0].path).toBe('01 Projects/Zen.md')
+  expect(body.mail[0].subject).toBe('Zen retreat')
+  expect(body.drive[0].name).toBe('Zen budget.xlsx')
+
+  const short = await app.inject({ method: 'GET', url: '/api/search?q=z' })
+  expect(short.json()).toEqual({ notes: [], mail: [], drive: [] })
+  await app.close()
+})
+
+test('vault change diff is returned by id', async () => {
+  const { app, db } = harness()
+  const { lastInsertRowid } = db
+    .prepare(
+      `INSERT INTO vault_changes (path, detected_at, added, removed, diff) VALUES ('Inbox/x.md', '2026-10-31T10:00:00.000Z', 1, 1, '-old\\n+new')`,
+    )
+    .run()
+
+  const res = await app.inject({ method: 'GET', url: `/api/vault/changes/${Number(lastInsertRowid)}` })
+  expect(res.statusCode).toBe(200)
+  expect(res.json()).toMatchObject({ path: 'Inbox/x.md', diff: expect.stringContaining('+new') })
+  await app.close()
+})
+
 test('unknown api route returns json 404', async () => {
   const { app } = harness()
   const res = await app.inject({ method: 'GET', url: '/api/nope' })

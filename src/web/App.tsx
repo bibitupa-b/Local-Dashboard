@@ -7,6 +7,7 @@ import {
   type Settings,
   type Status,
   type Today,
+  type SearchResults,
 } from './api.js'
 import { SettingsPanel } from './Settings.js'
 
@@ -35,6 +36,9 @@ export function App() {
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<SearchResults | null>(null)
+  const [openDiff, setOpenDiff] = useState<{ id: number; path: string; diff: string } | null>(null)
 
   async function load() {
     try {
@@ -93,6 +97,23 @@ export function App() {
     } finally {
       setBusy(false)
     }
+  }
+
+  async function search(event: React.FormEvent) {
+    event.preventDefault()
+    if (query.trim().length < 2) {
+      setResults(null)
+      return
+    }
+    setResults(await api.search(query.trim()))
+  }
+
+  async function toggleDiff(id: number) {
+    if (openDiff?.id === id) {
+      setOpenDiff(null)
+      return
+    }
+    setOpenDiff({ id, ...(await api.vaultChange(id)) })
   }
 
   const latest = briefings[0]
@@ -161,6 +182,55 @@ export function App() {
         </section>
       )}
 
+      <form className="search" onSubmit={(event) => void search(event)}>
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search notes, mail and Drive…"
+        />
+        <button type="submit">Search</button>
+        {results && (
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => {
+              setQuery('')
+              setResults(null)
+            }}
+          >
+            Clear
+          </button>
+        )}
+      </form>
+
+      {results && (
+        <section className="card results">
+          <h2>Results for “{query}”</h2>
+          {results.notes.length === 0 && results.mail.length === 0 && results.drive.length === 0 && (
+            <p className="empty">Nothing found.</p>
+          )}
+          {results.notes.map((note) => (
+            <div key={note.path} className="result">
+              <span className="dot vault" />
+              <span className="label">{note.path}</span>
+            </div>
+          ))}
+          {results.mail.map((message, index) => (
+            <div key={`mail-${index}`} className="result">
+              <span className="dot mail" />
+              <span className="label">{message.subject}</span>
+              <span className="detail">{message.sender}</span>
+            </div>
+          ))}
+          {results.drive.map((file, index) => (
+            <div key={`drive-${index}`} className="result">
+              <span className="dot drive" />
+              <span className="label">{file.name}</span>
+            </div>
+          ))}
+        </section>
+      )}
+
       {showSettings && settings && (
         <SettingsPanel
           settings={settings}
@@ -215,8 +285,17 @@ export function App() {
                 {day.items.map((item, index) => (
                   <li key={`${day.date}-${index}`}>
                     <span className={`dot ${item.source}`} />
-                    <span className="label">{item.label}</span>
+                    {item.source === 'vault' && item.id ? (
+                      <button className="link" onClick={() => void toggleDiff(item.id!)}>
+                        {item.label}
+                      </button>
+                    ) : (
+                      <span className="label">{item.label}</span>
+                    )}
                     <span className="detail">{item.detail}</span>
+                    {openDiff && openDiff.id === item.id && (
+                      <pre className="diff">{openDiff.diff || 'No line changes'}</pre>
+                    )}
                   </li>
                 ))}
               </ul>

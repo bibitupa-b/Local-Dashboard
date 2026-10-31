@@ -29,6 +29,7 @@ export type RouteDeps = {
 
 type FeedItem = {
   source: 'vault' | 'drive'
+  id?: number
   label: string
   detail: string
   at: string
@@ -41,12 +42,19 @@ function feed(db: DatabaseSync, days: number): Array<{ date: string; items: Feed
   const vault = (
     db
       .prepare(
-        `SELECT path, added, removed, detected_at FROM vault_changes WHERE detected_at >= ?
+        `SELECT id, path, added, removed, detected_at FROM vault_changes WHERE detected_at >= ?
          ORDER BY detected_at DESC LIMIT 300`,
       )
-      .all(since) as Array<{ path: string; added: number; removed: number; detected_at: string }>
+      .all(since) as Array<{
+      id: number
+      path: string
+      added: number
+      removed: number
+      detected_at: string
+    }>
   ).map<FeedItem>((row) => ({
     source: 'vault',
+    id: row.id,
     label: row.path,
     detail: `+${row.added} / -${row.removed}`,
     at: row.detected_at,
@@ -145,6 +153,47 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     const now = new Date()
     const events = todayEvents(db, now)
     return { events, ...dayPlan(events, now) }
+  })
+
+  app.get('/api/search', async (request) => {
+    const { q } = request.query as { q?: string }
+    const term = (q ?? '').trim()
+    if (term.length < 2) return { notes: [], mail: [], drive: [] }
+    const like = `%${term.replace(/[\\%_]/g, '\\$&')}%`
+
+    const notes = db
+      .prepare(
+        `SELECT path, substr(previous_text, 1, 160) AS snippet FROM vault_files
+         WHERE path LIKE ? ESCAPE '\\' OR previous_text LIKE ? ESCAPE '\\'
+         ORDER BY mtime DESC LIMIT 10`,
+      )
+      .all(like, like)
+
+    const mail = db
+      .prepare(
+        `SELECT sender, subject, date FROM mail_messages
+         WHERE subject LIKE ? ESCAPE '\\' OR sender LIKE ? ESCAPE '\\' OR snippet LIKE ? ESCAPE '\\'
+         ORDER BY date DESC LIMIT 10`,
+      )
+      .all(like, like, like)
+
+    const drive = db
+      .prepare(
+        `SELECT name, modified_time AS modifiedTime FROM drive_files
+         WHERE name LIKE ? ESCAPE '\\' ORDER BY modified_time DESC LIMIT 10`,
+      )
+      .all(like)
+
+    return { notes, mail, drive }
+  })
+
+  app.get('/api/vault/changes/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const row = db.prepare('SELECT path, diff, detected_at FROM vault_changes WHERE id = ?').get(Number(id)) as
+      | { path: string; diff: string; detected_at: string }
+      | undefined
+    if (!row) return reply.code(404).send({ error: 'not found' })
+    return row
   })
 
   app.get('/api/settings', async () => ({

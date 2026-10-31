@@ -9,6 +9,7 @@ export type SourceStatus = {
 export type Status = { sources: SourceStatus[]; briefingToday: boolean }
 export type FeedItem = {
   source: 'vault' | 'drive'
+  id?: number
   label: string
   detail: string
   at: string
@@ -37,6 +38,11 @@ export type Today = {
   events: CalendarEvent[]
   free: Array<{ from: string; to: string }>
   conflicts: string[]
+}
+export type SearchResults = {
+  notes: Array<{ path: string; snippet: string }>
+  mail: Array<{ sender: string; subject: string; date: string }>
+  drive: Array<{ name: string; modifiedTime: string }>
 }
 export type Settings = {
   vaultPath: string
@@ -67,6 +73,9 @@ export const api = {
   briefings: () => get<{ items: Briefing[] }>('/api/briefings?limit=10'),
   settings: () => get<Settings>('/api/settings'),
   today: () => get<Today>('/api/today'),
+  search: (query: string) => get<SearchResults>(`/api/search?q=${encodeURIComponent(query)}`),
+  vaultChange: (id: number) =>
+    get<{ path: string; diff: string; detected_at: string }>(`/api/vault/changes/${id}`),
   sync: async (): Promise<void> => {
     await fetch('/api/sync', { method: 'POST' })
   },
