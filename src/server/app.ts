@@ -15,6 +15,7 @@ export type Deps = {
   generate?: typeof createBriefing
   webRoot?: string
   onDriveConnected?: () => void
+  isReady?: () => boolean
 }
 
 export function buildApp(deps: Deps): FastifyInstance {
@@ -27,6 +28,7 @@ export function buildApp(deps: Deps): FastifyInstance {
     sources,
     generate: deps.generate,
     onDriveConnected: deps.onDriveConnected,
+    isReady: deps.isReady,
   })
 
   const webRoot = deps.webRoot ?? join(process.cwd(), 'dist', 'web')

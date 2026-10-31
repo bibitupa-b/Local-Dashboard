@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { google } from 'googleapis'
 import { setSetting } from '../db/index.js'
-import { authorizedClient } from '../google.js'
+import { authorizedClient, hasScope, CALENDAR_SCOPE } from '../google.js'
 import type { Source } from './types.js'
 import type { Config } from '../config.js'
 
@@ -41,17 +41,24 @@ export function createCalendarSource(api: CalendarApi | null): Source {
          ON CONFLICT(id) DO UPDATE SET summary = excluded.summary, start = excluded.start,
            end = excluded.end, location = excluded.location, status = excluded.status`,
       )
-      db.prepare('DELETE FROM calendar_events').run()
-      for (const event of events) {
-        insert.run(
-          event.id,
-          event.calendarId,
-          event.summary,
-          event.start,
-          event.end,
-          event.location,
-          event.status,
-        )
+      db.exec('BEGIN')
+      try {
+        db.prepare('DELETE FROM calendar_events').run()
+        for (const event of events) {
+          insert.run(
+            event.id,
+            event.calendarId,
+            event.summary,
+            event.start,
+            event.end,
+            event.location,
+            event.status,
+          )
+        }
+        db.exec('COMMIT')
+      } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
       }
       setSetting(db, 'last_sync_calendar', now.toISOString())
     },
@@ -69,7 +76,10 @@ export function createCalendarSource(api: CalendarApi | null): Source {
         .all(to, from) as Array<{ summary: string; start: string; end: string }>
       if (rows.length === 0) return ['No events today']
       return rows.map((row) => {
-        const time = new Date(row.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        const allDay = Date.parse(row.end) - Date.parse(row.start) >= 23 * 3_600_000
+        const time = allDay
+          ? 'All day'
+          : new Date(row.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         return `${time} ${row.summary}`
       })
     },
@@ -77,6 +87,7 @@ export function createCalendarSource(api: CalendarApi | null): Source {
 }
 
 export async function createGoogleCalendarApi(config: Config): Promise<CalendarApi | null> {
+  if (!(await hasScope(config, CALENDAR_SCOPE))) return null
   const client = await authorizedClient(config)
   if (!client) return null
   const calendar = google.calendar({ version: 'v3', auth: client })
@@ -100,8 +111,8 @@ export async function createGoogleCalendarApi(config: Config): Promise<CalendarA
             id: event.id,
             calendarId: 'primary',
             summary: event.summary ?? '(no title)',
-            start,
-            end,
+            start: localIso(start),
+            end: localIso(end),
             location: event.location ?? null,
             status: event.status ?? 'confirmed',
           },
@@ -109,6 +120,11 @@ export async function createGoogleCalendarApi(config: Config): Promise<CalendarA
       })
     },
   }
+}
+
+// All-day events arrive as YYYY-MM-DD; treat them as local midnight, not UTC.
+function localIso(value: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`).toISOString() : value
 }
 
 export function todayEvents(db: DatabaseSync, now: Date): CalendarEvent[] {

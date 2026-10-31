@@ -15,6 +15,7 @@ export type RouteDeps = {
   sources: Source[]
   generate?: typeof createBriefing
   onDriveConnected?: () => void
+  isReady?: () => boolean
 }
 
 type FeedItem = {
@@ -108,6 +109,9 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
 
   let generating = false
   app.post('/api/briefings/generate', async (_request, reply) => {
+    if (deps.isReady && !deps.isReady()) {
+      return reply.code(503).send({ error: 'sources are still syncing, try again in a minute' })
+    }
     if (generating) return reply.code(429).send({ error: 'briefing is already being generated' })
     generating = true
     try {

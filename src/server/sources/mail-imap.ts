@@ -4,10 +4,11 @@ import type { Config } from '../config.js'
 import type { MailApi, MailFlags, MailMessage } from './mail.js'
 
 const BODY_DAYS = 90
-const INITIAL_LIMIT = 500
+const INITIAL_LIMIT = 2000
 const BODY_LIMIT = 200
 const FLAG_WINDOW = 200
 const BODY_MAX_CHARS = 100_000
+const MAX_SOURCE_BYTES = 512 * 1024
 
 type Envelope = {
   subject?: string
@@ -20,6 +21,7 @@ type RawMessage = {
   envelope?: Envelope
   flags?: Set<string>
   internalDate?: Date
+  size?: number
   source?: Buffer
 }
 
@@ -44,6 +46,8 @@ export function createImapMailApi(config: Config): MailApi | null {
       auth: { user, pass },
       logger: false,
     })
+    // Without this listener a post-connect socket error becomes an uncaught exception.
+    client.on('error', (error) => console.error('[mail] IMAP error:', error))
     await client.connect()
     return client
   }
@@ -52,7 +56,10 @@ export function createImapMailApi(config: Config): MailApi | null {
     async folders() {
       const connection_ = await connection()
       const list = await connection_.list()
-      return list.map((folder) => ({ path: folder.path }))
+      return list
+        .filter((folder) => folder.specialUse !== '\\All' && !folder.flags?.has('\\Noselect'))
+        .filter((folder) => !/all mail/i.test(folder.path))
+        .map((folder) => ({ path: folder.path }))
     },
 
     async syncFolder(folder, fromUid) {
@@ -60,9 +67,10 @@ export function createImapMailApi(config: Config): MailApi | null {
       const lock = await connection_.getMailboxLock(folder)
       try {
         const mailbox = connection_.mailbox
-        if (!mailbox) return { messages: [], uidValidity: '0', flags: [] }
+        if (!mailbox) throw new Error(`IMAP mailbox ${folder} was not opened`)
         const exists = Number(mailbox.exists ?? 0)
         const uidValidity = String(mailbox.uidValidity ?? '0')
+        const uidNext = Number(mailbox.uidNext ?? 1)
         const messages: MailMessage[] = []
         const flags: MailFlags[] = []
         if (exists === 0) return { messages, uidValidity, flags }
@@ -75,7 +83,7 @@ export function createImapMailApi(config: Config): MailApi | null {
         const raw: RawMessage[] = []
         for await (const item of connection_.fetch(
           range,
-          { uid: true, envelope: true, flags: true, internalDate: true },
+          { uid: true, envelope: true, flags: true, internalDate: true, size: true },
           uidMode ? { uid: true } : undefined,
         )) {
           raw.push(item as unknown as RawMessage)
@@ -85,6 +93,7 @@ export function createImapMailApi(config: Config): MailApi | null {
         const cutoff = Date.now() - BODY_DAYS * 86_400_000
         const withBody = fetched
           .filter((item) => (item.internalDate?.getTime() ?? 0) >= cutoff)
+          .filter((item) => (item.size ?? 0) <= MAX_SOURCE_BYTES)
           .slice(-BODY_LIMIT)
 
         const parsed = new Map<number, { body: string; snippet: string; attachments: string[] }>()
@@ -103,8 +112,8 @@ export function createImapMailApi(config: Config): MailApi | null {
                   .map((attachment) => attachment.filename)
                   .filter((name): name is string => Boolean(name)),
               })
-            } catch {
-              // unparseable message still appears with headers only
+            } catch (error) {
+              console.warn(`[mail] could not parse uid ${message.uid} in ${folder}:`, error)
             }
           }
         }
@@ -126,7 +135,7 @@ export function createImapMailApi(config: Config): MailApi | null {
           })
         }
 
-        const highestUid = messages.at(-1)?.uid ?? 0
+        const highestUid = Math.max(messages.at(-1)?.uid ?? 0, uidNext - 1)
         if (highestUid > 0) {
           const flagRange = `${Math.max(1, highestUid - FLAG_WINDOW + 1)}:*`
           for await (const item of connection_.fetch(flagRange, { uid: true, flags: true }, { uid: true })) {

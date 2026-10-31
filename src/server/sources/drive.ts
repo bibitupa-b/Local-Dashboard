@@ -1,6 +1,6 @@
 import { google } from 'googleapis'
 import { getSetting, setSetting } from '../db/index.js'
-import { authorizedClient } from '../google.js'
+import { authorizedClient, hasScope, DRIVE_SCOPE } from '../google.js'
 import type { Source } from './types.js'
 import type { Config } from '../config.js'
 
@@ -61,6 +61,7 @@ export function createDriveSource(api: DriveApi | null): Source {
 }
 
 export async function createGoogleDriveApi(config: Config): Promise<DriveApi | null> {
+  if (!(await hasScope(config, DRIVE_SCOPE))) return null
   const client = await authorizedClient(config)
   if (!client) return null
   const drive = google.drive({ version: 'v3', auth: client })

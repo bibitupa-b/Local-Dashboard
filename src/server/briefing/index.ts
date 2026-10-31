@@ -46,7 +46,7 @@ export async function createBriefing(
     attention: buildAttention(db, now, { staleDays: 14, inboxDays: 3 }),
     driveChanges,
     extra: sources
-      .filter((source) => source.id === 'mail' || source.id === 'calendar')
+      .filter((source) => (source.id === 'mail' || source.id === 'calendar') && source.configured())
       .map((source) => ({
         title: source.id === 'mail' ? 'Mail' : 'Calendar',
         lines: source.digest(db, since),

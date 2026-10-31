@@ -63,15 +63,17 @@ export function buildAttention(
   const mailWindow = new Date(now.getTime() - 30 * 86_400_000).toISOString()
   const mailStats = db
     .prepare(
-      `SELECT COALESCE(SUM(seen = 0), 0) AS unread, COALESCE(SUM(starred = 1), 0) AS starred
+      `SELECT COUNT(DISTINCT COALESCE(message_id, folder || ':' || uid)) AS unread,
+              COUNT(DISTINCT CASE WHEN starred = 1 THEN COALESCE(message_id, folder || ':' || uid) END) AS starred
        FROM mail_messages
-       WHERE folder IN ('INBOX', '[Gmail]/Important') AND date >= ?`,
+       WHERE folder IN ('INBOX', '[Gmail]/Important') AND date >= ? AND seen = 0`,
     )
     .get(mailWindow) as { unread: number; starred: number }
   if (mailStats.unread > 0) {
     const senders = db
       .prepare(
-        `SELECT sender, COUNT(*) AS n FROM mail_messages
+        `SELECT sender, COUNT(DISTINCT COALESCE(message_id, folder || ':' || uid)) AS n
+         FROM mail_messages
          WHERE folder IN ('INBOX', '[Gmail]/Important') AND seen = 0 AND date >= ?
          GROUP BY sender ORDER BY n DESC LIMIT 3`,
       )

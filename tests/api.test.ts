@@ -61,6 +61,15 @@ test('generating without a key returns 400', async () => {
   await app.close()
 })
 
+test('generating while sources are still syncing returns 503', async () => {
+  const db = openDb(':memory:')
+  const config = loadConfig({ VAULT_PATH: root })
+  const busy = buildApp({ db, config, sources: [], webRoot: join(root, 'no-ui'), isReady: () => false })
+  const blocked = await busy.inject({ method: 'POST', url: '/api/briefings/generate' })
+  expect(blocked.statusCode).toBe(503)
+  await busy.close()
+})
+
 test('unknown api route returns json 404', async () => {
   const { app } = harness()
   const res = await app.inject({ method: 'GET', url: '/api/nope' })

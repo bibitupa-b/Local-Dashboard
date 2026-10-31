@@ -3,10 +3,9 @@ import { join } from 'node:path'
 import { google } from 'googleapis'
 import type { Config } from './config.js'
 
-export const GOOGLE_SCOPES = [
-  'https://www.googleapis.com/auth/drive.readonly',
-  'https://www.googleapis.com/auth/calendar.readonly',
-]
+export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
+export const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly'
+export const GOOGLE_SCOPES = [DRIVE_SCOPE, CALENDAR_SCOPE]
 
 function tokenPath(config: Config): string {
   return join(config.dataDir, 'google-token.json')
@@ -53,4 +52,13 @@ export async function authorizedClient(config: Config) {
     void writeFile(tokenPath(config), JSON.stringify({ ...tokens, ...fresh }, null, 2), 'utf8')
   })
   return client
+}
+
+export async function hasScope(config: Config, scope: string): Promise<boolean> {
+  try {
+    const tokens = JSON.parse(await readFile(tokenPath(config), 'utf8')) as { scope?: string }
+    return typeof tokens.scope === 'string' && tokens.scope.split(' ').includes(scope)
+  } catch {
+    return false
+  }
 }

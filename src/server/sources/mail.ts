@@ -38,8 +38,14 @@ export function createMailSource(api: MailApi | null): Source {
       const findFolder = db.prepare('SELECT uid_validity, last_uid FROM mail_folders WHERE path = ?')
       const upsertFolder = db.prepare(
         `INSERT INTO mail_folders (path, uid_validity, last_uid, last_sync) VALUES (?, ?, ?, ?)
-         ON CONFLICT(path) DO UPDATE SET uid_validity = excluded.uid_validity,
-           last_uid = MAX(mail_folders.last_uid, excluded.last_uid), last_sync = excluded.last_sync`,
+         ON CONFLICT(path) DO UPDATE SET
+           last_uid = CASE
+             WHEN mail_folders.uid_validity = excluded.uid_validity
+             THEN MAX(mail_folders.last_uid, excluded.last_uid)
+             ELSE excluded.last_uid
+           END,
+           uid_validity = excluded.uid_validity,
+           last_sync = excluded.last_sync`,
       )
       const insertMessage = db.prepare(
         `INSERT INTO mail_messages
@@ -54,41 +60,51 @@ export function createMailSource(api: MailApi | null): Source {
 
       for (const folder of folders) {
         if (IGNORED_FOLDER.test(folder.path)) continue
-        const row = findFolder.get(folder.path) as
-          | { uid_validity: string; last_uid: number }
-          | undefined
-        let fromUid = row?.last_uid ?? 0
-        let result = await api.syncFolder(folder.path, fromUid)
+        try {
+          const row = findFolder.get(folder.path) as
+            | { uid_validity: string; last_uid: number }
+            | undefined
+          const fromUid = row?.last_uid ?? 0
+          let result = await api.syncFolder(folder.path, fromUid)
 
-        if (row && result.uidValidity !== row.uid_validity) {
-          // The server renumbered the folder; cached UIDs are meaningless.
-          db.prepare('DELETE FROM mail_messages WHERE folder = ?').run(folder.path)
-          fromUid = 0
-          result = await api.syncFolder(folder.path, 0)
-        }
-        const { messages, uidValidity, flags } = result
+          if (row && result.uidValidity !== row.uid_validity) {
+            // The server renumbered the folder; cached UIDs are meaningless.
+            db.prepare('DELETE FROM mail_messages WHERE folder = ?').run(folder.path)
+            result = await api.syncFolder(folder.path, 0)
+          }
+          const { messages, uidValidity, flags } = result
 
-        for (const message of messages) {
-          insertMessage.run(
-            message.folder,
-            message.uid,
-            message.messageId,
-            message.sender,
-            message.subject,
-            message.date,
-            message.seen ? 1 : 0,
-            message.starred ? 1 : 0,
-            message.snippet,
-            message.body,
-            JSON.stringify(message.attachments),
-          )
+          for (const message of messages) {
+            insertMessage.run(
+              message.folder,
+              message.uid,
+              message.messageId,
+              message.sender,
+              message.subject,
+              message.date,
+              message.seen ? 1 : 0,
+              message.starred ? 1 : 0,
+              message.snippet,
+              message.body,
+              JSON.stringify(message.attachments),
+            )
+          }
+          for (const flag of flags) {
+            updateFlags.run(flag.seen ? 1 : 0, flag.starred ? 1 : 0, folder.path, flag.uid)
+          }
+          const highest = (maxUid.get(folder.path) as { uid: number }).uid
+          upsertFolder.run(folder.path, uidValidity, highest, now.toISOString())
+        } catch (error) {
+          // One broken folder must not stop the rest of the mailbox.
+          console.error(`[mail] folder ${folder.path} failed:`, error)
         }
-        for (const flag of flags) {
-          updateFlags.run(flag.seen ? 1 : 0, flag.starred ? 1 : 0, folder.path, flag.uid)
-        }
-        const highest = (maxUid.get(folder.path) as { uid: number }).uid
-        upsertFolder.run(folder.path, uidValidity, highest, now.toISOString())
       }
+
+      const cutoff = new Date(now.getTime() - 90 * 86_400_000).toISOString()
+      db.prepare('UPDATE mail_messages SET body = NULL, snippet = ? WHERE date < ? AND body IS NOT NULL').run(
+        '',
+        cutoff,
+      )
       setSetting(db, 'last_sync_mail', now.toISOString())
     },
     lastSync: (db) =>
@@ -101,12 +117,13 @@ export function createMailSource(api: MailApi | null): Source {
         .prepare(
           `SELECT sender, subject, snippet FROM mail_messages
            WHERE seen = 0 AND folder IN ('INBOX', '[Gmail]/Important') AND date >= ?
-           ORDER BY date DESC LIMIT 12`,
+           GROUP BY COALESCE(message_id, folder || ':' || uid)
+           ORDER BY MAX(date) DESC LIMIT 12`,
         )
         .all(since) as Array<{ sender: string; subject: string; snippet: string }>
       const total = db
         .prepare(
-          `SELECT COUNT(*) AS n FROM mail_messages
+          `SELECT COUNT(DISTINCT COALESCE(message_id, folder || ':' || uid)) AS n FROM mail_messages
            WHERE seen = 0 AND folder IN ('INBOX', '[Gmail]/Important') AND date >= ?`,
         )
         .get(since) as { n: number }

@@ -59,6 +59,12 @@ export function App() {
   }
 
   useEffect(() => {
+    const drive = new URLSearchParams(window.location.search).get('drive')
+    if (drive === 'connected') setNote('Google connected. Sources are syncing now.')
+    else if (drive === 'error') setNote('Google authorization failed. Try connecting again from Settings.')
+  }, [])
+
+  useEffect(() => {
     void load()
     const timer = setInterval(() => void load(), 60_000)
     return () => clearInterval(timer)

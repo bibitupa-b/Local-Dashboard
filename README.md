@@ -12,7 +12,7 @@ Everything stays local. The only outbound request is the digest sent to the Deep
 - **Attention queue** — open tasks from notes (grouped by tag), projects marked `status: Undone` that have gone stale, notes left in the Inbox, unread mail and the next calendar event.
 - **Today** — a slim strip with the day's calendar events.
 - **Daily briefing** — DeepSeek receives a compact digest (not your vault) and returns 5–7 bullets: what moved, what is stuck, one suggestion for today. Runs on a schedule and on demand.
-- **Mail** — read-only Gmail over IMAP: subjects, senders and text of messages from the last 90 days; older mail keeps headers only. Attachments are indexed by name, never downloaded.
+- **Mail** — read-only Gmail over IMAP: subjects, senders and text of messages from the last 90 days (up to 512 KB each); older mail keeps headers only. Attachments are indexed by name, never downloaded.
 
 Explicit non-goals: writing to your services, cloud storage of your data, mobile clients, multiple users, email and calendar (later phases).
 

@@ -32,11 +32,33 @@ const sources: Source[] = [
 ]
 
 const webRoot = join(process.cwd(), 'dist', 'web')
+let ready = false
+let syncing: Promise<void> | null = null
+
+async function syncAll(): Promise<void> {
+  if (syncing) return syncing
+  syncing = (async () => {
+    for (const source of sources) {
+      try {
+        await source.sync(db)
+      } catch (error) {
+        console.error(`[${source.id}] sync failed:`, error)
+      }
+    }
+  })()
+  try {
+    await syncing
+  } finally {
+    syncing = null
+  }
+}
+
 const app = buildApp({
   db,
   config,
   sources,
   webRoot,
+  isReady: () => ready,
   onDriveConnected: () => {
     void (async () => {
       const drive = await createGoogleDriveApi(config)
@@ -45,9 +67,7 @@ const app = buildApp({
       const calendarIndex = sources.findIndex((source) => source.id === 'calendar')
       if (drive && driveIndex >= 0) sources[driveIndex] = createDriveSource(drive)
       if (calendar && calendarIndex >= 0) sources[calendarIndex] = createCalendarSource(calendar)
-      await Promise.all(
-        sources.map((source) => source.sync(db).catch((error) => console.error(`[${source.id}]`, error))),
-      )
+      await syncAll()
     })().catch((error) => console.error('[google] reconnect failed:', error))
   },
 })
@@ -61,6 +81,7 @@ async function brief(trigger: 'auto' | 'manual'): Promise<void> {
 }
 
 function maybeBrief(): void {
+  if (!ready) return
   const last = db.prepare('SELECT created_at FROM briefings ORDER BY id DESC LIMIT 1').get() as
     | { created_at: string }
     | undefined
@@ -71,8 +92,7 @@ function maybeBrief(): void {
 
 schedule(`0 ${config.briefingHour} * * *`, maybeBrief)
 schedule('*/15 * * * *', () => {
-  for (const source of sources) void source.sync(db).catch((error) => console.error(`[${source.id}]`, error))
-  maybeBrief()
+  void syncAll().then(maybeBrief)
 })
 
 await app.listen({ host: '127.0.0.1', port: config.port })
@@ -80,13 +100,8 @@ console.log(`Local Dashboard on http://localhost:${config.port}`)
 
 // The UI is served immediately; a slow mailbox must not block startup.
 void (async () => {
-  for (const source of sources) {
-    try {
-      await source.sync(db)
-    } catch (error) {
-      console.error(`[${source.id}] sync failed:`, error)
-    }
-  }
+  await syncAll()
+  ready = true
   maybeBrief()
 })().catch((error) => console.error('[startup] sync failed:', error))
 

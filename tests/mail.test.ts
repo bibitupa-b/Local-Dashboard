@@ -93,9 +93,23 @@ test('a changed UIDVALIDITY wipes the folder and refetches from zero', async () 
 
   expect(state.calls.at(-1)).toEqual({ folder: 'INBOX', fromUid: 0 })
   expect(db.prepare('SELECT uid FROM mail_messages ORDER BY uid').all()).toEqual([{ uid: 10 }])
+  // UIDs restart from 1 after renumbering, so the cursor must follow them down.
+  expect(db.prepare("SELECT last_uid, uid_validity FROM mail_folders WHERE path = 'INBOX'").get()).toEqual({
+    last_uid: 10,
+    uid_validity: '2',
+  })
 })
 
-test('a failed folder sync never advances the cursor', async () => {
+test('bodies older than 90 days are dropped', async () => {
+  const db = openDb(':memory:')
+  const { api, state } = fakeApi()
+  state.messages.push(message(1, { date: new Date(Date.now() - 120 * 86_400_000).toISOString() }))
+  const source = createMailSource(api)
+  await source.sync(db)
+  expect(db.prepare('SELECT body FROM mail_messages WHERE uid = 1').get()).toEqual({ body: null })
+})
+
+test('a failed folder never advances its cursor but does not stop the others', async () => {
   const db = openDb(':memory:')
   const failing: MailApi = {
     folders: async () => [{ path: 'INBOX' }],
@@ -103,7 +117,7 @@ test('a failed folder sync never advances the cursor', async () => {
       throw new Error('imap down')
     },
   }
-  await expect(createMailSource(failing).sync(db)).rejects.toThrow('imap down')
+  await expect(createMailSource(failing).sync(db)).resolves.toBeUndefined()
   expect(db.prepare('SELECT COUNT(*) AS n FROM mail_folders').get()).toEqual({ n: 0 })
 })
 
@@ -123,4 +137,18 @@ test('digest lists unread subjects and counts', async () => {
   expect(text).toContain('Quarterly plan')
   expect(text).not.toContain('Already read')
   expect(text).not.toContain('Win money')
+})
+
+test('the same message in INBOX and Important counts once', () => {
+  const db = openDb(':memory:')
+  const insert = db.prepare(
+    `INSERT INTO mail_messages (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments)
+     VALUES (?, ?, '<dup@x>', 'Alice <a@x.com>', 'Duplicate', ?, 0, 0, '', NULL, '[]')`,
+  )
+  const fresh = new Date().toISOString()
+  insert.run('INBOX', 1, fresh)
+  insert.run('[Gmail]/Important', 7, fresh)
+
+  const lines = createMailSource({ folders: async () => [], syncFolder: async () => ({ messages: [], uidValidity: '1', flags: [] }) }).digest(db, new Date())
+  expect(lines.join('\n')).toContain('Unread mail: 1')
 })
