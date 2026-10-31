@@ -1,0 +1,44 @@
+import { readdir, readFile, stat } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { join, relative, sep } from 'node:path'
+
+export type VaultEntry = {
+  path: string
+  hash: string
+  mtime: string
+  size: number
+  text: string
+}
+
+const IGNORED_DIRS = new Set(['.obsidian', '.smart-env', '.stfolder', 'Attachments', '.git'])
+
+function ignored(name: string): boolean {
+  return IGNORED_DIRS.has(name) || name.startsWith('.')
+}
+
+export async function scanVault(root: string): Promise<VaultEntry[]> {
+  const entries: VaultEntry[] = []
+
+  async function walk(dir: string): Promise<void> {
+    const items = await readdir(dir, { withFileTypes: true })
+    for (const item of items) {
+      if (item.isDirectory()) {
+        if (!ignored(item.name)) await walk(join(dir, item.name))
+        continue
+      }
+      if (!item.isFile() || !item.name.endsWith('.md')) continue
+      const full = join(dir, item.name)
+      const [text, info] = await Promise.all([readFile(full, 'utf8'), stat(full)])
+      entries.push({
+        path: relative(root, full).split(sep).join('/'),
+        hash: createHash('sha256').update(text).digest('hex'),
+        mtime: info.mtime.toISOString(),
+        size: info.size,
+        text,
+      })
+    }
+  }
+
+  await walk(root)
+  return entries
+}
