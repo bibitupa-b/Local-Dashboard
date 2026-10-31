@@ -10,7 +10,9 @@ Everything stays local. The only outbound request is the digest sent to the Deep
 
 - **Activity history** — detects edits to a local Obsidian vault and changes in Google Drive, keeps a diff-backed log.
 - **Attention queue** — open tasks from notes (grouped by tag), projects marked `status: Undone` that have gone stale, notes left in the Inbox, unread mail and the next calendar event.
-- **Today** — a slim strip with the day's calendar events.
+- **Today** — a slim strip with the day's calendar events, free windows and conflicts.
+- **Search** — one query across note text, mail and Drive file names.
+- **Notifications** — Windows toasts 15 minutes before an event and when an automatic briefing is ready.
 - **Daily briefing** — DeepSeek receives a compact digest (not your vault) and returns 5–7 bullets: what moved, what is stuck, one suggestion for today. Runs on a schedule and on demand.
 - **Mail** — read-only Gmail over IMAP: subjects, senders and text of messages from the last 90 days (up to 512 KB each); older mail keeps headers only. Attachments are indexed by name, never downloaded.
 
@@ -63,7 +65,7 @@ Open http://localhost:4317.
 
 `scripts/start-hidden.vbs` starts the server without a console window. Create a shortcut to it and put the shortcut in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup` (`Win+R` → `shell:startup`). Then bookmark http://localhost:4317.
 
-The server writes its SQLite database and the Google token to `data/`, which is gitignored.
+The server writes its SQLite database and the Google token to `data/`, which is gitignored. A copy of the database is taken daily into `data/backups/`, keeping the last seven days. Logs go to `data/server.log` (rotated at 5 MB).
 
 ## How the briefing works
 
