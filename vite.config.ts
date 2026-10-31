@@ -5,5 +5,8 @@ export default defineConfig({
   root: 'src/web',
   plugins: [react()],
   build: { outDir: '../../dist/web', emptyOutDir: true },
-  server: { port: 5173, proxy: { '/api': 'http://127.0.0.1:4317' } },
+  server: {
+    port: 5173,
+    proxy: { '/api': `http://127.0.0.1:${process.env.PORT || 4317}` },
+  },
 })

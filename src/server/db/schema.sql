@@ -39,11 +39,12 @@ CREATE TABLE IF NOT EXISTS tasks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   path TEXT NOT NULL,
   text TEXT NOT NULL,
+  occurrence INTEGER NOT NULL DEFAULT 0,
   tag TEXT,
   done INTEGER NOT NULL DEFAULT 0,
   first_seen TEXT NOT NULL,
   last_seen TEXT NOT NULL,
-  UNIQUE (path, text)
+  UNIQUE (path, text, occurrence)
 );
 
 CREATE INDEX IF NOT EXISTS tasks_open ON tasks (done, tag);

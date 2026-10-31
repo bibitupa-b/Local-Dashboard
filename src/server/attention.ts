@@ -24,31 +24,30 @@ export function buildAttention(
     .prepare(`SELECT path, text, tag FROM tasks WHERE done = 0 AND path NOT LIKE ?`)
     .all(TEMPLATES) as Array<{ path: string; text: string; tag: string | null }>
 
-  const groups = new Map<string, { count: number; path: string }>()
+  const groups = new Map<string, { count: number; paths: Set<string> }>()
   for (const task of tasks) {
     if (task.tag) {
-      const group = groups.get(task.tag) ?? { count: 0, path: task.path }
+      const group = groups.get(task.tag) ?? { count: 0, paths: new Set<string>() }
       group.count++
+      group.paths.add(task.path)
       groups.set(task.tag, group)
     } else {
       items.push({ kind: 'task', label: task.text, detail: task.path, count: 1, path: task.path })
     }
   }
   for (const [tag, group] of groups) {
+    const path = [...group.paths][0]
     items.push({
       kind: 'task',
       label: `#${tag}`,
-      detail: `${group.count} open in ${group.path}`,
+      detail: `${group.count} open in ${group.paths.size} note${group.paths.size === 1 ? '' : 's'}`,
       count: group.count,
-      path: group.path,
+      path,
     })
   }
 
   const projectNotes = db
-    .prepare(
-      `SELECT path, previous_text AS text FROM vault_files
-       WHERE path LIKE '01 Projects/%' AND mtime <= ?`,
-    )
+    .prepare(`SELECT path, previous_text AS text FROM vault_files WHERE mtime <= ?`)
     .all(staleBefore) as Array<{ path: string; text: string }>
   for (const note of projectNotes) {
     const status = parseNote(note.text).frontmatter.status

@@ -14,13 +14,20 @@ export type Deps = {
   sources?: Source[]
   generate?: typeof createBriefing
   webRoot?: string
+  onDriveConnected?: () => void
 }
 
 export function buildApp(deps: Deps): FastifyInstance {
   const app = Fastify({ logger: false })
   const sources = deps.sources ?? []
 
-  registerRoutes(app, { db: deps.db, config: deps.config, sources, generate: deps.generate })
+  registerRoutes(app, {
+    db: deps.db,
+    config: deps.config,
+    sources,
+    generate: deps.generate,
+    onDriveConnected: deps.onDriveConnected,
+  })
 
   const webRoot = deps.webRoot ?? join(process.cwd(), 'dist', 'web')
   const hasUi = existsSync(join(webRoot, 'index.html'))

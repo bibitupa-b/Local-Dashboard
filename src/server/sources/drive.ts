@@ -63,7 +63,10 @@ export function createDriveSource(api: DriveApi | null): Source {
 }
 
 const SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
-const REDIRECT = 'http://127.0.0.1:4317/api/oauth/google/callback'
+
+function redirectUri(config: Config): string {
+  return `http://127.0.0.1:${config.port}/api/oauth/google/callback`
+}
 
 function tokenPath(config: Config): string {
   return join(config.dataDir, 'google-token.json')
@@ -71,13 +74,13 @@ function tokenPath(config: Config): string {
 
 function oauthClient(config: Config) {
   if (!config.googleClientId || !config.googleClientSecret) return null
-  return new google.auth.OAuth2(config.googleClientId, config.googleClientSecret, REDIRECT)
+  return new google.auth.OAuth2(config.googleClientId, config.googleClientSecret, redirectUri(config))
 }
 
-export function googleAuthUrl(config: Config): string | null {
+export function googleAuthUrl(config: Config, state: string): string | null {
   const client = oauthClient(config)
   if (!client) return null
-  return client.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: SCOPES })
+  return client.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: SCOPES, state })
 }
 
 export async function saveGoogleCode(config: Config, code: string): Promise<void> {

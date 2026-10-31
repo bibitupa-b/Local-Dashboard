@@ -68,7 +68,10 @@ export function App() {
           { id: Date.now(), created_at: new Date().toISOString(), trigger: 'manual', markdown: result.markdown },
           ...items,
         ])
+        setStatus((current) => (current ? { ...current, briefingToday: true } : current))
       }
+    } catch (error) {
+      setNote(error instanceof Error ? `Briefing failed: ${error.message}` : 'Briefing failed')
     } finally {
       setBusy(false)
     }
@@ -118,9 +121,17 @@ export function App() {
           </button>
         </div>
         {latest ? (
-          <div className="markdown">{latest.markdown}</div>
+          <>
+            <p className="sub">
+              {new Date(latest.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+            </p>
+            <div className="markdown">{latest.markdown}</div>
+          </>
         ) : (
           <p className="empty">No briefing yet. Generate one whenever you are ready.</p>
+        )}
+        {latest && status && !status.briefingToday && (
+          <p className="empty">No briefing for today yet.</p>
         )}
         {briefings.length > 1 && (
           <details className="earlier">

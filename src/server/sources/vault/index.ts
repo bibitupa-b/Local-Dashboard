@@ -6,7 +6,7 @@ import { relative as relativePath, sep } from 'node:path'
 import chokidar from 'chokidar'
 import { lineDiff } from './diff.js'
 import { parseNote } from './parse.js'
-import { scanVault, type VaultEntry } from './scan.js'
+import { scanVaultDetailed, isIgnoredPath, type VaultEntry } from './scan.js'
 import { setSetting } from '../../db/index.js'
 import type { Source } from '../types.js'
 
@@ -19,17 +19,32 @@ function lineCount(text: string): number {
 
 function refreshTasks(db: DatabaseSync, path: string, text: string, now: string): void {
   const kept = new Map<string, string>()
-  for (const row of db.prepare('SELECT text, first_seen FROM tasks WHERE path = ?').all(path)) {
-    const { text: taskText, first_seen } = row as { text: string; first_seen: string }
-    kept.set(taskText, first_seen)
+  for (const row of db.prepare('SELECT text, occurrence, first_seen FROM tasks WHERE path = ?').all(path)) {
+    const { text: taskText, occurrence, first_seen } = row as {
+      text: string
+      occurrence: number
+      first_seen: string
+    }
+    kept.set(`${taskText}#${occurrence}`, first_seen)
   }
   db.prepare('DELETE FROM tasks WHERE path = ?').run(path)
   const insert = db.prepare(
-    `INSERT OR IGNORE INTO tasks (path, text, tag, done, first_seen, last_seen)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT OR IGNORE INTO tasks (path, text, occurrence, tag, done, first_seen, last_seen)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   )
+  const seen = new Map<string, number>()
   for (const task of parseNote(text).tasks) {
-    insert.run(path, task.text, task.tag, task.done ? 1 : 0, kept.get(task.text) ?? now, now)
+    const occurrence = seen.get(task.text) ?? 0
+    seen.set(task.text, occurrence + 1)
+    insert.run(
+      path,
+      task.text,
+      occurrence,
+      task.tag,
+      task.done ? 1 : 0,
+      kept.get(`${task.text}#${occurrence}`) ?? now,
+      now,
+    )
   }
 }
 
@@ -37,6 +52,7 @@ export function applyVaultChanges(
   db: DatabaseSync,
   entries: VaultEntry[],
   now: Date = new Date(),
+  opts: { reconcileDeletes?: boolean } = {},
 ): number {
   const nowIso = now.toISOString()
   const existing = new Map<string, FileRow>()
@@ -44,6 +60,8 @@ export function applyVaultChanges(
     const { path, ...rest } = row as { path: string } & FileRow
     existing.set(path, rest)
   }
+  // First index is silent: otherwise day one looks like the whole vault changed.
+  const initial = existing.size === 0
 
   const upsert = db.prepare(
     `INSERT INTO vault_files (path, hash, mtime, size, previous_text) VALUES (?, ?, ?, ?, ?)
@@ -51,7 +69,7 @@ export function applyVaultChanges(
        size = excluded.size, previous_text = excluded.previous_text`,
   )
   const record = db.prepare(
-    `INSERT INTO vault_changes (path, detected_at, added, removed, diff, text) VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO vault_changes (path, detected_at, added, removed, diff) VALUES (?, ?, ?, ?, ?)`,
   )
 
   let changes = 0
@@ -59,26 +77,31 @@ export function applyVaultChanges(
   for (const entry of entries) {
     seen.add(entry.path)
     const previous = existing.get(entry.path)
-    if (previous && previous.hash === entry.hash) continue
-
-    if (previous) {
-      const { added, removed, diff } = lineDiff(previous.previous_text, entry.text)
-      record.run(entry.path, nowIso, added, removed, diff, entry.text)
-    } else {
-      record.run(entry.path, nowIso, lineCount(entry.text), 0, '', entry.text)
+    if (!previous || previous.hash !== entry.hash) {
+      if (!initial) {
+        if (previous) {
+          const { added, removed, diff } = lineDiff(previous.previous_text, entry.text)
+          record.run(entry.path, nowIso, added, removed, diff)
+        } else {
+          record.run(entry.path, nowIso, lineCount(entry.text), 0, '')
+        }
+        changes++
+      }
+      upsert.run(entry.path, entry.hash, entry.mtime, entry.size, entry.text)
     }
-    upsert.run(entry.path, entry.hash, entry.mtime, entry.size, entry.text)
+    // Always re-derive tasks: they are cheap to rebuild and must survive schema migrations.
     refreshTasks(db, entry.path, entry.text, nowIso)
-    changes++
   }
 
-  for (const path of existing.keys()) {
-    if (seen.has(path)) continue
-    const removed = lineCount(existing.get(path)!.previous_text)
-    record.run(path, nowIso, 0, removed, '', '')
-    db.prepare('DELETE FROM vault_files WHERE path = ?').run(path)
-    db.prepare('DELETE FROM tasks WHERE path = ?').run(path)
-    changes++
+  if (opts.reconcileDeletes !== false) {
+    for (const path of existing.keys()) {
+      if (seen.has(path)) continue
+      const removed = lineCount(existing.get(path)!.previous_text)
+      record.run(path, nowIso, 0, removed, '')
+      db.prepare('DELETE FROM vault_files WHERE path = ?').run(path)
+      db.prepare('DELETE FROM tasks WHERE path = ?').run(path)
+      changes++
+    }
   }
 
   return changes
@@ -89,8 +112,8 @@ export function createVaultSource(root: string): Source {
     id: 'vault',
     configured: () => existsSync(root),
     async sync(db, now = new Date()) {
-      const entries = await scanVault(root)
-      applyVaultChanges(db, entries, now)
+      const { entries, complete } = await scanVaultDetailed(root)
+      applyVaultChanges(db, entries, now, { reconcileDeletes: complete })
       setSetting(db, 'last_sync_vault', now.toISOString())
     },
     lastSync: (db) =>
@@ -122,7 +145,7 @@ export function startVaultWatcher(root: string, db: DatabaseSync): () => Promise
   const watcher = chokidar.watch(root, {
     ignoreInitial: true,
     persistent: true,
-    ignored: (path) => /[\\/](\.obsidian|\.smart-env|\.stfolder|Attachments)([\\/]|$)/.test(path),
+    ignored: (path) => isIgnoredPath(relativePath(root, path)),
     awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
   })
 
@@ -145,27 +168,31 @@ export function startVaultWatcher(root: string, db: DatabaseSync): () => Promise
         // file vanished or is unreadable; the next full scan reconciles deletions
       }
     }
-    if (entries.length > 0) applyVaultChanges(db, entries)
+    if (entries.length > 0) applyVaultChanges(db, entries, new Date(), { reconcileDeletes: false })
   }
 
   const schedule = (path: string) => {
     pending.add(path)
     if (timer) clearTimeout(timer)
-    timer = setTimeout(() => void flush(), 1000)
+    timer = setTimeout(() => void flush().catch((error) => console.error('[vault] flush failed:', error)), 1000)
   }
 
   watcher.on('add', schedule).on('change', schedule)
   watcher.on('unlink', (path: string) => {
-    const relative = relativePath(root, path).split(sep).join('/')
-    const row = db.prepare('SELECT previous_text FROM vault_files WHERE path = ?').get(relative) as
-      | { previous_text: string }
-      | undefined
-    if (!row) return
-    db.prepare(
-      `INSERT INTO vault_changes (path, detected_at, added, removed, diff, text) VALUES (?, ?, 0, ?, '', '')`,
-    ).run(relative, new Date().toISOString(), lineCount(row.previous_text))
-    db.prepare('DELETE FROM vault_files WHERE path = ?').run(relative)
-    db.prepare('DELETE FROM tasks WHERE path = ?').run(relative)
+    try {
+      const relative = relativePath(root, path).split(sep).join('/')
+      const row = db.prepare('SELECT previous_text FROM vault_files WHERE path = ?').get(relative) as
+        | { previous_text: string }
+        | undefined
+      if (!row) return
+      db.prepare(
+        `INSERT INTO vault_changes (path, detected_at, added, removed, diff) VALUES (?, ?, 0, ?, '')`,
+      ).run(relative, new Date().toISOString(), lineCount(row.previous_text))
+      db.prepare('DELETE FROM vault_files WHERE path = ?').run(relative)
+      db.prepare('DELETE FROM tasks WHERE path = ?').run(relative)
+    } catch (error) {
+      console.error('[vault] unlink handling failed:', error)
+    }
   })
 
   return async () => {

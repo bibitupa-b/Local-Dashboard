@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
+import { randomBytes } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type { Config } from './config.js'
 import { buildAttention } from './attention.js'
@@ -12,6 +13,7 @@ export type RouteDeps = {
   config: Config
   sources: Source[]
   generate?: typeof createBriefing
+  onDriveConnected?: () => void
 }
 
 type FeedItem = {
@@ -86,7 +88,8 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
 
   app.get('/api/feed', async (request) => {
     const { days } = request.query as { days?: string }
-    return { days: feed(db, Number(days) || 7) }
+    const window = Math.min(Math.max(Number(days) || 7, 1), 3650)
+    return { days: feed(db, window) }
   })
 
   app.get('/api/attention', async () =>
@@ -95,19 +98,27 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
 
   app.get('/api/briefings', async (request) => {
     const { limit } = request.query as { limit?: string }
+    const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 50)
     const items = db
       .prepare('SELECT id, created_at, trigger, markdown FROM briefings ORDER BY id DESC LIMIT ?')
-      .all(Math.min(Number(limit) || 10, 50))
+      .all(safeLimit)
     return { items }
   })
 
+  let generating = false
   app.post('/api/briefings/generate', async (_request, reply) => {
-    const result = await (deps.generate ?? createBriefing)(db, sources, config, {
-      trigger: 'manual',
-    })
-    if ('markdown' in result) return result
-    if (result.error === 'no-key') return reply.code(400).send(result)
-    return reply.code(502).send(result)
+    if (generating) return reply.code(429).send({ error: 'briefing is already being generated' })
+    generating = true
+    try {
+      const result = await (deps.generate ?? createBriefing)(db, sources, config, {
+        trigger: 'manual',
+      })
+      if ('markdown' in result) return result
+      if (result.error === 'no-key') return reply.code(400).send(result)
+      return reply.code(502).send(result)
+    } finally {
+      generating = false
+    }
   })
 
   app.get('/api/settings', async () => ({
@@ -119,10 +130,15 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   }))
 
   app.put('/api/settings', async (request) => {
-    const body = request.body as { vaultPath?: string; briefingHour?: number }
+    const body = (request.body ?? {}) as { vaultPath?: string; briefingHour?: number }
     if (typeof body.vaultPath === 'string' && body.vaultPath.trim()) {
-      config.vaultPath = body.vaultPath.trim()
-      setSetting(db, 'vault_path', config.vaultPath)
+      const next = body.vaultPath.trim()
+      if (next !== config.vaultPath) {
+        // Re-index the new vault from scratch; keeping the old rows would fake mass deletions.
+        db.exec('DELETE FROM vault_files; DELETE FROM vault_changes; DELETE FROM tasks')
+      }
+      config.vaultPath = next
+      setSetting(db, 'vault_path', next)
     }
     if (typeof body.briefingHour === 'number' && body.briefingHour >= 0 && body.briefingHour <= 23) {
       config.briefingHour = body.briefingHour
@@ -132,15 +148,27 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   })
 
   app.get('/api/oauth/google/start', async (_request, reply) => {
-    const url = googleAuthUrl(config)
+    const state = randomBytes(16).toString('hex')
+    setSetting(db, 'google_oauth_state', state)
+    const url = googleAuthUrl(config, state)
     if (!url) return reply.code(400).send({ error: 'Google credentials are not configured' })
     return reply.redirect(url)
   })
 
   app.get('/api/oauth/google/callback', async (request, reply) => {
-    const { code } = request.query as { code?: string }
-    if (!code) return reply.code(400).send({ error: 'missing code' })
-    await saveGoogleCode(config, code)
-    return reply.redirect('/')
+    const { code, state, error } = request.query as { code?: string; state?: string; error?: string }
+    const expected = getSetting(db, 'google_oauth_state')
+    if (error || !code || !state || !expected || state !== expected) {
+      return reply.redirect('/?drive=error')
+    }
+    setSetting(db, 'google_oauth_state', '')
+    try {
+      await saveGoogleCode(config, code)
+    } catch (failure) {
+      console.error('[drive] OAuth exchange failed:', failure)
+      return reply.redirect('/?drive=error')
+    }
+    deps.onDriveConnected?.()
+    return reply.redirect('/?drive=connected')
   })
 }

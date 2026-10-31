@@ -4,7 +4,7 @@ A single-user dashboard that runs on your own machine and shows one quiet screen
 
 Everything stays local. The only outbound request is the digest sent to the DeepSeek API when a briefing is generated.
 
-> Status: early development. The design is settled; application code is not in the repository yet. Commands below describe the intended interface.
+> Status: phase 1 is implemented — vault indexing, Drive sync, attention queue, briefing, autostart.
 
 ## What it does
 
@@ -42,7 +42,7 @@ Fill in `.env`:
 
 Google Drive is connected once from the settings page: the app opens the consent screen and stores the refresh token in `data/google-token.json` (gitignored).
 
-Use a **Desktop app** OAuth client with the redirect URI `http://127.0.0.1:4317/oauth2callback`. Set the app's publishing status to **Production** — while it stays in *Testing*, Google expires refresh tokens after 7 days and you would have to sign in again every week.
+Use a **Desktop app** OAuth client with the redirect URI `http://127.0.0.1:4317/api/oauth/google/callback` (change the port if you set `PORT`). Set the app's publishing status to **Production** — while it stays in *Testing*, Google expires refresh tokens after 7 days and you would have to sign in again every week.
 
 ## Running
 
@@ -62,7 +62,7 @@ The server writes its SQLite database and the Google token to `data/`, which is 
 
 ## How the briefing works
 
-1. The scheduler (default 08:00) or the **Briefing now** button assembles a digest: notes changed in the last 24 hours with line counts, completed and new tasks, projects still `Undone`, Inbox backlog size, Drive changes.
+1. The scheduler (default 08:00) or the **Briefing now** button assembles a digest for the period since the previous briefing (or the last 24 hours on first run): notes changed with line counts, completed and new tasks, projects still `Undone`, Inbox backlog size, Drive changes.
 2. The digest is sent to DeepSeek (`deepseek-chat`, OpenAI-compatible API).
 3. The reply is stored in SQLite and rendered as a card; previous briefings stay available.
 4. If the machine was off at the scheduled time, a briefing is generated on next start when today's is missing.

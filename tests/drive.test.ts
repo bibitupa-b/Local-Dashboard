@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { openDb } from '../src/server/db/index.js'
-import { createDriveSource, type DriveApi } from '../src/server/sources/drive.js'
+import { loadConfig } from '../src/server/config.js'
+import { createDriveSource, googleAuthUrl, type DriveApi } from '../src/server/sources/drive.js'
 
 function fakeApi(pages: Array<{ files: Array<{ id: string; name: string; mimeType: string; modifiedTime: string }>; nextCursor: string | null }>): DriveApi {
   let call = 0
@@ -55,4 +56,12 @@ test('failed sync leaves the cursor untouched', async () => {
   const failing: DriveApi = { listSince: async () => { throw new Error('network') } }
   await expect(createDriveSource(failing).sync(db)).rejects.toThrow('network')
   expect((db.prepare("SELECT value FROM settings WHERE key = 'drive_cursor'").get() as { value: string }).value).toBe('cursor-1')
+})
+
+test('consent URL carries the CSRF state and the configured port', () => {
+  const config = loadConfig({ GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 'secret', PORT: '5000' })
+  const url = new URL(googleAuthUrl(config, 'abc123')!)
+  expect(url.searchParams.get('state')).toBe('abc123')
+  expect(url.searchParams.get('redirect_uri')).toBe('http://127.0.0.1:5000/api/oauth/google/callback')
+  expect(googleAuthUrl(loadConfig({}), 'x')).toBeNull()
 })

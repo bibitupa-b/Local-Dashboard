@@ -5,6 +5,11 @@ import { DatabaseSync } from 'node:sqlite'
 const schema = readFileSync(new URL('./schema.sql', import.meta.url), 'utf8')
 
 export function migrate(db: DatabaseSync): void {
+  // tasks is derived data; early builds had a UNIQUE(path, text) that collapsed repeats.
+  const columns = db.prepare("PRAGMA table_info('tasks')").all() as Array<{ name: string }>
+  if (columns.length > 0 && !columns.some((column) => column.name === 'occurrence')) {
+    db.exec('DROP TABLE tasks')
+  }
   db.exec(schema)
 }
 
