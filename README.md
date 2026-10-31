@@ -56,7 +56,9 @@ Open http://localhost:4317.
 
 ### Start with Windows
 
-Create a shortcut to a small `.vbs` launcher in `shell:startup` (`Win+R` → `shell:startup`) so the server starts hidden and the dashboard is one bookmark away. Details in `AGENTS.md`.
+`scripts/start-hidden.vbs` starts the server without a console window. Create a shortcut to it and put the shortcut in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup` (`Win+R` → `shell:startup`). Then bookmark http://localhost:4317.
+
+The server writes its SQLite database and the Google token to `data/`, which is gitignored.
 
 ## How the briefing works
 
@@ -69,7 +71,7 @@ Your vault is never uploaded. Only the digest leaves the machine, so folder or n
 
 ## Stack
 
-Node 26 · Fastify · `node:sqlite` · React + Vite + Tailwind · `chokidar` (vault watch) · `googleapis` (Drive) · `node-cron`
+Node 26 · Fastify · `node:sqlite` · React + Vite + plain CSS · `chokidar` (vault watch) · `googleapis` (Drive) · `node-cron`
 
 ## Roadmap
 

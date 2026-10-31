@@ -111,6 +111,11 @@ export function createVaultSource(root: string): Source {
 }
 
 export function startVaultWatcher(root: string, db: DatabaseSync): () => Promise<void> {
+  if (!existsSync(root)) {
+    console.warn(`[vault] not found: ${root} — watching disabled`)
+    return async () => {}
+  }
+
   const pending = new Set<string>()
   let timer: NodeJS.Timeout | undefined
 
