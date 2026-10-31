@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { parseNote } from './sources/vault/parse.js'
-import { isExcludedSender } from './settings.js'
+import { isExcludedSender, isExcludedVaultPath } from './settings.js'
 
 export type AttentionItem = {
   kind: 'task' | 'mail' | 'reply' | 'calendar' | 'stale-project' | 'inbox' | 'drive'
@@ -29,9 +29,11 @@ export function buildAttention(
   const staleBefore = new Date(now.getTime() - opts.staleDays * 86_400_000).toISOString()
   const inboxBefore = new Date(now.getTime() - opts.inboxDays * 86_400_000).toISOString()
 
-  const tasks = db
-    .prepare(`SELECT path, text, tag FROM tasks WHERE done = 0 AND path NOT LIKE ?`)
-    .all(TEMPLATES) as Array<{ path: string; text: string; tag: string | null }>
+  const tasks = (
+    db
+      .prepare(`SELECT path, text, tag FROM tasks WHERE done = 0 AND path NOT LIKE ?`)
+      .all(TEMPLATES) as Array<{ path: string; text: string; tag: string | null }>
+  ).filter((task) => !isExcludedVaultPath(db, task.path))
 
   const groups = new Map<string, { count: number; paths: Set<string> }>()
   for (const task of tasks) {
@@ -139,9 +141,11 @@ export function buildAttention(
     })
   }
 
-  const projectNotes = db
-    .prepare(`SELECT path, previous_text AS text FROM vault_files WHERE mtime <= ?`)
-    .all(staleBefore) as Array<{ path: string; text: string }>
+  const projectNotes = (
+    db
+      .prepare(`SELECT path, previous_text AS text FROM vault_files WHERE mtime <= ?`)
+      .all(staleBefore) as Array<{ path: string; text: string }>
+  ).filter((note) => !isExcludedVaultPath(db, note.path))
   for (const note of projectNotes) {
     const status = parseNote(note.text).frontmatter.status
     if (typeof status !== 'string' || !status.toLowerCase().includes('undone')) continue
@@ -153,12 +157,14 @@ export function buildAttention(
     })
   }
 
-  const inbox = db
-    .prepare(
-      `SELECT path, mtime FROM vault_files WHERE path LIKE 'Inbox/%' AND mtime <= ?
-       ORDER BY mtime ASC`,
-    )
-    .all(inboxBefore) as Array<{ path: string; mtime: string }>
+  const inbox = (
+    db
+      .prepare(
+        `SELECT path, mtime FROM vault_files WHERE path LIKE 'Inbox/%' AND mtime <= ?
+         ORDER BY mtime ASC`,
+      )
+      .all(inboxBefore) as Array<{ path: string; mtime: string }>
+  ).filter((note) => !isExcludedVaultPath(db, note.path))
   for (const note of inbox) {
     const days = Math.floor((now.getTime() - Date.parse(note.mtime)) / 86_400_000)
     items.push({

@@ -113,6 +113,21 @@ test('only old, unreplied personal mail counts as awaiting a reply', async () =>
   expect(reply?.detail).toContain('Alice')
 })
 
+test('excluded vault folders disappear from the attention queue', async () => {
+  const db = openDb(':memory:')
+  const { setList, LIST_KEYS } = await import('../src/server/settings.js')
+  setList(db, LIST_KEYS.vaultPrefixes, ['02 areas/💪 body and health'])
+
+  task(db, '02 Areas/💪 Body and Health/day.md', '#vitamins Zinc', 'vitamins')
+  task(db, '01 Projects/Live.md', 'keep me', null)
+  note(db, '02 Areas/💪 Body and Health/Old.md', '---\nstatus: Undone\n---\n', 30)
+
+  const items = buildAttention(db, NOW, { staleDays: 14, inboxDays: 3 })
+  expect(items.some((item) => item.label === '#vitamins')).toBe(false)
+  expect(items.some((item) => item.path?.includes('Body and Health'))).toBe(false)
+  expect(items.some((item) => item.label === 'keep me')).toBe(true)
+})
+
 test('untagged tasks appear once and the first item is the loudest group', () => {
   const db = openDb(':memory:')
   task(db, 'Inbox/Idea.md', 'single task', null)

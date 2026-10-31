@@ -72,7 +72,7 @@ export function SettingsPanel({
         <textarea rows={3} value={senders} onChange={(event) => setSenders(event.target.value)} />
       </label>
       <label>
-        Hide vault folders from the briefing (prefixes, one per line)
+        Hide vault folders from the dashboard (prefixes, one per line)
         <textarea
           rows={2}
           value={vaultPrefixes}
