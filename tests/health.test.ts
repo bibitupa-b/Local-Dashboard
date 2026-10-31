@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
-import { buildApp } from '../src/server/app'
-import { loadConfig } from '../src/server/config'
-import { openDb } from '../src/server/db'
+import { buildApp } from '../src/server/app.js'
+import { loadConfig } from '../src/server/config.js'
+import { openDb } from '../src/server/db/index.js'
 
 test('health responds ok', async () => {
   const db = openDb(':memory:')
