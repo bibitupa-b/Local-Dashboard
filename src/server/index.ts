@@ -5,12 +5,14 @@ import { loadConfig } from './config.js'
 import { getSetting, openDb } from './db/index.js'
 import { createBriefing } from './briefing/index.js'
 import { shouldCatchUp } from './briefing/schedule.js'
+import { initLogging } from './log.js'
 import { createDriveSource, createGoogleDriveApi } from './sources/drive.js'
 import { createCalendarSource, createGoogleCalendarApi } from './sources/calendar.js'
 import { createMailSource } from './sources/mail.js'
 import { createImapMailApi } from './sources/mail-imap.js'
 import type { Source } from './sources/types.js'
 import { createVaultSource, startVaultWatcher } from './sources/vault/index.js'
+import { createHealth, markFailure, markProgress, markSuccess } from './health.js'
 
 try {
   process.loadEnvFile(join(process.cwd(), '.env'))
@@ -19,6 +21,7 @@ try {
 }
 
 const config = loadConfig()
+initLogging(config.dataDir)
 const db = openDb(config.dbPath)
 
 config.vaultPath = getSetting(db, 'vault_path') ?? config.vaultPath
@@ -34,14 +37,19 @@ const sources: Source[] = [
 const webRoot = join(process.cwd(), 'dist', 'web')
 let ready = false
 let syncing: Promise<void> | null = null
+const health = createHealth(sources.map((source) => source.id))
 
 async function syncAll(): Promise<void> {
   if (syncing) return syncing
   syncing = (async () => {
     for (const source of sources) {
       try {
-        await source.sync(db)
+        await source.sync(db, new Date(), (done, total) =>
+          markProgress(health, source.id, done, total),
+        )
+        markSuccess(health, source.id)
       } catch (error) {
+        markFailure(health, source.id, error)
         console.error(`[${source.id}] sync failed:`, error)
       }
     }
@@ -59,6 +67,8 @@ const app = buildApp({
   sources,
   webRoot,
   isReady: () => ready,
+  health: () => health,
+  syncNow: syncAll,
   onDriveConnected: () => {
     void (async () => {
       const drive = await createGoogleDriveApi(config)
@@ -95,8 +105,16 @@ schedule('*/15 * * * *', () => {
   void syncAll().then(maybeBrief)
 })
 
-await app.listen({ host: '127.0.0.1', port: config.port })
-console.log(`Local Dashboard on http://localhost:${config.port}`)
+try {
+  await app.listen({ host: '127.0.0.1', port: config.port })
+  console.log(`Local Dashboard on http://localhost:${config.port}`)
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+    console.error(`Port ${config.port} is already in use — another Local Dashboard is probably running.`)
+    process.exit(0)
+  }
+  throw error
+}
 
 // The UI is served immediately; a slow mailbox must not block startup.
 void (async () => {

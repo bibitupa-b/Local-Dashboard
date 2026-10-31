@@ -32,9 +32,11 @@ export function createMailSource(api: MailApi | null): Source {
   return {
     id: 'mail',
     configured: () => api !== null,
-    async sync(db, now = new Date()) {
+    async sync(db, now = new Date(), progress) {
       if (!api) return
-      const folders = await api.folders()
+      const folders = (await api.folders()).filter((folder) => !IGNORED_FOLDER.test(folder.path))
+      let index = 0
+      progress?.(0, folders.length)
       const findFolder = db.prepare('SELECT uid_validity, last_uid FROM mail_folders WHERE path = ?')
       const upsertFolder = db.prepare(
         `INSERT INTO mail_folders (path, uid_validity, last_uid, last_sync) VALUES (?, ?, ?, ?)
@@ -59,7 +61,6 @@ export function createMailSource(api: MailApi | null): Source {
       const maxUid = db.prepare('SELECT COALESCE(MAX(uid), 0) AS uid FROM mail_messages WHERE folder = ?')
 
       for (const folder of folders) {
-        if (IGNORED_FOLDER.test(folder.path)) continue
         try {
           const row = findFolder.get(folder.path) as
             | { uid_validity: string; last_uid: number }
@@ -98,6 +99,7 @@ export function createMailSource(api: MailApi | null): Source {
           // One broken folder must not stop the rest of the mailbox.
           console.error(`[mail] folder ${folder.path} failed:`, error)
         }
+        progress?.(++index, folders.length)
       }
 
       const cutoff = new Date(now.getTime() - 90 * 86_400_000).toISOString()

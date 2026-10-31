@@ -30,7 +30,7 @@ test('status reports configured sources and no briefing yet', async () => {
   const { app } = harness()
   const res = await app.inject({ method: 'GET', url: '/api/status' })
   expect(res.statusCode).toBe(200)
-  expect(res.json().sources).toEqual([
+  expect(res.json().sources).toMatchObject([
     { id: 'vault', configured: true, lastSync: null },
     { id: 'drive', configured: false, lastSync: null },
   ])
@@ -68,6 +68,32 @@ test('generating while sources are still syncing returns 503', async () => {
   const blocked = await busy.inject({ method: 'POST', url: '/api/briefings/generate' })
   expect(blocked.statusCode).toBe(503)
   await busy.close()
+})
+
+test('status carries health and the sync endpoint runs a sync', async () => {
+  const db = openDb(':memory:')
+  const config = loadConfig({ VAULT_PATH: root })
+  let synced = 0
+  const app = buildApp({
+    db,
+    config,
+    sources: [createVaultSource(root)],
+    webRoot: join(root, 'no-ui'),
+    health: () => ({
+      vault: { lastError: 'boom', lastErrorAt: '2026-10-31T10:00:00.000Z', progress: null },
+    }),
+    syncNow: async () => {
+      synced++
+    },
+  })
+
+  const status = await app.inject({ method: 'GET', url: '/api/status' })
+  expect(status.json().sources[0]).toMatchObject({ id: 'vault', lastError: 'boom' })
+
+  const sync = await app.inject({ method: 'POST', url: '/api/sync' })
+  expect(sync.statusCode).toBe(200)
+  expect(synced).toBe(1)
+  await app.close()
 })
 
 test('unknown api route returns json 404', async () => {

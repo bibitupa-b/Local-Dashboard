@@ -100,6 +100,17 @@ test('a changed UIDVALIDITY wipes the folder and refetches from zero', async () 
   })
 })
 
+test('reports progress per folder and skips All Mail from the total', async () => {
+  const db = openDb(':memory:')
+  const { api } = fakeApi()
+  const seen: Array<[number, number]> = []
+  await createMailSource(api).sync(db, new Date(), (done, total) => seen.push([done, total]))
+  expect(seen).toEqual([
+    [0, 1],
+    [1, 1],
+  ])
+})
+
 test('bodies older than 90 days are dropped', async () => {
   const db = openDb(':memory:')
   const { api, state } = fakeApi()

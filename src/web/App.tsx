@@ -108,11 +108,29 @@ export function App() {
         </div>
         <div className="status">
           {status?.sources.map((source) => (
-            <span key={source.id} className={source.configured ? 'pill ok' : 'pill off'}>
+            <span
+              key={source.id}
+              className={`pill ${source.configured ? 'ok' : 'off'}${source.lastError ? ' bad' : ''}`}
+              title={source.lastError ?? undefined}
+            >
               {source.id}
-              {source.configured ? (source.lastSync ? ` · ${time(source.lastSync)}` : '') : ' · not connected'}
+              {source.progress
+                ? ` · ${source.progress.done}/${source.progress.total}`
+                : source.configured
+                  ? source.lastSync
+                    ? ` · ${time(source.lastSync)}`
+                    : ''
+                  : ' · not connected'}
             </span>
           ))}
+          <button
+            className="ghost"
+            onClick={() => {
+              void api.sync().then(load)
+            }}
+          >
+            Sync
+          </button>
           <button className="ghost" onClick={() => setShowSettings((value) => !value)}>
             Settings
           </button>

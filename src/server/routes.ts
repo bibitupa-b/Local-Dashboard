@@ -7,6 +7,7 @@ import { createBriefing } from './briefing/index.js'
 import type { Source } from './sources/types.js'
 import { googleAuthUrl, saveGoogleCode } from './google.js'
 import { todayEvents } from './sources/calendar.js'
+import type { HealthMap } from './health.js'
 import { getSetting, setSetting } from './db/index.js'
 
 export type RouteDeps = {
@@ -16,6 +17,8 @@ export type RouteDeps = {
   generate?: typeof createBriefing
   onDriveConnected?: () => void
   isReady?: () => boolean
+  health?: () => HealthMap
+  syncNow?: () => Promise<void>
 }
 
 type FeedItem = {
@@ -83,9 +86,15 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
         id: source.id,
         configured: source.configured(),
         lastSync: source.lastSync(db),
+        ...(deps.health?.()[source.id] ?? { lastError: null, lastErrorAt: null, progress: null }),
       })),
       briefingToday: briefings.some((row) => new Date(row.created_at).toDateString() === today),
     }
+  })
+
+  app.post('/api/sync', async () => {
+    await deps.syncNow?.()
+    return { ok: true }
   })
 
   app.get('/api/feed', async (request) => {

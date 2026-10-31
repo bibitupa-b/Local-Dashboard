@@ -29,6 +29,7 @@ h2 { font-size: 14px; margin: 0 0 12px; text-transform: uppercase; letter-spacin
 
 .pill { font-size: 12px; padding: 4px 9px; border-radius: 99px; border: 1px solid var(--line); background: var(--card); color: var(--muted); }
 .pill.ok { color: var(--accent); border-color: #cfe0d6; }
+.pill.bad { color: #a33b2f; border-color: #e8c4c4; }
 
 button, .ghost {
   font: inherit; font-size: 13px; padding: 7px 13px; border-radius: 8px;

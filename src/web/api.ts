@@ -1,4 +1,11 @@
-export type SourceStatus = { id: string; configured: boolean; lastSync: string | null }
+export type SourceStatus = {
+  id: string
+  configured: boolean
+  lastSync: string | null
+  lastError?: string | null
+  lastErrorAt?: string | null
+  progress?: { done: number; total: number } | null
+}
 export type Status = { sources: SourceStatus[]; briefingToday: boolean }
 export type FeedItem = {
   source: 'vault' | 'drive'
@@ -50,6 +57,9 @@ export const api = {
   briefings: () => get<{ items: Briefing[] }>('/api/briefings?limit=10'),
   settings: () => get<Settings>('/api/settings'),
   today: () => get<{ events: CalendarEvent[] }>('/api/today'),
+  sync: async (): Promise<void> => {
+    await fetch('/api/sync', { method: 'POST' })
+  },
   generate: async (): Promise<{ markdown: string } | { error: string }> => {
     const res = await fetch('/api/briefings/generate', { method: 'POST' })
     return res.json()

@@ -94,6 +94,31 @@ Keep Gmail and Calendar symmetrical with the existing sources. Each source modul
 
 The scheduler and digest builder iterate over registered sources, so a new source needs no changes to the dashboard shell.
 
+## Roadmap (core mechanics)
+
+Work through in this order; each item ends with a passing test run and a commit.
+
+**A. Reliability and observability**
+- A1. `data/server.log` with rotation at 5 MB; a second instance exits with a logged reason instead of hanging.
+- A2. Source health in `/api/status` (`lastError`, `lastErrorAt`), error badge in the UI, `POST /api/sync` to retry.
+- A3. First-sync progress for mail: `sync(db, now, progress)` reports `done / total` folders, exposed in `/api/status`.
+
+**B. Data quality**
+- B1. Exclusion settings: mail senders, mail folders, vault folders, digest window (JSON in `settings`).
+- B2. Bulk detection (`List-Unsubscribe`, `Precedence: bulk`, `Auto-Submitted`); bulk mail never counts as unread.
+- B3. Needs-reply heuristic: inbox, not bulk, older than 24 h, no later message from the user with the same normalized subject in Sent.
+- B4. Briefing stops repeating: mail digest only covers messages since the previous briefing; older unread stays in the attention queue.
+
+**C. Daily flow**
+- C1. Free windows (09:00–19:00, ≥30 min) and conflicts for today's calendar.
+- C2. Windows notifications via `node-notifier`: event in 15 minutes, auto briefing ready; dedupe by event id.
+- C3. `GET /api/search?q=` across vault text, mail (subject/sender/snippet) and Drive names; `LIKE` first, FTS5 only if slow.
+- C4. `GET /api/vault/changes/:id` and an inline diff when a feed item is expanded.
+
+**D. Maintenance**
+- D1. Daily `VACUUM INTO data/backups/dashboard-YYYY-MM-DD.db`, keep 7.
+- D2. Digest window and per-source toggles applied when assembling a briefing.
+
 ## Rules
 
 - **Secrets** live only in `.env` and `data/`. Both are gitignored; never log tokens, never commit `data/`, `dist/`, or `node_modules/`.
