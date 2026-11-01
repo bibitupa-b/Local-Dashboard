@@ -222,6 +222,7 @@ p {
 h1 {
   font: 600 24px/1.3 var(--font-display);
   letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 h2 {
@@ -315,51 +316,68 @@ button,
   border-color: #8fa592;
 }
 
-/* Global tilt-shift: the pointer tilts the surface, edges lose focus. */
+/* Global tilt-shift: the surface leans toward the pointer, edges lose focus. */
 .tilt-target {
   position: relative;
   will-change: transform;
   transition:
-    transform var(--dur-panel) var(--ease),
+    transform 280ms var(--ease),
+    box-shadow 280ms var(--ease),
     background var(--dur-hover) var(--ease),
     border-color var(--dur-hover) var(--ease),
     color var(--dur-hover) var(--ease);
 }
 
 .tilt-target.tilting {
-  transform: perspective(900px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
-  transition-duration: 120ms;
+  transform: perspective(900px) rotateX(var(--tilt-x, 0deg))
+    rotateY(var(--tilt-y, 0deg)) scale(var(--tilt-scale, 1));
+  box-shadow: 0 14px 32px rgba(6, 8, 9, 0.35);
+  transition-duration: 160ms;
 }
 
-.tilt-target::before {
+.tilt-target::before,
+.tilt-target::after {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 2;
   border-radius: inherit;
   pointer-events: none;
   opacity: 0;
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    #000 0%,
-    transparent 28%,
-    transparent 72%,
-    #000 100%
-  );
-  mask-image: linear-gradient(to bottom, #000 0%, transparent 28%, transparent 72%, #000 100%);
   transition: opacity var(--dur-hover) var(--ease);
 }
 
-.tilt-target.tilting::before {
-  opacity: 0.85;
+/* specular sheen following the pointer */
+.tilt-target::before {
+  z-index: 3;
+  background: radial-gradient(
+    240px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(233, 231, 224, 0.16),
+    transparent 62%
+  );
 }
 
-.ghost:active,
-.primary:active,
-button:active {
-  transform: translateY(1px) scale(0.995);
+/* depth-of-field bands: the middle stays sharp, edges blur */
+.tilt-target::after {
+  z-index: 2;
+  backdrop-filter: blur(3.5px);
+  -webkit-backdrop-filter: blur(3.5px);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    transparent 32%,
+    transparent 68%,
+    #000 100%
+  );
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 32%, transparent 68%, #000 100%);
+}
+
+.tilt-target.tilting::before,
+.tilt-target.tilting::after {
+  opacity: 0.9;
+}
+
+.tilt-target.tilting::before {
+  opacity: 0.7;
 }
 
 button:disabled,
@@ -400,6 +418,10 @@ button:disabled,
   max-width: 1240px;
   margin: 0 auto;
   padding: 32px 32px 80px;
+}
+
+.head > div:first-child {
+  flex: none;
 }
 
 .head {
@@ -1317,6 +1339,123 @@ input:-webkit-autofill {
   flex: none;
 }
 
+/* ---------- boot splash (browser) ---------- */
+
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 18px;
+  background: var(--void);
+  transition:
+    opacity 380ms var(--ease),
+    visibility 380ms;
+}
+
+.boot.leaving {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.boot-emblem {
+  position: relative;
+  width: 148px;
+  height: 148px;
+  display: grid;
+  place-items: center;
+  animation: boot-emblem 700ms var(--ease) both;
+}
+
+.boot-emblem img {
+  width: 132px;
+  height: 132px;
+  border-radius: 26px;
+  filter: drop-shadow(0 10px 28px rgba(189, 162, 122, 0.18));
+}
+
+.boot-ring {
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  border: 1px solid rgba(155, 175, 158, 0.35);
+  animation: spin 6s linear infinite;
+}
+
+.boot-ring::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px rgba(155, 175, 158, 0.6);
+}
+
+.boot-title {
+  font: 500 12px/1 var(--font-display);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink);
+  animation: boot-title 700ms 120ms var(--ease) both;
+}
+
+.boot-bar {
+  width: 180px;
+  height: 2px;
+  border-radius: 99px;
+  background: var(--raised);
+  overflow: hidden;
+}
+
+.boot-bar span {
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: boot-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes boot-emblem {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes boot-title {
+  from {
+    opacity: 0;
+    letter-spacing: 0.34em;
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    letter-spacing: 0.24em;
+    filter: blur(0);
+  }
+}
+
+@keyframes boot-sweep {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(320%);
+  }
+}
+
 /* ---------- motion ---------- */
 
 .app-enter h1,
@@ -1469,6 +1608,11 @@ body.motion-paused *::after {
 }
 
 @media (max-width: 700px) {
+  h1 {
+    font-size: 20px;
+    white-space: normal;
+  }
+
   .page {
     padding: 16px 16px 64px;
   }
@@ -1552,8 +1696,21 @@ body.motion-paused *::after {
     transition: none;
   }
 
-  .tilt-target::before {
+  .tilt-target::before,
+  .tilt-target::after {
     display: none;
+  }
+
+  .boot-emblem,
+  .boot-title,
+  .boot-ring,
+  .boot-bar span {
+    animation: none !important;
+  }
+
+  .boot-bar span {
+    width: 100%;
+    background: var(--accent);
   }
 
   .syncbar .seg.active i {

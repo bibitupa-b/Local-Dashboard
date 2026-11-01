@@ -3,6 +3,7 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   root: 'src/web',
+  publicDir: '../../assets',
   plugins: [react()],
   build: { outDir: '../../dist/web', emptyOutDir: true },
   server: {

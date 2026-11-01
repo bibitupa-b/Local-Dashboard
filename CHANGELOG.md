@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1
+
+- Tilt-shift is stronger and applies to links, inputs, summaries, chips, rows and cards: up to 4°, specular sheen, 3.5 px edge blur and lift shadow.
+- Launch animation: frameless Electron splash with the Glassy Orbit emblem, orbit ring and progress sweep; browser builds get an in-app boot overlay.
+- Window waits for first paint before showing, so there is no black flash; the title no longer wraps on wide screens.
+
 ## 0.9.0
 
 - Typography: Unbounded for display headings, Onest for body; both OFL, self-hosted under `src/web/fonts`.

@@ -241,6 +241,21 @@ export function App() {
     setOpenDiff({ id, ...(await api.vaultChange(id)) })
   }
 
+  const isElectron = navigator.userAgent.includes('Electron')
+  const [splash, setSplash] = useState<'visible' | 'leaving' | 'hidden'>(
+    isElectron ? 'hidden' : 'visible',
+  )
+
+  useEffect(() => {
+    if (splash === 'hidden') return
+    const leave = setTimeout(() => setSplash('leaving'), 1100)
+    const hide = setTimeout(() => setSplash('hidden'), 1480)
+    return () => {
+      clearTimeout(leave)
+      clearTimeout(hide)
+    }
+  }, [])
+
   const latest = briefings[0]
 
   if (showSettings && settings) {
@@ -279,7 +294,19 @@ export function App() {
   })()
 
   return (
-    <div className="page">
+    <div className="page app-enter">
+      {splash !== 'hidden' && (
+        <div className={`boot${splash === 'leaving' ? ' leaving' : ''}`} aria-hidden="true">
+          <div className="boot-emblem">
+            <span className="boot-ring" />
+            <img src="/icon.png" alt="" />
+          </div>
+          <div className="boot-title">Local Dashboard</div>
+          <div className="boot-bar">
+            <span />
+          </div>
+        </div>
+      )}
       <header className="head enter-item" style={{ '--i': 0 } as React.CSSProperties}>
         <div>
           <h1>Local Dashboard</h1>

@@ -22,6 +22,8 @@ migrateData()
 
 let server = null
 let win = null
+let splash = null
+let splashShownAt = 0
 let tray = null
 let quitting = false
 let baseUrl = ''
@@ -40,6 +42,29 @@ function notify(title, message) {
   notification.show()
 }
 
+function createSplash() {
+  splash = new BrowserWindow({
+    width: 440,
+    height: 330,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    center: true,
+    show: true,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    backgroundColor: '#00000000',
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+  })
+  splashShownAt = Date.now()
+  void splash.loadFile(path.join(__dirname, 'splash.html'))
+}
+
+function closeSplash() {
+  if (splash && !splash.isDestroyed()) splash.close()
+  splash = null
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1180,
@@ -52,7 +77,13 @@ function createWindow() {
     show: false,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   })
-  win.once('ready-to-show', () => win.show())
+  win.webContents.once('did-finish-load', () => {
+    const wait = Math.max(0, 900 - (Date.now() - splashShownAt))
+    setTimeout(() => {
+      closeSplash()
+      win.show()
+    }, wait)
+  })
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^(https?|obsidian|mailto):/i.test(url)) void shell.openExternal(url)
     return { action: 'deny' }
@@ -150,6 +181,8 @@ async function boot() {
 
   app.on('second-instance', showWindow)
 
+  createSplash()
+
   const { startServer } = require(path.join(root, 'dist', 'server', 'server.cjs'))
   const envFile = isDev ? path.join(root, '.env') : path.join(dataDir, '.env')
 
@@ -172,6 +205,7 @@ async function boot() {
       notify('Local Dashboard', `Using the dashboard already running on port ${port}.`)
       return
     }
+    closeSplash()
     console.error('[desktop] server failed to start:', error)
     dialog.showErrorBox(
       'Local Dashboard could not start',
@@ -214,5 +248,7 @@ app.on('before-quit', (event) => {
 app.on('window-all-closed', () => {
   // Keep running in the tray.
 })
+
+app.on('will-quit', closeSplash)
 
 app.on('activate', showWindow)
