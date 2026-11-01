@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0
+
+- Typography: Unbounded for display headings, Onest for body; both OFL, self-hosted under `src/web/fonts`.
+- New Glassy Orbit application icon (PNG + multi-size ICO) for window, tray and installer.
+- Global tilt-shift hover replaces the previous glitch and click fade: pointer tilt plus blurred top and bottom bands; disabled for reduced motion.
+- Headings reveal with a short blur-and-tracking entrance.
+
 ## 0.8.4
 
 - Comfort pass: larger body (16 px), titles, buttons, pills, inputs and dialog labels.

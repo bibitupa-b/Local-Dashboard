@@ -1,6 +1,6 @@
 {
   "name": "local-dashboard",
-  "version": "0.8.4",
+  "version": "0.9.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -34,7 +34,7 @@
         "nsis",
         "portable"
       ],
-      "icon": "assets/icon.png"
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
