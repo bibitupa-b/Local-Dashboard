@@ -195,6 +195,9 @@ export function normalizeMailFolders(db: DatabaseSync): void {
       alias,
       pattern,
     )
+    // Rows that conflicted with an existing alias are duplicates; drop the leftovers.
+    db.prepare('DELETE FROM mail_folders WHERE path LIKE ?').run(pattern)
+    db.prepare('DELETE FROM mail_messages WHERE folder LIKE ?').run(pattern)
   }
 }
 
