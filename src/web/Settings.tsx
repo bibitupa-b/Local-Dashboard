@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, type Settings } from './api.js'
 
-const SOURCES = ['vault', 'drive', 'mail', 'calendar'] as const
+const SOURCES = ['vault', 'drive', 'mail', 'calendar', 'browser'] as const
 
 export function SettingsPanel({
   settings,
@@ -14,6 +14,7 @@ export function SettingsPanel({
   const [briefingHour, setBriefingHour] = useState(settings.briefingHour)
   const [senders, setSenders] = useState(settings.excludedSenders.join('\n'))
   const [vaultPrefixes, setVaultPrefixes] = useState(settings.excludedVaultPrefixes.join('\n'))
+  const [browserDomains, setBrowserDomains] = useState(settings.excludedBrowserDomains.join('\n'))
   const [windowHours, setWindowHours] = useState(settings.digestWindowHours)
   const [enabled, setEnabled] = useState<string[]>(
     settings.enabledSources.length > 0 ? settings.enabledSources : [...SOURCES],
@@ -27,6 +28,7 @@ export function SettingsPanel({
       briefingHour,
       excludedSenders: lines(senders),
       excludedVaultPrefixes: lines(vaultPrefixes),
+      excludedBrowserDomains: lines(browserDomains),
       digestWindowHours: windowHours,
       enabledSources: enabled,
     }
@@ -35,6 +37,7 @@ export function SettingsPanel({
       briefingHour,
       excludedSenders: next.excludedSenders,
       excludedVaultPrefixes: next.excludedVaultPrefixes,
+      excludedBrowserDomains: lines(browserDomains),
       digestWindowHours: windowHours,
       enabledSources: enabled,
     })
@@ -79,6 +82,14 @@ export function SettingsPanel({
           onChange={(event) => setVaultPrefixes(event.target.value)}
         />
       </label>
+      <label>
+        Ignore these browser domains (one per line)
+        <textarea
+          rows={2}
+          value={browserDomains}
+          onChange={(event) => setBrowserDomains(event.target.value)}
+        />
+      </label>
       <fieldset className="sources">
         <legend>Sources in the briefing</legend>
         {SOURCES.map((source) => (
@@ -102,7 +113,8 @@ export function SettingsPanel({
         DeepSeek key: {settings.hasDeepSeekKey ? 'configured' : 'missing in .env'} · Drive:{' '}
         {settings.driveConnected ? 'connected' : settings.googleConfigured ? 'not connected' : 'credentials missing'} · Mail:{' '}
         {settings.mailConnected ? 'synced' : settings.mailConfigured ? 'not synced' : 'missing in .env'} · Calendar:{' '}
-        {settings.calendarConnected ? 'connected' : 'not connected'}
+        {settings.calendarConnected ? 'connected' : 'not connected'} · Browser:{' '}
+        {settings.browserConfigured ? 'connected' : 'history not found'}
       </p>
       <div className="row">
         <button type="submit">Save</button>

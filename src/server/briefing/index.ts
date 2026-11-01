@@ -63,6 +63,7 @@ export async function createBriefing(
     (item) =>
       (item.kind !== 'mail' || isSourceEnabled(db, 'mail')) &&
       (item.kind !== 'calendar' || isSourceEnabled(db, 'calendar')) &&
+      (item.kind !== 'browser' || isSourceEnabled(db, 'browser')) &&
       (!item.path || !isExcludedVaultPath(db, item.path)),
   )
 
@@ -73,10 +74,10 @@ export async function createBriefing(
     attention,
     driveChanges,
     extra: sources
-      .filter((source) => (source.id === 'mail' || source.id === 'calendar') && source.configured())
+      .filter((source) => ['mail', 'calendar', 'browser'].includes(source.id) && source.configured())
       .filter((source) => isSourceEnabled(db, source.id))
       .map((source) => ({
-        title: source.id === 'mail' ? 'Mail' : 'Calendar',
+        title: source.id === 'mail' ? 'Mail' : source.id === 'calendar' ? 'Calendar' : 'Browser',
         lines: source.digest(db, since),
       })),
   })

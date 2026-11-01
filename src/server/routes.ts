@@ -210,6 +210,9 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     excludedSenders: getList(db, LIST_KEYS.mailSenders),
     excludedMailFolders: getList(db, LIST_KEYS.mailFolders),
     excludedVaultPrefixes: getList(db, LIST_KEYS.vaultPrefixes),
+    excludedBrowserDomains: getList(db, LIST_KEYS.browserDomains),
+    browserConfigured:
+      sources.find((source) => source.id === 'browser')?.configured() ?? false,
     digestWindowHours: digestWindowHours(db),
     enabledSources: getList(db, 'enabled_sources'),
   }))
@@ -221,6 +224,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       excludedSenders?: string[]
       excludedMailFolders?: string[]
       excludedVaultPrefixes?: string[]
+      excludedBrowserDomains?: string[]
       digestWindowHours?: number
       enabledSources?: string[]
     }
@@ -246,6 +250,8 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
         LIST_KEYS.vaultPrefixes,
         normalizeVaultPrefixes(body.excludedVaultPrefixes, config.vaultPath),
       )
+    if (Array.isArray(body.excludedBrowserDomains))
+      setList(db, LIST_KEYS.browserDomains, body.excludedBrowserDomains)
     if (Array.isArray(body.enabledSources)) setList(db, 'enabled_sources', body.enabledSources)
     if (typeof body.digestWindowHours === 'number' && body.digestWindowHours >= 1) {
       setSetting(db, 'digest_window_hours', String(body.digestWindowHours))

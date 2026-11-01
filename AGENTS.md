@@ -94,30 +94,32 @@ Keep Gmail and Calendar symmetrical with the existing sources. Each source modul
 
 The scheduler and digest builder iterate over registered sources, so a new source needs no changes to the dashboard shell.
 
-## Roadmap (core mechanics)
+## Roadmap
 
-Work through in this order; each item ends with a passing test run and a commit.
+Core mechanics (done): sync health and logging, mail filters and reply detection, calendar free windows, notifications, search, diffs, backups.
 
-**A. Reliability and observability**
-- A1. `data/server.log` with rotation at 5 MB; a second instance exits with a logged reason instead of hanging.
-- A2. Source health in `/api/status` (`lastError`, `lastErrorAt`), error badge in the UI, `POST /api/sync` to retry.
-- A3. First-sync progress for mail: `sync(db, now, progress)` reports `done / total` folders, exposed in `/api/status`.
+### v0.4.0 — New signals
+- Browser history: read a copy of the Chromium History DB (Chrome, then Edge), store domain/title/visited time, skip excluded domains. Digest gets aggregates only, never page URLs.
+- GitHub: `GITHUB_TOKEN` (scope `notifications`), unread notifications and review requests in the attention queue and digest.
+- Google Docs content: export text for Google-native files (cap 20 KB), searchable, named in the digest.
 
-**B. Data quality**
-- B1. Exclusion settings: mail senders, mail folders, vault folders, digest window (JSON in `settings`).
-- B2. Bulk detection (`List-Unsubscribe`, `Precedence: bulk`, `Auto-Submitted`); bulk mail never counts as unread.
-- B3. Needs-reply heuristic: inbox, not bulk, older than 24 h, no later message from the user with the same normalized subject in Sent.
-- B4. Briefing stops repeating: mail digest only covers messages since the previous briefing; older unread stays in the attention queue.
+### v0.5.0 — Briefing as a habit
+- Weekly review on Sunday 18:00, `weekly` briefing kind comparing seven days.
+- Optional writing of the briefing into the vault (explicit toggle; the only write path in the app).
+- Briefing feedback (`useful` / `miss`) with evidence links per bullet.
 
-**C. Daily flow**
-- C1. Free windows (09:00–19:00, ≥30 min) and conflicts for today's calendar.
-- C2. Windows notifications via `node-notifier`: event in 15 minutes, auto briefing ready; dedupe by event id.
-- C3. `GET /api/search?q=` across vault text, mail (subject/sender/snippet) and Drive names; `LIKE` first, FTS5 only if slow.
-- C4. `GET /api/vault/changes/:id` and an inline diff when a feed item is expanded.
+### v0.6.0 — Mail and calendar depth
+- IMAP IDLE with reconnect instead of 15-minute polling; notify on important mail.
+- Thread grouping by normalized subject and participants.
+- Meeting prep 30 minutes before an event: related mail and notes (needs attendees stored).
 
-**D. Maintenance**
-- D1. Daily `VACUUM INTO data/backups/dashboard-YYYY-MM-DD.db`, keep 7.
-- D2. Digest window and per-source toggles applied when assembling a briefing.
+### v0.7.0 — Surface and speed
+- Tray icon with briefing and sync status (riskiest: third-party tray package without Tauri).
+- FTS5 search with source and date filters.
+- Dark theme and keyboard shortcuts (`/` search, `b` briefing).
+
+Each item: test → code → green run → commit; release bumps the version, tags and pushes. New sources follow the `configured / sync / digest` contract. Browser and mail send only aggregates and headers to DeepSeek — never URLs or message bodies.
+
 
 ## Rules
 

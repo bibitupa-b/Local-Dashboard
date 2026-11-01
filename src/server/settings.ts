@@ -5,6 +5,7 @@ export const LIST_KEYS = {
   mailSenders: 'mail_excluded_senders',
   mailFolders: 'mail_excluded_folders',
   vaultPrefixes: 'vault_excluded_prefixes',
+  browserDomains: 'browser_excluded_domains',
 } as const
 
 export function getList(db: DatabaseSync, key: string): string[] {

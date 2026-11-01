@@ -3,7 +3,7 @@ import { parseNote } from './sources/vault/parse.js'
 import { isExcludedSender, isExcludedVaultPath } from './settings.js'
 
 export type AttentionItem = {
-  kind: 'task' | 'mail' | 'reply' | 'calendar' | 'stale-project' | 'inbox' | 'drive'
+  kind: 'task' | 'mail' | 'reply' | 'browser' | 'calendar' | 'stale-project' | 'inbox' | 'drive'
   label: string
   detail: string
   count?: number
@@ -92,6 +92,23 @@ export function buildAttention(
         .map((message) => message.sender.split('<')[0]!.trim() || message.sender)
         .join(', '),
       count: waiting.length,
+    })
+  }
+
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+  const browsing = db
+    .prepare(
+      `SELECT domain, COUNT(*) AS n FROM browser_visits
+       WHERE visited_at >= ? GROUP BY domain ORDER BY n DESC LIMIT 3`,
+    )
+    .all(todayStart) as Array<{ domain: string; n: number }>
+  const visits = browsing.reduce((sum, row) => sum + row.n, 0)
+  if (visits > 0) {
+    items.push({
+      kind: 'browser',
+      label: `Browser: ${visits} visits today`,
+      detail: browsing.map((row) => `${row.domain} (${row.n})`).join(', '),
+      count: visits,
     })
   }
 
@@ -186,6 +203,15 @@ export function buildAttention(
     items.push({ kind: 'drive', label: change.name, detail: `Drive: ${change.kind}` })
   }
 
-  const order = { task: 0, mail: 1, reply: 2, calendar: 3, 'stale-project': 4, inbox: 5, drive: 6 } as const
+  const order = {
+    task: 0,
+    mail: 1,
+    reply: 2,
+    browser: 3,
+    calendar: 4,
+    'stale-project': 5,
+    inbox: 6,
+    drive: 7,
+  } as const
   return items.sort((a, b) => order[a.kind] - order[b.kind] || (b.count ?? 1) - (a.count ?? 1))
 }

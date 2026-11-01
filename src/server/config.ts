@@ -12,6 +12,8 @@ export type Config = {
   briefingHour: number
   gmailUser: string | null
   gmailPassword: string | null
+  githubToken: string | null
+  browserHistoryPath: string | null
 }
 
 function value(env: NodeJS.ProcessEnv, key: string): string | null {
@@ -32,5 +34,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     briefingHour: Number(env.BRIEFING_HOUR) || 8,
     gmailUser: value(env, 'GMAIL_USER'),
     gmailPassword: value(env, 'GMAIL_APP_PASSWORD'),
+    githubToken: value(env, 'GITHUB_TOKEN'),
+    browserHistoryPath: value(env, 'BROWSER_HISTORY_PATH'),
   }
 }

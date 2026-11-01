@@ -10,6 +10,8 @@ import { createDriveSource, createGoogleDriveApi } from './sources/drive.js'
 import { createCalendarSource, createGoogleCalendarApi } from './sources/calendar.js'
 import { createMailSource } from './sources/mail.js'
 import { createImapMailApi } from './sources/mail-imap.js'
+import { createBrowserSource } from './sources/browser.js'
+import { createChromiumBrowserReader } from './sources/browser-chromium.js'
 import type { Source } from './sources/types.js'
 import { createVaultSource, startVaultWatcher } from './sources/vault/index.js'
 import { createHealth, markFailure, markProgress, markSuccess } from './health.js'
@@ -35,6 +37,7 @@ const sources: Source[] = [
   createDriveSource(await createGoogleDriveApi(config)),
   createMailSource(createImapMailApi(config)),
   createCalendarSource(await createGoogleCalendarApi(config)),
+  createBrowserSource(createChromiumBrowserReader(config.dataDir, config.browserHistoryPath)),
 ]
 
 const webRoot = join(process.cwd(), 'dist', 'web')

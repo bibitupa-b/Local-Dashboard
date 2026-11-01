@@ -100,3 +100,29 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 );
 
 CREATE INDEX IF NOT EXISTS calendar_events_start ON calendar_events (start);
+
+CREATE TABLE IF NOT EXISTS browser_visits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  url TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  visited_at TEXT NOT NULL,
+  UNIQUE (url, visited_at)
+);
+
+CREATE INDEX IF NOT EXISTS browser_visits_time ON browser_visits (visited_at);
+
+CREATE TABLE IF NOT EXISTS github_items (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  title TEXT NOT NULL,
+  url TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS drive_doc_text (
+  file_id TEXT PRIMARY KEY,
+  text TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL
+);

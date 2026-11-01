@@ -56,6 +56,8 @@ export type Settings = {
   excludedSenders: string[]
   excludedMailFolders: string[]
   excludedVaultPrefixes: string[]
+  excludedBrowserDomains: string[]
+  browserConfigured: boolean
   digestWindowHours: number
   enabledSources: string[]
 }
@@ -88,6 +90,7 @@ export const api = {
     briefingHour?: number
     excludedSenders?: string[]
     excludedVaultPrefixes?: string[]
+    excludedBrowserDomains?: string[]
     digestWindowHours?: number
     enabledSources?: string[]
   }): Promise<void> => {

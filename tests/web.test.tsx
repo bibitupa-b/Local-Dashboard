@@ -21,6 +21,8 @@ const responses: Record<string, unknown> = {
     excludedSenders: [],
     excludedMailFolders: [],
     excludedVaultPrefixes: [],
+    excludedBrowserDomains: [],
+    browserConfigured: false,
     digestWindowHours: 24,
     enabledSources: [],
   },
