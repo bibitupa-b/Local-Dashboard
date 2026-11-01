@@ -77,6 +77,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   normalizeMailFolders(db)
 
   const envDeepseekKey = config.deepseekKey
+  if (envDeepseekKey && !listConnections(db, box).some((row) => row.service === 'deepseek')) {
+    saveConnection(db, box, {
+      service: 'deepseek',
+      label: 'DeepSeek',
+      config: {},
+      secret: { key: envDeepseekKey },
+    })
+  }
   function applyDeepseekKey(): void {
     config.deepseekKey = resolveDeepseekKey(db, box, envDeepseekKey)
   }

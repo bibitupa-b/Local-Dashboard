@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0
+
+Global redesign.
+
+- Dark-only interface from `DESIGN.md`: canonical palette, mono metadata, flat cards, six source colors.
+- Restrained motion: press/hover/reveal timings, sync breathing, skeleton loading, one-time briefing glow, animated diff and dialogs; loops pause when hidden; full reduced-motion support.
+- New confirm dialog replaces `window.confirm`; connection modal traps focus and returns it.
+- Accessible hints with `aria-describedby`, Escape and blur handling.
+- Briefing skeletons while generating; search suggestions animated with keyboard-active state.
+- Electron window background matches the palette; no light flash on launch.
+
 ## 0.7.0
 
 Security and release preparation.

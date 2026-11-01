@@ -71,6 +71,7 @@ These were agreed with the user; do not re-litigate them without asking.
 - Scheduled 08:00 by default; generate on startup if today's briefing is missing.
 - Attention queue rules: open tasks grouped by tag (recurring tags such as `#vitamins` collapse into one row with a count), notes with frontmatter `status: Undone` untouched for 14+ days, notes sitting in `Inbox` for 3+ days, unread mail from the last 30 days and the next calendar event.
 - Autostart is managed by Electron (`app.setLoginItemSettings`), toggled from the tray.
+- Visual language follows `DESIGN.md`: dark only, canonical palette, motion that reports state.
 
 ## Data model
 

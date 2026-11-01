@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import {
   api,
   type Connection,
@@ -44,10 +44,10 @@ Only .md files are read; the app never writes to the vault.`,
     service: 'google',
     name: 'Google Drive & Calendar',
     description: 'Read-only access to Drive files and the primary calendar.',
-    hint: `1. console.cloud.google.com → create a project.
+    hint: `1. console.cloud.google.com -> create a project.
 2. Enable "Google Drive API" and "Google Calendar API" in Library.
 3. OAuth consent screen: External; publish to Production (Testing expires tokens in 7 days).
-4. Credentials → Create credentials → OAuth client ID → Desktop app.
+4. Credentials -> Create credentials -> OAuth client ID -> Desktop app.
 5. Paste Client ID and Client secret, save, then press Connect.`,
     fields: [
       { key: 'clientId', label: 'Client ID', placeholder: '...apps.googleusercontent.com' },
@@ -58,7 +58,7 @@ Only .md files are read; the app never writes to the vault.`,
     service: 'imap',
     name: 'Gmail (IMAP)',
     description: 'Reads mail over IMAP with an app password.',
-    hint: `1. Google Account → Security → 2-Step Verification.
+    hint: `1. Google Account -> Security -> 2-Step Verification.
 2. At the bottom open "App passwords" (or myaccount.google.com/apppasswords).
 3. Create one named "Local Dashboard" and copy the 16 characters.
 4. Enter your Gmail address and that password here.`,
@@ -71,7 +71,7 @@ Only .md files are read; the app never writes to the vault.`,
     service: 'github',
     name: 'GitHub',
     description: 'Unread notifications and review requests.',
-    hint: `1. github.com/settings/tokens → Generate new token (classic).
+    hint: `1. github.com/settings/tokens -> Generate new token (classic).
 2. Select the "notifications" scope (add "repo" for private repositories).
 3. Copy the token once and paste it here.`,
     fields: [{ key: 'token', label: 'Personal access token', secret: true, placeholder: 'ghp_...' }],
@@ -97,8 +97,8 @@ Excluded domains are listed under Preferences.`,
     service: 'deepseek',
     name: 'DeepSeek API',
     description: 'Powers the daily briefing.',
-    hint: `1. platform.deepseek.com → sign in.
-2. Open "API keys" → Create new API key.
+    hint: `1. platform.deepseek.com -> sign in.
+2. Open "API keys" -> Create new API key.
 3. Copy the sk-... value (shown once) and paste it here.
 4. Top up the balance under Billing, otherwise requests return 402.`,
     fields: [{ key: 'key', label: 'API key', secret: true, placeholder: 'sk-...' }],
@@ -114,6 +114,8 @@ const SOURCE_LABELS: Record<string, string> = {
   github: 'github',
 }
 
+type Notice = { text: string; tone: 'info' | 'success' | 'error' }
+
 export function SettingsPanel({
   settings,
   onSaved,
@@ -125,7 +127,8 @@ export function SettingsPanel({
 }) {
   const [connections, setConnections] = useState<Connection[]>([])
   const [editing, setEditing] = useState<{ service: Service; connection?: Connection } | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<Connection | null>(null)
+  const [notice, setNotice] = useState<Notice | null>(null)
   const [tests, setTests] = useState<Record<string, string>>({})
   const [briefingHour, setBriefingHour] = useState(settings.briefingHour)
   const [windowHours, setWindowHours] = useState(settings.digestWindowHours)
@@ -133,9 +136,7 @@ export function SettingsPanel({
   const [vaultPrefixes, setVaultPrefixes] = useState(settings.excludedVaultPrefixes.join('\n'))
   const [browserDomains, setBrowserDomains] = useState(settings.excludedBrowserDomains.join('\n'))
   const [enabled, setEnabled] = useState<string[]>(
-    settings.enabledSources.length > 0
-      ? settings.enabledSources
-      : Object.keys(SOURCE_LABELS),
+    settings.enabledSources.length > 0 ? settings.enabledSources : Object.keys(SOURCE_LABELS),
   )
 
   async function loadConnections() {
@@ -156,17 +157,13 @@ export function SettingsPanel({
     }))
   }
 
-  async function disconnect(connection: Connection) {
-    if (
-      !window.confirm(
-        `Disconnect “${connection.label}”? Its local data will be removed from the dashboard.`,
-      )
-    ) {
-      return
-    }
-    await api.deleteConnection(connection.id)
+  async function confirmDisconnect() {
+    if (!confirming) return
+    const target = confirming
+    setConfirming(null)
+    await api.deleteConnection(target.id)
     await loadConnections()
-    setNotice(`Removed ${connection.label}.`)
+    setNotice({ text: `Removed ${target.label}.`, tone: 'success' })
   }
 
   async function savePreferences(event: React.FormEvent) {
@@ -189,7 +186,7 @@ export function SettingsPanel({
       enabledSources: enabled,
     })
     onSaved(next)
-    setNotice('Preferences saved.')
+    setNotice({ text: 'Preferences saved.', tone: 'success' })
   }
 
   return (
@@ -201,7 +198,11 @@ export function SettingsPanel({
         </button>
       </div>
 
-      {notice && <p className="note">{notice}</p>}
+      {notice && (
+        <p className={`note ${notice.tone}`} role="status" aria-live="polite">
+          {notice.text}
+        </p>
+      )}
 
       <section className="card">
         <h2>Connections</h2>
@@ -230,8 +231,8 @@ export function SettingsPanel({
                 rows.map((row) => (
                   <div key={row.id} className="conn-row">
                     <span
-                      className={`dot ${row.lastError ? 'bad' : row.enabled ? 'ok' : ''}`}
-                      title={row.lastError ?? (row.enabled ? 'enabled' : 'disabled')}
+                      className={`dot ${row.lastError ? 'bad' : isHealthy(row) ? 'ok' : ''}`}
+                      title={row.lastError ?? (isHealthy(row) ? 'enabled' : 'needs attention')}
                     />
                     <span className="label">{row.label}</span>
                     <span className="detail">{detailOf(row)}</span>
@@ -246,33 +247,37 @@ export function SettingsPanel({
                       >
                         Edit
                       </button>
-                      {definition.service === 'google' && row.secretsSet.includes('tokens') && (
-                        <a
-                          className="ghost mini"
-                          href={`/api/oauth/google/start?connection=${row.id}`}
-                        >
-                          Reconnect
-                        </a>
-                      )}
-                      {definition.service === 'google' && !row.secretsSet.includes('tokens') && (
-                        <a
-                          className="ghost mini"
-                          href={`/api/oauth/google/start?connection=${row.id}`}
-                        >
-                          Connect
-                        </a>
-                      )}
+                      {definition.service === 'google' &&
+                        (row.secretsSet.includes('tokens') ? (
+                          <a
+                            className="ghost mini"
+                            href={`/api/oauth/google/start?connection=${row.id}`}
+                          >
+                            Reconnect
+                          </a>
+                        ) : (
+                          <a
+                            className="ghost mini"
+                            href={`/api/oauth/google/start?connection=${row.id}`}
+                          >
+                            Connect
+                          </a>
+                        ))}
                       <button
                         type="button"
-                        className="ghost mini"
-                        onClick={() => void disconnect(row)}
+                        className="danger mini"
+                        onClick={() => setConfirming(row)}
                       >
                         Disconnect
                       </button>
                     </span>
                     {tests[row.id] && (
-                      <span className={`test-result${tests[row.id] === 'works' ? ' ok' : ''}`}>
-                        {tests[row.id]}
+                      <span
+                        className={`test-result${tests[row.id] === 'works' ? ' ok' : ''}`}
+                        aria-live="polite"
+                      >
+                        {tests[row.id] === 'testing…' && <span className="spinner" aria-hidden="true" />}
+                        {tests[row.id] === 'testing…' ? 'testing…' : tests[row.id]}
                       </span>
                     )}
                   </div>
@@ -344,7 +349,9 @@ export function SettingsPanel({
           ))}
         </fieldset>
         <div className="row">
-          <button type="submit">Save preferences</button>
+          <button type="submit" className="primary">
+            Save preferences
+          </button>
         </div>
       </form>
 
@@ -356,12 +363,24 @@ export function SettingsPanel({
           onSaved={async (saved) => {
             setEditing(null)
             await loadConnections()
-            setNotice(
-              saved.service === 'google' && !saved.secretsSet.includes('tokens')
-                ? 'Saved. Press Connect next to the Google account to grant access.'
-                : `Saved ${saved.label}.`,
-            )
+            setNotice({
+              text:
+                saved.service === 'google' && !saved.secretsSet.includes('tokens')
+                  ? 'Saved. Press Connect next to the Google account to grant access.'
+                  : `Saved ${saved.label}.`,
+              tone: 'success',
+            })
           }}
+        />
+      )}
+
+      {confirming && (
+        <ConfirmDialog
+          title="Disconnect account"
+          message={`Disconnect “${confirming.label}”? Its local data will be removed from the dashboard.`}
+          confirmLabel="Disconnect"
+          onConfirm={() => void confirmDisconnect()}
+          onCancel={() => setConfirming(null)}
         />
       )}
     </div>
@@ -369,12 +388,51 @@ export function SettingsPanel({
 }
 
 function Hint({ text }: { text: string }) {
+  const id = useId()
+  const [open, setOpen] = useState(false)
   return (
-    <span className="hint" tabIndex={0} role="note" aria-label="How to connect">
+    <span
+      className={`hint${open ? ' open' : ''}`}
+      tabIndex={0}
+      role="note"
+      aria-describedby={id}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          setOpen(false)
+          event.currentTarget.blur()
+        }
+      }}
+    >
       ?
-      <span className="tip">{text}</span>
+      <span className="tip" id={id} role="tooltip">
+        {text}
+      </span>
     </span>
   )
+}
+
+function isHealthy(connection: Connection): boolean {
+  if (!connection.enabled || connection.lastError) return false
+  switch (connection.service) {
+    case 'vault':
+      return true
+    case 'browser':
+      return true
+    case 'deepseek':
+      return connection.secretsSet.includes('key')
+    case 'google':
+      return connection.secretsSet.includes('tokens')
+    case 'imap':
+      return connection.secretsSet.includes('password')
+    case 'github':
+      return connection.secretsSet.includes('token')
+    default:
+      return false
+  }
 }
 
 function detailOf(connection: Connection): string {
@@ -382,7 +440,7 @@ function detailOf(connection: Connection): string {
     case 'vault':
       return connection.config.path ?? ''
     case 'imap':
-      return connection.config.user ?? ''
+      return connection.secretsSet.includes('password') ? 'app password set' : 'no password'
     case 'browser':
       return connection.config.path || 'auto-detect'
     case 'google':
@@ -412,13 +470,38 @@ function ConnectionForm({
   const [config, setConfig] = useState<Record<string, string>>(connection?.config ?? {})
   const [secret, setSecret] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
+  const dialogRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const nodes = dialogRef.current?.querySelectorAll<HTMLElement>(
+        'input, textarea, button, a[href]',
+      )
+      if (!nodes || nodes.length === 0) return
+      const list = [...nodes].filter((node) => !node.hasAttribute('disabled'))
+      const first = list[0]
+      const last = list[list.length - 1]
+      if (!first || !last) return
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      previous?.focus()
+    }
   }, [onClose])
 
   async function submit(event: React.FormEvent) {
@@ -438,20 +521,18 @@ function ConnectionForm({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <form
+        ref={dialogRef}
         className="modal card"
         role="dialog"
         aria-modal="true"
+        aria-label={connection ? 'Edit connection' : `Connect ${definition.name}`}
         onClick={(event) => event.stopPropagation()}
         onSubmit={(event) => void submit(event)}
       >
         <h2>{connection ? 'Edit connection' : `Connect ${definition.name}`}</h2>
         <label>
           Label
-          <input
-            autoFocus
-            value={label}
-            onChange={(event) => setLabel(event.target.value)}
-          />
+          <input autoFocus value={label} onChange={(event) => setLabel(event.target.value)} />
         </label>
         {definition.fields.map((field) => (
           <label key={field.key}>
@@ -460,11 +541,7 @@ function ConnectionForm({
             <input
               type={field.secret ? 'password' : 'text'}
               placeholder={field.placeholder}
-              value={
-                field.secret
-                  ? (secret[field.key] ?? '')
-                  : (config[field.key] ?? '')
-              }
+              value={field.secret ? (secret[field.key] ?? '') : (config[field.key] ?? '')}
               onChange={(event) =>
                 field.secret
                   ? setSecret((current) => ({ ...current, [field.key]: event.target.value }))
@@ -486,11 +563,80 @@ function ConnectionForm({
             Enabled
           </label>
         )}
-        {error && <p className="note">{error}</p>}
+        {error && (
+          <p className="note error" role="alert">
+            {error}
+          </p>
+        )}
         <div className="row">
-          <button type="submit">{connection ? 'Save changes' : 'Add connection'}</button>
+          <button type="submit" className="primary">
+            {connection ? 'Save changes' : 'Add connection'}
+          </button>
           <button type="button" className="ghost" onClick={onClose}>
             Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+}: {
+  title: string
+  message: string
+  confirmLabel: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const dialogRef = useRef<HTMLFormElement>(null)
+
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCancel()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    const timer = setTimeout(() => {
+      dialogRef.current?.querySelector<HTMLElement>('button')?.focus()
+    }, 0)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      clearTimeout(timer)
+      previous?.focus()
+    }
+  }, [onCancel])
+
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <form
+        ref={dialogRef}
+        className="modal card confirm"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+        onSubmit={(event) => {
+          event.preventDefault()
+          onConfirm()
+        }}
+      >
+        <h2>{title}</h2>
+        <p>{message}</p>
+        <div className="row">
+          <button type="button" className="ghost" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="submit" className="danger">
+            {confirmLabel}
           </button>
         </div>
       </form>

@@ -59,6 +59,52 @@ test('renders the three blocks and their empty states', async () => {
   unmount()
 })
 
+test('disconnect asks for confirmation in a dialog', async () => {
+  const connection = {
+    id: 'vault-1',
+    service: 'vault',
+    label: 'Main vault',
+    config: { path: 'C:/notes' },
+    enabled: true,
+    lastError: null,
+    createdAt: '2026-11-01T00:00:00.000Z',
+    secretsSet: [],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => {
+        if (url === '/api/connections') return { items: [connection] }
+        if (url === '/api/connections/vault-1') return { ok: true }
+        return responses[url] ?? {}
+      },
+    })),
+  )
+
+  const { unmount } = render(
+    <SettingsPanel
+      settings={responses['/api/settings'] as never}
+      onSaved={() => {}}
+      onClose={() => {}}
+    />,
+  )
+
+  await waitFor(() => expect(screen.getByText('Main vault')).toBeTruthy())
+  expect(screen.getAllByRole('note')[0]?.getAttribute('aria-describedby')).toBeTruthy()
+
+  const disconnect = screen
+    .getAllByRole('button', { name: 'Disconnect' })
+    .at(-1) as HTMLButtonElement
+  disconnect.click()
+
+  await waitFor(() => expect(screen.getByText('Disconnect account')).toBeTruthy())
+  const cancel = screen.getByRole('button', { name: 'Cancel' })
+  cancel.click()
+  await waitFor(() => expect(screen.queryByText('Disconnect account')).toBeNull())
+  unmount()
+})
+
 test('every empty service offers a connect button', async () => {
   vi.stubGlobal(
     'fetch',

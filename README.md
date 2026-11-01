@@ -4,7 +4,7 @@ A single-user dashboard that runs on your own machine and shows one quiet screen
 
 Everything stays local. The only outbound request is the digest sent to the DeepSeek API when a briefing is generated.
 
-> Status: 0.7 — desktop app with universal connections, ready for daily use; 1.0 follows after stabilisation.
+> Status: 0.8 — dark, motion-aware interface on top of the 0.7 feature set; 1.0 follows after stabilisation.
 
 ## What it does
 

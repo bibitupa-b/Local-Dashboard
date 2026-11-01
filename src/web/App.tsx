@@ -15,6 +15,14 @@ import { driveUrl, mailUrl, obsidianUrl, sourceUrl } from './links.js'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+const SERVICE_LABELS: Record<string, string> = {
+  vault: 'vault',
+  google: 'drive',
+  imap: 'mail',
+  github: 'github',
+  browser: 'browser',
+}
+
 function dayLabel(iso: string): string {
   const date = new Date(`${iso}T00:00:00`)
   const today = new Date()
@@ -36,7 +44,11 @@ export function App() {
   const [today, setToday] = useState<Today | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [busy, setBusy] = useState(false)
-  const [note, setNote] = useState<string | null>(null)
+  const [note, setNote] = useState<{
+    text: string
+    tone: 'info' | 'success' | 'error'
+  } | null>(null)
+  const [glow, setGlow] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResults | null>(null)
@@ -63,14 +75,23 @@ export function App() {
       setSettings(nextSettings)
       setToday(nextToday)
     } catch (error) {
-      setNote(error instanceof Error ? error.message : 'Backend is not reachable')
+      setNote({
+        text: error instanceof Error ? error.message : 'Backend is not reachable',
+        tone: 'error',
+      })
     }
   }
 
   useEffect(() => {
     const drive = new URLSearchParams(window.location.search).get('drive')
-    if (drive === 'connected') setNote('Google connected. Sources are syncing now.')
-    else if (drive === 'error') setNote('Google authorization failed. Try connecting again from Settings.')
+    if (drive === 'connected') {
+      setNote({ text: 'Google connected. Sources are syncing now.', tone: 'success' })
+    } else if (drive === 'error') {
+      setNote({
+        text: 'Google authorization failed. Try connecting again from Settings.',
+        tone: 'error',
+      })
+    }
   }, [])
 
   useEffect(() => {
@@ -102,26 +123,45 @@ export function App() {
     return () => clearTimeout(handle)
   }, [query])
 
+  useEffect(() => {
+    const update = () => document.body.classList.toggle('motion-paused', document.hidden)
+    update()
+    document.addEventListener('visibilitychange', update)
+    return () => document.removeEventListener('visibilitychange', update)
+  }, [])
+
+  useEffect(() => {
+    if (!glow) return
+    const timer = setTimeout(() => setGlow(false), 700)
+    return () => clearTimeout(timer)
+  }, [glow])
+
   async function generate() {
     setBusy(true)
     setNote(null)
     try {
       const result = await api.generate()
       if ('error' in result) {
-        setNote(
-          result.error === 'no-key'
-            ? 'Add DEEPSEEK_API_KEY to .env and restart the server.'
-            : `Briefing failed: ${result.error}`,
-        )
+        setNote({
+          text:
+            result.error === 'no-key'
+              ? 'Add a DeepSeek key in Settings -> Connections.'
+              : `Briefing failed: ${result.error}`,
+          tone: 'error',
+        })
       } else {
         setBriefings((items) => [
           { id: Date.now(), created_at: new Date().toISOString(), trigger: 'manual', markdown: result.markdown },
           ...items,
         ])
         setStatus((current) => (current ? { ...current, briefingToday: true } : current))
+        setGlow(true)
       }
     } catch (error) {
-      setNote(error instanceof Error ? `Briefing failed: ${error.message}` : 'Briefing failed')
+      setNote({
+        text: error instanceof Error ? `Briefing failed: ${error.message}` : 'Briefing failed',
+        tone: 'error',
+      })
     } finally {
       setBusy(false)
     }
@@ -204,13 +244,13 @@ export function App() {
 
   if (showSettings && settings) {
     return (
-      <div className="page">
+      <div className="page app-enter">
         <SettingsPanel
           settings={settings}
           onClose={() => setShowSettings(false)}
           onSaved={(next) => {
             setSettings(next)
-            setNote('Preferences saved.')
+            setNote({ text: 'Preferences saved.', tone: 'success' })
           }}
         />
       </div>
@@ -239,7 +279,7 @@ export function App() {
 
   return (
     <div className="page">
-      <header className="head">
+      <header className="head enter-item" style={{ '--i': 0 } as React.CSSProperties}>
         <div>
           <h1>Local Dashboard</h1>
           <p className="sub">
@@ -247,50 +287,70 @@ export function App() {
           </p>
         </div>
         <div className="status">
-          {statusGroups.map((group) => {
-            const url = sourceUrl(group.service, vaultPath)
-            const className = `pill ${group.configured > 0 ? 'ok' : 'off'}${group.error ? ' bad' : ''}`
-            const title = group.error ?? `${group.configured}/${group.total} connected`
-            const label = (
-              <>
-                {group.service}
-                {group.total > 1 ? ` · ${group.total}` : ''}
-                {group.lastSync ? ` · ${time(group.lastSync)}` : group.configured > 0 ? '' : ' · not connected'}
-              </>
-            )
-            return url ? (
-              <a
-                key={group.service}
-                className={className}
-                href={url}
-                title={title}
-                target={url.startsWith('obsidian://') ? undefined : '_blank'}
-                rel={url.startsWith('obsidian://') ? undefined : 'noreferrer'}
-              >
-                {label}
-              </a>
-            ) : (
-              <span key={group.service} className={className} title={title}>
-                {label}
-              </span>
-            )
-          })}
-          <button
-            className="ghost"
-            onClick={() => {
-              void api.sync().then(load)
-            }}
-          >
-            Sync
-          </button>
-          <button className="ghost" onClick={() => setShowSettings((value) => !value)}>
-            Settings
-          </button>
+          <div className="pills">
+            {statusGroups.map((group) => {
+              const url = sourceUrl(group.service, vaultPath)
+              const className = `pill ${group.configured > 0 ? 'ok' : 'off'}${group.error ? ' bad' : ''}`
+              const title = group.error ?? `${group.configured}/${group.total} connected`
+              const name = SERVICE_LABELS[group.service] ?? group.service
+              const label = (
+                <>
+                  {name}
+                  {group.total > 1 ? ` · ${group.total}` : ''}
+                  {group.lastSync
+                    ? ` · ${time(group.lastSync)}`
+                    : group.configured > 0
+                      ? ''
+                      : ' · not connected'}
+                </>
+              )
+              return url ? (
+                <a
+                  key={group.service}
+                  className={className}
+                  href={url}
+                  title={title}
+                  target={url.startsWith('obsidian://') ? undefined : '_blank'}
+                  rel={url.startsWith('obsidian://') ? undefined : 'noreferrer'}
+                >
+                  {label}
+                </a>
+              ) : (
+                <span key={group.service} className={className} title={title}>
+                  {label}
+                </span>
+              )
+            })}
+          </div>
+          <div className="head-actions">
+            <button
+              className="ghost"
+              onClick={() => {
+                void api.sync().then(load)
+              }}
+            >
+              Sync
+            </button>
+            <button className="ghost" onClick={() => setShowSettings((value) => !value)}>
+              Settings
+            </button>
+          </div>
         </div>
       </header>
 
       {status?.sync.running && (
-        <div className="syncbar" role="progressbar" aria-label="Syncing sources">
+        <div
+          className="syncbar"
+          role="progressbar"
+          aria-label={`Syncing ${status.sync.source ?? 'sources'}`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(
+            ((status.sync.sourceIndex + status.sync.done / Math.max(status.sync.total, 1)) /
+              Math.max(status.sync.sourceTotal, 1)) *
+              100,
+          )}
+        >
           {status.sources.map((source, index) => {
             const active = status.sync.source === source.id
             const complete = !active && index < status.sync.sourceIndex
@@ -312,10 +372,14 @@ export function App() {
         </div>
       )}
 
-      {note && <p className="note">{note}</p>}
+      {note && (
+        <p className={`note ${note.tone}`} role="status" aria-live="polite">
+          {note.text}
+        </p>
+      )}
 
       {today && today.events.length > 0 && (
-        <section className="today">
+        <section className="today enter-item" style={{ '--i': 1 } as React.CSSProperties}>
           <span className="today-label">Today</span>
           {today.events.map((event) => (
             <span key={event.id} className="event">
@@ -336,7 +400,7 @@ export function App() {
         </section>
       )}
 
-      <form className="search" onSubmit={(event) => void search(event)}>
+      <form className="search enter-item" style={{ '--i': 2 } as React.CSSProperties} onSubmit={(event) => void search(event)}>
         <div className="search-wrap">
           <input
             value={query}
@@ -375,7 +439,7 @@ export function App() {
             </div>
           )}
         </div>
-        <button type="submit">Search</button>
+        <button type="submit" className="ghost">Search</button>
         {results && (
           <button
             type="button"
@@ -439,14 +503,20 @@ export function App() {
         </section>
       )}
 
-      <section className="card briefing">
+      <section className={`card briefing enter-item${glow ? ' glow' : ''}`} style={{ '--i': 3 } as React.CSSProperties}>
         <div className="card-head">
           <h2>Briefing</h2>
-          <button onClick={() => void generate()} disabled={busy}>
+          <button className="primary" onClick={() => void generate()} disabled={busy}>
             {busy ? 'Thinking…' : 'Briefing now'}
           </button>
         </div>
-        {latest ? (
+        {busy ? (
+          <div className="skeleton" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+        ) : latest ? (
           <>
             <p className="sub">
               {new Date(latest.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
@@ -472,7 +542,7 @@ export function App() {
         )}
       </section>
 
-      <div className="columns">
+      <div className="columns enter-item" style={{ '--i': 4 } as React.CSSProperties}>
         <section className="card">
           <h2>Activity</h2>
           {feed.length === 0 && <p className="empty">No changes yet.</p>}
@@ -484,7 +554,12 @@ export function App() {
                   <li key={`${day.date}-${index}`}>
                     <span className={`dot ${item.source}`} />
                     {item.source === 'vault' && item.id ? (
-                      <button className="link" onClick={() => void toggleDiff(item.id!)}>
+                      <button
+                        className="link"
+                        aria-expanded={openDiff?.id === item.id}
+                        aria-controls={`diff-${item.id}`}
+                        onClick={() => void toggleDiff(item.id!)}
+                      >
                         {item.label}
                       </button>
                     ) : (
@@ -492,7 +567,9 @@ export function App() {
                     )}
                     <span className="detail">{item.detail}</span>
                     {openDiff && openDiff.id === item.id && (
-                      <pre className="diff">{openDiff.diff || 'No line changes'}</pre>
+                      <div className="diff-wrap" id={`diff-${item.id}`}>
+                        <pre className="diff">{openDiff.diff || 'No line changes'}</pre>
+                      </div>
                     )}
                   </li>
                 ))}
