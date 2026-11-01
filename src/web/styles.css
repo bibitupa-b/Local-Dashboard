@@ -70,7 +70,7 @@ body {
     radial-gradient(1100px 520px at 12% -8%, rgba(189, 162, 122, 0.05), transparent 62%),
     var(--bg);
   color: var(--ink);
-  font: 400 15px/1.6 var(--font-sans);
+  font: 400 16px/1.6 var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -119,35 +119,35 @@ p {
 }
 
 h1 {
-  font: 600 24px/1.25 var(--font-sans);
+  font: 600 26px/1.25 var(--font-sans);
   letter-spacing: -0.015em;
 }
 
 h2 {
-  font: 500 11px/1.4 var(--font-mono);
+  font: 500 12px/1.4 var(--font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
 h3 {
-  font: 600 14px/1.4 var(--font-sans);
+  font: 600 15px/1.4 var(--font-sans);
 }
 
 .sub {
   color: var(--muted);
-  font: 400 12px/1.45 var(--font-mono);
+  font: 400 13px/1.45 var(--font-mono);
   letter-spacing: 0.02em;
 }
 
 .empty {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .detail {
   color: var(--muted);
-  font: 400 12px/1.45 var(--font-mono);
+  font: 400 13px/1.45 var(--font-mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -167,13 +167,13 @@ button,
 .ghost,
 .primary,
 .danger {
-  height: 34px;
-  padding: 0 14px;
+  height: 36px;
+  padding: 0 16px;
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
   background: transparent;
   color: var(--ink);
-  font: 500 13px/1 var(--font-sans);
+  font: 500 14px/1 var(--font-sans);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -259,10 +259,10 @@ button:disabled,
 }
 
 .mini {
-  height: 26px;
+  height: 28px;
   padding: 2px 9px;
   border-radius: var(--radius-md);
-  font-size: 12px;
+  font-size: 13px;
   border: 1px solid var(--line);
   background: transparent;
   color: var(--ink);
@@ -286,7 +286,7 @@ button:disabled,
 /* ---------- page ---------- */
 
 .page {
-  max-width: 1180px;
+  max-width: 1240px;
   margin: 0 auto;
   padding: 32px 32px 80px;
 }
@@ -324,13 +324,13 @@ button:disabled,
 }
 
 .pill {
-  height: 26px;
-  padding: 3px 10px;
+  height: 28px;
+  padding: 3px 11px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--muted);
-  font: 500 11px/1 var(--font-mono);
+  font: 500 12px/1 var(--font-mono);
   letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
   display: inline-flex;
@@ -401,7 +401,7 @@ a.pill:hover {
   border: 1px solid rgba(135, 156, 183, 0.35);
   background: var(--info-wash);
   color: var(--ink);
-  font-size: 13px;
+  font-size: 14px;
   margin-bottom: 16px;
   animation: fade-rise var(--dur-reveal) var(--ease) both;
 }
@@ -427,7 +427,7 @@ a.pill:hover {
 }
 
 .today-label {
-  font: 500 11px/1.4 var(--font-mono);
+  font: 500 12px/1.4 var(--font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
@@ -435,7 +435,7 @@ a.pill:hover {
 }
 
 .event {
-  height: 28px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -443,13 +443,13 @@ a.pill:hover {
   border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   background: var(--surface);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink);
 }
 
 .event b {
   color: var(--warm);
-  font: 500 11px/1 var(--font-mono);
+  font: 500 12px/1 var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -481,13 +481,13 @@ a.pill:hover {
 
 .search input {
   width: 100%;
-  height: 40px;
+  height: 42px;
   padding: 0 12px;
   background: var(--sunken);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   color: var(--ink);
-  font: 400 15px/1 var(--font-sans);
+  font: 400 16px/1 var(--font-sans);
   transition: border-color var(--dur-hover) var(--ease);
 }
 
@@ -520,7 +520,7 @@ a.pill:hover {
 
 .suggest .group {
   padding: 8px 12px 4px;
-  font: 500 10px/1.4 var(--font-mono);
+  font: 500 11px/1.4 var(--font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
@@ -530,9 +530,9 @@ a.pill:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 34px;
+  height: 36px;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
   border-left: 2px solid transparent;
   transition: background var(--dur-press) linear;
@@ -567,7 +567,7 @@ a.pill:hover {
   margin: 0 -6px;
   border-bottom: 1px solid var(--line-soft);
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink);
   text-decoration: none;
   transition: background var(--dur-hover) var(--ease);
@@ -600,7 +600,7 @@ li .label {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  padding: 20px;
+  padding: 22px;
   margin-bottom: 16px;
 }
 
@@ -631,7 +631,7 @@ li .label {
 }
 
 .briefing .markdown {
-  font: 400 16px/1.7 var(--font-sans);
+  font: 400 17px/1.7 var(--font-sans);
   max-width: 72ch;
   white-space: pre-wrap;
 }
@@ -650,7 +650,7 @@ li .label {
   list-style: none;
   cursor: pointer;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .earlier summary::-webkit-details-marker {
@@ -673,7 +673,7 @@ li .label {
 }
 
 .earlier h3 {
-  font: 500 11px/1.4 var(--font-mono);
+  font: 500 12px/1.4 var(--font-mono);
   letter-spacing: 0.06em;
   color: var(--muted);
   margin: 0 0 6px;
@@ -712,7 +712,7 @@ li .label {
 }
 
 .day h3 {
-  font: 500 11px/1.4 var(--font-mono);
+  font: 500 12px/1.4 var(--font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
@@ -741,7 +741,7 @@ li {
   align-items: baseline;
   padding: 6px 0;
   border-bottom: 1px solid var(--line-soft);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 li:last-child {
@@ -817,7 +817,7 @@ li:last-child {
 }
 
 .kind {
-  font: 500 10px/1.4 var(--font-mono);
+  font: 500 11px/1.4 var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
@@ -828,7 +828,7 @@ li:last-child {
 }
 
 .count {
-  font: 500 11px/1.4 var(--font-mono);
+  font: 500 12px/1.4 var(--font-mono);
   background: var(--accent-wash);
   color: var(--accent);
   border-radius: 4px;
@@ -910,7 +910,7 @@ li:last-child {
   align-items: center;
   gap: 8px;
   padding: 8px 0;
-  font-size: 13px;
+  font-size: 14px;
   flex-wrap: wrap;
 }
 
@@ -932,7 +932,7 @@ li:last-child {
 
 .test-result {
   flex-basis: 100%;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--danger);
   padding-left: 16px;
   display: flex;
@@ -946,7 +946,7 @@ li:last-child {
 
 .settings label {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
   margin-bottom: 10px;
 }
@@ -1009,7 +1009,7 @@ input:-webkit-autofill {
 }
 
 .sources legend {
-  font: 500 11px/1.4 var(--font-mono);
+  font: 500 12px/1.4 var(--font-mono);
   color: var(--muted);
   padding: 0 4px;
 }
@@ -1020,7 +1020,7 @@ input:-webkit-autofill {
   align-items: center;
   margin-right: 14px;
   color: var(--ink);
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 
@@ -1031,18 +1031,27 @@ input:-webkit-autofill {
   accent-color: var(--accent);
 }
 
+.settings label.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 14px 6px 0;
+  font-size: 14px;
+  color: var(--ink);
+}
+
 /* ---------- hint ---------- */
 
 .hint {
   position: relative;
   display: inline-flex;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   border: 1px solid var(--line);
   align-items: center;
   justify-content: center;
-  font: 500 11px/1 var(--font-mono);
+  font: 500 12px/1 var(--font-mono);
   color: var(--muted);
   cursor: help;
   flex: none;
@@ -1060,7 +1069,7 @@ input:-webkit-autofill {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   padding: 10px 12px;
-  font: 400 12px/1.55 var(--font-sans);
+  font: 400 13px/1.55 var(--font-sans);
   color: var(--ink);
   opacity: 0;
   visibility: hidden;
@@ -1126,12 +1135,12 @@ input:-webkit-autofill {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  padding: 20px;
+  padding: 22px;
   animation: dialog-in var(--dur-panel) var(--ease) both;
 }
 
 .modal h2 {
-  font: 600 14px/1.4 var(--font-sans);
+  font: 600 15px/1.4 var(--font-sans);
   letter-spacing: 0;
   text-transform: none;
   color: var(--ink);
@@ -1140,7 +1149,7 @@ input:-webkit-autofill {
 
 .modal label {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
   margin-bottom: 10px;
 }
@@ -1149,7 +1158,7 @@ input:-webkit-autofill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink);
   margin: 0 0 8px;
 }
@@ -1158,7 +1167,7 @@ input:-webkit-autofill {
   display: block;
   margin-top: 4px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .confirm {
@@ -1166,7 +1175,7 @@ input:-webkit-autofill {
 }
 
 .confirm p {
-  font-size: 14px;
+  font-size: 15px;
   color: var(--ink);
 }
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.4
+
+- Comfort pass: larger body (16 px), titles, buttons, pills, inputs and dialog labels.
+- Connection checkboxes stay inline in Preferences.
+- Screenshot set refreshed and moved to `docs/screenshots/0.8/`.
+
 ## 0.8.3
 
 - Disabled buttons no longer play hover or press animations.
@@ -13,7 +19,7 @@
 ## 0.8.1
 
 - Activity feed shows six rows per day with a “Show N more” control instead of the full history.
-- Screenshot set published in `docs/screenshots/0.8.0/` with an HTML contact sheet.
+- Screenshot set published in `docs/screenshots/0.8/` with an HTML contact sheet.
 
 ## 0.8.0
 
