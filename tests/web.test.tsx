@@ -23,6 +23,8 @@ const responses: Record<string, unknown> = {
     excludedVaultPrefixes: [],
     excludedBrowserDomains: [],
     browserConfigured: false,
+    githubConfigured: false,
+    githubConnected: false,
     digestWindowHours: 24,
     enabledSources: [],
   },

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, type Settings } from './api.js'
 
-const SOURCES = ['vault', 'drive', 'mail', 'calendar', 'browser'] as const
+const SOURCES = ['vault', 'drive', 'mail', 'calendar', 'browser', 'github'] as const
 
 export function SettingsPanel({
   settings,
@@ -114,7 +114,8 @@ export function SettingsPanel({
         {settings.driveConnected ? 'connected' : settings.googleConfigured ? 'not connected' : 'credentials missing'} · Mail:{' '}
         {settings.mailConnected ? 'synced' : settings.mailConfigured ? 'not synced' : 'missing in .env'} · Calendar:{' '}
         {settings.calendarConnected ? 'connected' : 'not connected'} · Browser:{' '}
-        {settings.browserConfigured ? 'connected' : 'history not found'}
+        {settings.browserConfigured ? 'connected' : 'history not found'} · GitHub:{' '}
+        {settings.githubConnected ? 'synced' : settings.githubConfigured ? 'not synced' : 'missing in .env'}
       </p>
       <div className="row">
         <button type="submit">Save</button>

@@ -58,6 +58,8 @@ export type Settings = {
   excludedVaultPrefixes: string[]
   excludedBrowserDomains: string[]
   browserConfigured: boolean
+  githubConfigured: boolean
+  githubConnected: boolean
   digestWindowHours: number
   enabledSources: string[]
 }

@@ -213,6 +213,8 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     excludedBrowserDomains: getList(db, LIST_KEYS.browserDomains),
     browserConfigured:
       sources.find((source) => source.id === 'browser')?.configured() ?? false,
+    githubConfigured: Boolean(config.githubToken),
+    githubConnected: Boolean(getSetting(db, 'last_sync_github')),
     digestWindowHours: digestWindowHours(db),
     enabledSources: getList(db, 'enabled_sources'),
   }))

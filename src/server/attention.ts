@@ -3,7 +3,16 @@ import { parseNote } from './sources/vault/parse.js'
 import { isExcludedSender, isExcludedVaultPath } from './settings.js'
 
 export type AttentionItem = {
-  kind: 'task' | 'mail' | 'reply' | 'browser' | 'calendar' | 'stale-project' | 'inbox' | 'drive'
+  kind:
+    | 'task'
+    | 'mail'
+    | 'reply'
+    | 'browser'
+    | 'github'
+    | 'calendar'
+    | 'stale-project'
+    | 'inbox'
+    | 'drive'
   label: string
   detail: string
   count?: number
@@ -112,6 +121,21 @@ export function buildAttention(
     })
   }
 
+  const github = db
+    .prepare(
+      `SELECT COUNT(*) AS total, COALESCE(SUM(kind = 'review'), 0) AS reviews,
+              COUNT(DISTINCT repo) AS repos FROM github_items`,
+    )
+    .get() as { total: number; reviews: number; repos: number }
+  if (github.total > 0) {
+    items.push({
+      kind: 'github',
+      label: `GitHub: ${github.total} items`,
+      detail: `${github.reviews} review requests · ${github.repos} repos`,
+      count: github.total,
+    })
+  }
+
   const nextEvent = db
     .prepare(
       `SELECT summary, start FROM calendar_events
@@ -208,10 +232,11 @@ export function buildAttention(
     mail: 1,
     reply: 2,
     browser: 3,
-    calendar: 4,
-    'stale-project': 5,
-    inbox: 6,
-    drive: 7,
+    github: 4,
+    calendar: 5,
+    'stale-project': 6,
+    inbox: 7,
+    drive: 8,
   } as const
   return items.sort((a, b) => order[a.kind] - order[b.kind] || (b.count ?? 1) - (a.count ?? 1))
 }
