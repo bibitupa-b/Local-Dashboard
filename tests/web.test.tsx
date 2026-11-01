@@ -2,6 +2,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { App } from '../src/web/App.js'
+import { SettingsPanel } from '../src/web/Settings.js'
 
 const responses: Record<string, unknown> = {
   '/api/status': {
@@ -55,5 +56,30 @@ test('renders the three blocks and their empty states', async () => {
     expect(screen.getByText('No briefing yet. Generate one whenever you are ready.')).toBeTruthy()
   })
 
+  unmount()
+})
+
+test('every empty service offers a connect button', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url === '/api/connections' ? { items: [] } : responses[url] ?? {},
+    })),
+  )
+
+  const { unmount } = render(
+    <SettingsPanel
+      settings={responses['/api/settings'] as never}
+      onSaved={() => {}}
+      onClose={() => {}}
+    />,
+  )
+
+  await waitFor(() => {
+    expect(screen.getAllByText('Connect').length).toBeGreaterThanOrEqual(6)
+  })
+  expect(screen.getByText('DeepSeek API')).toBeTruthy()
   unmount()
 })

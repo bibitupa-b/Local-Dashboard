@@ -1,6 +1,6 @@
 {
   "name": "local-dashboard",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "A single-user dashboard that runs on your own machine and shows one quiet screen: what changed in your notes and cloud drive, what is waiting for your attention, and a short daily briefing written by DeepSeek.",
   "main": "electron/main.cjs",
   "scripts": {

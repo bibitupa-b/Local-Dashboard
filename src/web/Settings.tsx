@@ -216,15 +216,13 @@ export function SettingsPanel({
                 <h3>
                   {definition.name} <Hint text={definition.hint} />
                 </h3>
-                {rows.length > 0 && (
-                  <button
-                    type="button"
-                    className="ghost mini"
-                    onClick={() => setEditing({ service: definition.service })}
-                  >
-                    + Add account
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="ghost mini"
+                  onClick={() => setEditing({ service: definition.service })}
+                >
+                  {rows.length > 0 ? '+ Add account' : 'Connect'}
+                </button>
               </div>
               {rows.length === 0 ? (
                 <p className="empty">{definition.description}</p>
