@@ -108,6 +108,12 @@ test('search covers notes, mail and drive names', async () => {
   db.prepare(
     `INSERT INTO drive_files (id, name, mime_type, modified_time, parents) VALUES ('f1', 'Zen budget.xlsx', 'sheet', '2026-10-29T10:00:00.000Z', '[]')`,
   ).run()
+  db.prepare(
+    `INSERT INTO drive_files (id, name, mime_type, modified_time, parents) VALUES ('d1', 'Meeting notes', 'doc', '2026-10-28T10:00:00.000Z', '[]')`,
+  ).run()
+  db.prepare(
+    `INSERT INTO drive_doc_text (file_id, text, updated_at) VALUES ('d1', 'discussed zen gardens and rocks', '2026-10-28T10:00:00.000Z')`,
+  ).run()
 
   const res = await app.inject({ method: 'GET', url: '/api/search?q=zen' })
   expect(res.statusCode).toBe(200)
@@ -115,6 +121,7 @@ test('search covers notes, mail and drive names', async () => {
   expect(body.notes[0].path).toBe('01 Projects/Zen.md')
   expect(body.mail[0].subject).toBe('Zen retreat')
   expect(body.drive[0].name).toBe('Zen budget.xlsx')
+  expect(body.drive.some((file: { name: string }) => file.name === 'Meeting notes')).toBe(true)
 
   const short = await app.inject({ method: 'GET', url: '/api/search?q=z' })
   expect(short.json()).toEqual({ notes: [], mail: [], drive: [] })

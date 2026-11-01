@@ -7,7 +7,12 @@ import type { Config } from '../config.js'
 export type DriveFile = { id: string; name: string; mimeType: string; modifiedTime: string }
 export type DriveApi = {
   listSince(cursor: string | null): Promise<{ files: DriveFile[]; nextCursor: string | null }>
+  exportText?(fileId: string): Promise<string | null>
 }
+
+const GOOGLE_DOC = /^application\/vnd\.google-apps\.(document|spreadsheet|presentation)$/
+const MAX_DOC_CHARS = 20_000
+const MAX_EXPORTS_PER_SYNC = 20
 
 export function createDriveSource(api: DriveApi | null): Source {
   return {
@@ -28,6 +33,7 @@ export function createDriveSource(api: DriveApi | null): Source {
       )
       const find = db.prepare('SELECT modified_time FROM drive_files WHERE id = ?')
       const nowIso = now.toISOString()
+      const changed: DriveFile[] = []
 
       for (const file of files) {
         const existing = find.get(file.id) as { modified_time: string } | undefined
@@ -35,7 +41,23 @@ export function createDriveSource(api: DriveApi | null): Source {
           if (!existing) record.run(file.id, 'added', nowIso)
           else if (file.modifiedTime > existing.modified_time) record.run(file.id, 'modified', nowIso)
         }
+        if (!existing || file.modifiedTime > existing.modified_time) changed.push(file)
         upsert.run(file.id, file.name, file.mimeType, file.modifiedTime)
+      }
+
+      if (api.exportText) {
+        const store = db.prepare(
+          `INSERT INTO drive_doc_text (file_id, text, updated_at) VALUES (?, ?, ?)
+           ON CONFLICT(file_id) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at`,
+        )
+        for (const file of changed.filter((entry) => GOOGLE_DOC.test(entry.mimeType)).slice(0, MAX_EXPORTS_PER_SYNC)) {
+          try {
+            const text = await api.exportText(file.id)
+            if (text !== null) store.run(file.id, text.slice(0, MAX_DOC_CHARS), nowIso)
+          } catch (error) {
+            console.error(`[drive] export failed for ${file.name}:`, error)
+          }
+        }
       }
 
       setSetting(db, 'drive_cursor', nextCursor ?? cursor ?? nowIso)
@@ -92,6 +114,13 @@ export async function createGoogleDriveApi(config: Config): Promise<DriveApi | n
         pageToken = res.data.nextPageToken ?? undefined
       } while (pageToken)
       return { files, nextCursor: nextCursor ?? null }
+    },
+    async exportText(fileId) {
+      const res = await drive.files.export(
+        { fileId, mimeType: 'text/plain' },
+        { responseType: 'text' },
+      )
+      return typeof res.data === 'string' ? res.data : null
     },
   }
 }

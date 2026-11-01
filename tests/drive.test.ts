@@ -58,6 +58,30 @@ test('failed sync leaves the cursor untouched', async () => {
   expect((db.prepare("SELECT value FROM settings WHERE key = 'drive_cursor'").get() as { value: string }).value).toBe('cursor-1')
 })
 
+test('exports text for changed Google Docs', async () => {
+  const db = openDb(':memory:')
+  const api = fakeApi([
+    {
+      files: [
+        {
+          id: 'd1',
+          name: 'Plan',
+          mimeType: 'application/vnd.google-apps.document',
+          modifiedTime: '2026-10-31T10:00:00.000Z',
+        },
+      ],
+      nextCursor: '2026-10-31T10:00:00.000Z',
+    },
+  ])
+  api.exportText = async () => 'text from the doc'
+  await createDriveSource(api).sync(db)
+
+  expect(db.prepare('SELECT file_id, text FROM drive_doc_text').get()).toEqual({
+    file_id: 'd1',
+    text: 'text from the doc',
+  })
+})
+
 test('consent URL carries the CSRF state and the configured port', () => {
   const config = loadConfig({ GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 'secret', PORT: '5000' })
   const url = new URL(googleAuthUrl(config, 'abc123')!)

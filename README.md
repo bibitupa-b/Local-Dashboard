@@ -11,7 +11,9 @@ Everything stays local. The only outbound request is the digest sent to the Deep
 - **Activity history** — detects edits to a local Obsidian vault and changes in Google Drive, keeps a diff-backed log.
 - **Attention queue** — open tasks from notes (grouped by tag), projects marked `status: Undone` that have gone stale, notes left in the Inbox, unread mail and the next calendar event.
 - **Today** — a slim strip with the day's calendar events, free windows and conflicts.
-- **Search** — one query across note text, mail and Drive file names.
+- **Search** — one query across note text, mail, Drive file names and Google Docs content.
+- **Browser history** — reads a copy of Chrome/Edge history; digest sees only domain aggregates, and sensitive domains can be excluded.
+- **GitHub** — unread notifications and review requests in the attention queue.
 - **Notifications** — Windows toasts 15 minutes before an event and when an automatic briefing is ready.
 - **Daily briefing** — DeepSeek receives a compact digest (not your vault) and returns 5–7 bullets: what moved, what is stuck, one suggestion for today. Runs on a schedule and on demand.
 - **Mail** — read-only Gmail over IMAP: subjects, senders and text of messages from the last 90 days (up to 512 KB each); older mail keeps headers only. Attachments are indexed by name, never downloaded.
@@ -46,6 +48,8 @@ Fill in `.env`:
 | `PORT` | Local port. Defaults to `4317`. |
 | `GMAIL_USER` | Gmail address. |
 | `GMAIL_APP_PASSWORD` | App password: Google Account → Security → 2-Step Verification → App passwords. |
+| `GITHUB_TOKEN` | Classic token with the `notifications` scope. |
+| `BROWSER_HISTORY_PATH` | Optional path to a Chromium `History` file; Chrome then Edge are auto-detected when empty. |
 
 Google Drive and Calendar are connected once from the settings page: the app opens the consent screen and stores the refresh token in `data/google-token.json` (gitignored). Google authorizes both services from one consent.
 

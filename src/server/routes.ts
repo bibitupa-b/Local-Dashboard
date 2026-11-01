@@ -181,10 +181,14 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
 
     const drive = db
       .prepare(
-        `SELECT name, modified_time AS modifiedTime FROM drive_files
-         WHERE name LIKE ? ESCAPE '\\' ORDER BY modified_time DESC LIMIT 10`,
+        `SELECT f.name, f.modified_time AS modifiedTime,
+                (SELECT substr(d.text, 1, 160) FROM drive_doc_text d WHERE d.file_id = f.id) AS snippet
+         FROM drive_files f
+         WHERE f.name LIKE ? ESCAPE '\\'
+            OR EXISTS (SELECT 1 FROM drive_doc_text d WHERE d.file_id = f.id AND d.text LIKE ? ESCAPE '\\')
+         ORDER BY f.modified_time DESC LIMIT 10`,
       )
-      .all(like)
+      .all(like, like)
 
     return { notes, mail, drive }
   })
