@@ -6,7 +6,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import type { Config } from './config.js'
 import type { Source } from './sources/types.js'
 import type { createBriefing } from './briefing/index.js'
-import type { HealthMap } from './health.js'
+import type { HealthMap, SyncState } from './health.js'
 import { registerRoutes } from './routes.js'
 
 export type Deps = {
@@ -18,6 +18,7 @@ export type Deps = {
   onDriveConnected?: () => void
   isReady?: () => boolean
   health?: () => HealthMap
+  syncState?: () => SyncState
   syncNow?: () => Promise<void>
 }
 
@@ -33,6 +34,7 @@ export function buildApp(deps: Deps): FastifyInstance {
     onDriveConnected: deps.onDriveConnected,
     isReady: deps.isReady,
     health: deps.health,
+    syncState: deps.syncState,
     syncNow: deps.syncNow,
   })
 

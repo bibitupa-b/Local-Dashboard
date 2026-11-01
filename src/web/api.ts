@@ -6,7 +6,15 @@ export type SourceStatus = {
   lastErrorAt?: string | null
   progress?: { done: number; total: number } | null
 }
-export type Status = { sources: SourceStatus[]; briefingToday: boolean }
+export type SyncState = {
+  running: boolean
+  source: string | null
+  sourceIndex: number
+  sourceTotal: number
+  done: number
+  total: number
+}
+export type Status = { sources: SourceStatus[]; briefingToday: boolean; sync: SyncState }
 export type FeedItem = {
   source: 'vault' | 'drive'
   id?: number

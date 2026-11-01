@@ -1,5 +1,19 @@
 import { expect, test } from 'vitest'
-import { createHealth, markFailure, markProgress, markSuccess } from '../src/server/health.js'
+import { createHealth, createSyncState, finishSync, markFailure, markProgress, markSuccess, startSync, updateSyncProgress } from '../src/server/health.js'
+
+test('sync state tracks the active source and its progress', () => {
+  const state = createSyncState()
+  expect(state.running).toBe(false)
+
+  startSync(state, 'mail', 2, 6)
+  expect(state).toMatchObject({ running: true, source: 'mail', sourceIndex: 2, sourceTotal: 6, done: 0, total: 1 })
+
+  updateSyncProgress(state, 3, 7)
+  expect(state).toMatchObject({ done: 3, total: 7 })
+
+  finishSync(state)
+  expect(state).toMatchObject({ running: false, source: null })
+})
 
 test('tracks failures, success and progress per source', () => {
   const health = createHealth(['vault'])

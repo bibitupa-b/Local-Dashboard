@@ -89,6 +89,7 @@ test('status carries health and the sync endpoint runs a sync', async () => {
 
   const status = await app.inject({ method: 'GET', url: '/api/status' })
   expect(status.json().sources[0]).toMatchObject({ id: 'vault', lastError: 'boom' })
+  expect(status.json().sync).toMatchObject({ running: false })
 
   const sync = await app.inject({ method: 'POST', url: '/api/sync' })
   expect(sync.statusCode).toBe(200)
@@ -139,6 +140,35 @@ test('vault change diff is returned by id', async () => {
   const res = await app.inject({ method: 'GET', url: `/api/vault/changes/${Number(lastInsertRowid)}` })
   expect(res.statusCode).toBe(200)
   expect(res.json()).toMatchObject({ path: 'Inbox/x.md', diff: expect.stringContaining('+new') })
+  await app.close()
+})
+
+test('status exposes the active sync segment', async () => {
+  const db = openDb(':memory:')
+  const config = loadConfig({ VAULT_PATH: root })
+  const app = buildApp({
+    db,
+    config,
+    sources: [],
+    webRoot: join(root, 'no-ui'),
+    syncState: () => ({
+      running: true,
+      source: 'mail',
+      sourceIndex: 2,
+      sourceTotal: 6,
+      done: 3,
+      total: 7,
+    }),
+  })
+  const res = await app.inject({ method: 'GET', url: '/api/status' })
+  expect(res.json().sync).toEqual({
+    running: true,
+    source: 'mail',
+    sourceIndex: 2,
+    sourceTotal: 6,
+    done: 3,
+    total: 7,
+  })
   await app.close()
 })
 

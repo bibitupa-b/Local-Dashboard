@@ -1,6 +1,6 @@
 {
   "name": "local-dashboard",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "A single-user dashboard that runs on your own machine and shows one quiet screen: what changed in your notes and cloud drive, what is waiting for your attention, and a short daily briefing written by DeepSeek.",
   "main": "index.js",
   "directories": {

@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import {
   api,
   type AttentionItem,
   type Briefing,
   type FeedDay,
+  type SearchResults,
   type Settings,
   type Status,
+  type SyncState,
   type Today,
-  type SearchResults,
 } from './api.js'
 import { SettingsPanel } from './Settings.js'
 
@@ -38,6 +39,8 @@ export function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResults | null>(null)
+  const [suggestions, setSuggestions] = useState<SearchResults | null>(null)
+  const [activeSuggestion, setActiveSuggestion] = useState(0)
   const [openDiff, setOpenDiff] = useState<{ id: number; path: string; diff: string } | null>(null)
 
   async function load() {
@@ -71,8 +74,31 @@ export function App() {
   useEffect(() => {
     void load()
     const timer = setInterval(() => void load(), 60_000)
-    return () => clearInterval(timer)
+    const statusTimer = setInterval(() => {
+      void api.status().then(setStatus).catch(() => {})
+    }, 3000)
+    return () => {
+      clearInterval(timer)
+      clearInterval(statusTimer)
+    }
   }, [])
+
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setSuggestions(null)
+      return
+    }
+    const handle = setTimeout(() => {
+      api
+        .search(query.trim())
+        .then((found) => {
+          setSuggestions(found)
+          setActiveSuggestion(0)
+        })
+        .catch(() => setSuggestions(null))
+    }, 250)
+    return () => clearTimeout(handle)
+  }, [query])
 
   async function generate() {
     setBusy(true)
@@ -106,6 +132,60 @@ export function App() {
       return
     }
     setResults(await api.search(query.trim()))
+    setSuggestions(null)
+  }
+
+  type Suggestion = { kind: 'note' | 'mail' | 'drive'; label: string; detail?: string; path?: string }
+
+  const items: Suggestion[] = suggestions
+    ? [
+        ...suggestions.notes.map((note) => ({
+          kind: 'note' as const,
+          label: note.path,
+          path: note.path,
+        })),
+        ...suggestions.mail.map((message) => ({
+          kind: 'mail' as const,
+          label: message.subject,
+          detail: message.sender,
+        })),
+        ...suggestions.drive.map((file) => ({ kind: 'drive' as const, label: file.name })),
+      ]
+    : []
+
+  function openNote(path: string) {
+    const vault =
+      (settings?.vaultPath ?? '').split(/[\\/]/).filter(Boolean).pop() ?? 'Main Obsidian Vault'
+    window.location.href = `obsidian://open?vault=${encodeURIComponent(vault)}&file=${encodeURIComponent(
+      path.replace(/\.md$/i, ''),
+    )}`
+  }
+
+  function choose(item?: Suggestion) {
+    const target = item ?? items[activeSuggestion]
+    if (!target) return
+    if (target.kind === 'note' && target.path) {
+      openNote(target.path)
+      return
+    }
+    setResults(suggestions)
+    setSuggestions(null)
+  }
+
+  function onSearchKey(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (items.length === 0) return
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveSuggestion((index) => (index + 1) % items.length)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveSuggestion((index) => (index - 1 + items.length) % items.length)
+    } else if (event.key === 'Escape') {
+      setSuggestions(null)
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      choose()
+    }
   }
 
   async function toggleDiff(id: number) {
@@ -158,6 +238,29 @@ export function App() {
         </div>
       </header>
 
+      {status?.sync.running && (
+        <div className="syncbar" role="progressbar" aria-label="Syncing sources">
+          {status.sources.map((source, index) => {
+            const active = status.sync.source === source.id
+            const complete = !active && index < status.sync.sourceIndex
+            const percent = active
+              ? Math.round((status.sync.done / Math.max(status.sync.total, 1)) * 100)
+              : complete
+                ? 100
+                : 0
+            return (
+              <span
+                key={source.id}
+                className={`seg${active ? ' active' : ''}`}
+                title={active ? `${source.id} ${status.sync.done}/${status.sync.total}` : source.id}
+              >
+                <i style={{ width: `${percent}%` }} />
+              </span>
+            )
+          })}
+        </div>
+      )}
+
       {note && <p className="note">{note}</p>}
 
       {today && today.events.length > 0 && (
@@ -183,11 +286,44 @@ export function App() {
       )}
 
       <form className="search" onSubmit={(event) => void search(event)}>
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search notes, mail and Drive…"
-        />
+        <div className="search-wrap">
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={onSearchKey}
+            placeholder="Search notes, mail and Drive…"
+            autoComplete="off"
+            aria-autocomplete="list"
+            aria-expanded={items.length > 0}
+          />
+          {items.length > 0 && (
+            <div className="suggest" role="listbox">
+              {items.map((item, index) => (
+                <Fragment key={`${item.kind}-${index}`}>
+                  {(index === 0 || items[index - 1]!.kind !== item.kind) && (
+                    <div className="group">
+                      {item.kind === 'note' ? 'Notes' : item.kind === 'mail' ? 'Mail' : 'Drive'}
+                    </div>
+                  )}
+                  <div
+                    role="option"
+                    aria-selected={activeSuggestion === index}
+                    className={`item${activeSuggestion === index ? ' active' : ''}`}
+                    onMouseEnter={() => setActiveSuggestion(index)}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      choose(item)
+                    }}
+                  >
+                    <span className={`dot ${item.kind === 'note' ? 'vault' : item.kind}`} />
+                    <span className="label">{item.label}</span>
+                    {item.detail && <span className="detail">{item.detail}</span>}
+                  </div>
+                </Fragment>
+              ))}
+            </div>
+          )}
+        </div>
         <button type="submit">Search</button>
         {results && (
           <button
@@ -196,6 +332,7 @@ export function App() {
             onClick={() => {
               setQuery('')
               setResults(null)
+              setSuggestions(null)
             }}
           >
             Clear

@@ -4,7 +4,11 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { App } from '../src/web/App.js'
 
 const responses: Record<string, unknown> = {
-  '/api/status': { sources: [{ id: 'vault', configured: true, lastSync: null }], briefingToday: false },
+  '/api/status': {
+    sources: [{ id: 'vault', configured: true, lastSync: null }],
+    briefingToday: false,
+    sync: { running: false, source: null, sourceIndex: 0, sourceTotal: 0, done: 0, total: 0 },
+  },
   '/api/feed?days=7': { days: [] },
   '/api/attention': [],
   '/api/briefings?limit=10': { items: [] },

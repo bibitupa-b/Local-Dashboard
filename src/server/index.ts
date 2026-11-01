@@ -15,7 +15,16 @@ import { createChromiumBrowserReader } from './sources/browser-chromium.js'
 import { createGithubApi, createGithubSource } from './sources/github.js'
 import type { Source } from './sources/types.js'
 import { createVaultSource, startVaultWatcher } from './sources/vault/index.js'
-import { createHealth, markFailure, markProgress, markSuccess } from './health.js'
+import {
+  createHealth,
+  createSyncState,
+  finishSync,
+  markFailure,
+  markProgress,
+  markSuccess,
+  startSync,
+  updateSyncProgress,
+} from './health.js'
 import { dueEventNotification, notify } from './notify.js'
 import { todayEvents } from './sources/calendar.js'
 import { backupDb } from './backup.js'
@@ -46,15 +55,18 @@ const webRoot = join(process.cwd(), 'dist', 'web')
 let ready = false
 let syncing: Promise<void> | null = null
 const health = createHealth(sources.map((source) => source.id))
+const syncState = createSyncState()
 
 async function syncAll(): Promise<void> {
   if (syncing) return syncing
   syncing = (async () => {
-    for (const source of sources) {
+    for (const [index, source] of sources.entries()) {
+      startSync(syncState, source.id, index, sources.length)
       try {
-        await source.sync(db, new Date(), (done, total) =>
-          markProgress(health, source.id, done, total),
-        )
+        await source.sync(db, new Date(), (done, total) => {
+          updateSyncProgress(syncState, done, total)
+          markProgress(health, source.id, done, total)
+        })
         markSuccess(health, source.id)
       } catch (error) {
         markFailure(health, source.id, error)
@@ -65,6 +77,7 @@ async function syncAll(): Promise<void> {
   try {
     await syncing
   } finally {
+    finishSync(syncState)
     syncing = null
   }
 }
@@ -76,6 +89,7 @@ const app = buildApp({
   webRoot,
   isReady: () => ready,
   health: () => health,
+  syncState: () => syncState,
   syncNow: syncAll,
   onDriveConnected: () => {
     void (async () => {

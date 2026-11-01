@@ -80,7 +80,17 @@ li:last-child { border-bottom: 0; }
 .diff { flex-basis: 100%; margin: 6px 0 2px; padding: 8px 10px; background: #f7f5ef; border: 1px solid var(--line); border-radius: 7px; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .search { display: flex; gap: 8px; margin-bottom: 16px; }
-.search input { flex: 1; padding: 8px 11px; font: inherit; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+.search-wrap { position: relative; flex: 1; }
+.search input { width: 100%; padding: 8px 11px; font: inherit; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+.suggest { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.09); max-height: 320px; overflow: auto; }
+.suggest .group { padding: 8px 12px 4px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.suggest .item { display: flex; gap: 8px; align-items: baseline; padding: 7px 12px; font-size: 13px; cursor: pointer; }
+.suggest .item.active { background: #f1efe8; }
+
+.syncbar { display: flex; gap: 3px; margin: -6px 0 16px; }
+.syncbar .seg { flex: 1; height: 4px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.syncbar .seg i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 99px; transition: width 0.35s ease; }
+.syncbar .seg.active i { background: linear-gradient(90deg, var(--accent), #5aa37c); }
 .result { display: flex; gap: 8px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid #f0eee8; font-size: 13px; }
 .result:last-child { border-bottom: 0; }
 
