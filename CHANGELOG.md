@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.2
+
+- Added/removed line counts are colored: additions sage, removals clay.
+- Buttons: brief chromatic glitch on hover, radial fade-out on press (ease-out), disabled under reduced motion.
+- Sync bar gains a shimmer sweep while active; clicking a link row adds a soft sage glow; search focus glows.
+
 ## 0.8.1
 
 - Activity feed shows six rows per day with a “Show N more” control instead of the full history.

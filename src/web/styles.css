@@ -152,6 +152,14 @@ h3 {
   white-space: nowrap;
 }
 
+.added {
+  color: var(--accent);
+}
+
+.removed {
+  color: var(--danger);
+}
+
 /* ---------- buttons ---------- */
 
 button,
@@ -172,12 +180,46 @@ button,
   justify-content: center;
   gap: 6px;
   text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   transition:
     background var(--dur-hover) var(--ease),
     border-color var(--dur-hover) var(--ease),
     color var(--dur-hover) var(--ease),
     transform var(--dur-press) var(--ease),
-    opacity var(--dur-hover) var(--ease);
+    opacity var(--dur-hover) var(--ease),
+    filter var(--dur-hover) var(--ease);
+}
+
+button::after,
+.btn::after,
+.ghost::after,
+.primary::after,
+.danger::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: radial-gradient(circle at center, rgba(233, 231, 224, 0.22), transparent 62%);
+  opacity: 0;
+}
+
+button:active::after,
+.btn:active::after,
+.ghost:active::after,
+.primary:active::after,
+.danger:active::after {
+  animation: click-fade 320ms var(--ease-out) 1;
+}
+
+button:hover,
+.btn:hover,
+.ghost:hover,
+.primary:hover,
+.danger:hover {
+  animation: btn-glitch 260ms steps(2, end) 1;
 }
 
 .ghost:hover {
@@ -205,6 +247,8 @@ button,
 .primary:active,
 button:active {
   transform: translateY(1px);
+  opacity: 0.72;
+  filter: blur(0.35px);
 }
 
 button:disabled,
@@ -342,7 +386,11 @@ a.pill:hover {
 }
 
 .syncbar .seg.active i {
-  animation: seg-breathe 2.4s ease-in-out infinite;
+  background: linear-gradient(90deg, var(--accent), #c7d6c9, var(--accent));
+  background-size: 200% 100%;
+  animation:
+    seg-shimmer 1.8s linear infinite,
+    seg-breathe 2.4s ease-in-out infinite;
 }
 
 /* ---------- banner ---------- */
@@ -452,6 +500,7 @@ a.pill:hover {
   border-color: var(--line-strong);
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+  box-shadow: 0 0 18px rgba(155, 175, 158, 0.12);
 }
 
 .suggest {
@@ -756,6 +805,11 @@ li:last-child {
 .link:hover {
   text-decoration: underline;
   color: var(--accent);
+  text-shadow: 0 0 8px rgba(155, 175, 158, 0.25);
+}
+
+.result:hover .label {
+  text-shadow: 0 0 8px rgba(155, 175, 158, 0.2);
 }
 
 .attention li {
@@ -1235,6 +1289,58 @@ input:-webkit-autofill {
   }
 }
 
+@keyframes btn-glitch {
+  0% {
+    transform: translateX(0);
+    text-shadow: none;
+    filter: none;
+  }
+  25% {
+    transform: translateX(-0.6px);
+    text-shadow:
+      -1px 0 var(--info),
+      1px 0 var(--danger);
+    filter: blur(0.4px);
+  }
+  50% {
+    transform: translateX(0.6px);
+    text-shadow:
+      1px 0 var(--accent),
+      -1px 0 var(--info);
+    filter: blur(0.4px);
+  }
+  75% {
+    transform: translateX(-0.3px);
+    text-shadow: 0 0 8px rgba(155, 175, 158, 0.35);
+    filter: blur(0.2px);
+  }
+  100% {
+    transform: translateX(0);
+    text-shadow: none;
+    filter: none;
+  }
+}
+
+@keyframes click-fade {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes seg-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
 body.motion-paused *,
 body.motion-paused *::before,
 body.motion-paused *::after {
@@ -1328,6 +1434,33 @@ body.motion-paused *::after {
   .spinner {
     animation: none;
     border-top-color: var(--muted);
+  }
+
+  button:hover,
+  .btn:hover,
+  .ghost:hover,
+  .primary:hover,
+  .danger:hover,
+  button:active::after,
+  .btn:active::after,
+  .ghost:active::after,
+  .primary:active::after,
+  .danger:active::after {
+    animation: none;
+  }
+
+  button:active,
+  .ghost:active,
+  .primary:active,
+  .mini:active {
+    transform: none;
+    filter: none;
+    opacity: 1;
+  }
+
+  .syncbar .seg.active i {
+    animation: none;
+    background: var(--accent);
   }
 
   .diff-wrap {

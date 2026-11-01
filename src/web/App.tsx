@@ -570,7 +570,17 @@ export function App() {
                       ) : (
                         <span className="label">{item.label}</span>
                       )}
-                      <span className="detail">{item.detail}</span>
+                      <span className="detail">
+                        {item.source === 'vault' && item.added !== undefined ? (
+                          <>
+                            <span className="added">+{item.added}</span>
+                            {' / '}
+                            <span className="removed">-{item.removed ?? 0}</span>
+                          </>
+                        ) : (
+                          item.detail
+                        )}
+                      </span>
                       {openDiff && openDiff.id === item.id && (
                         <div className="diff-wrap" id={`diff-${item.id}`}>
                           <pre className="diff">{openDiff.diff || 'No line changes'}</pre>
