@@ -218,6 +218,22 @@ export function SettingsPanel({
     }
   }
 
+  async function copyDiagnostics(): Promise<void> {
+    try {
+      if (!navigator.clipboard) throw new Error('Clipboard is not available in this window')
+      const status = await api.status()
+      await navigator.clipboard.writeText(
+        JSON.stringify({ dataDir: settings.dataDir, status, settings }, null, 2),
+      )
+      setNotice({ text: 'Diagnostics copied to the clipboard.', tone: 'success' })
+    } catch (error) {
+      setNotice({
+        text: friendlyError(error instanceof Error ? error.message : String(error)),
+        tone: 'error',
+      })
+    }
+  }
+
   return (
     <div className="settings-page">
       <div className="settings-head">
@@ -317,6 +333,44 @@ export function SettingsPanel({
         })}
       </section>
 
+      <section className="card">
+        <h2>Application</h2>
+        <p className="sub">
+          Database, logs and backups live in <span className="detail">{settings.dataDir}</span>.
+        </p>
+        <div className="row">
+          {window.dashboard && (
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => window.dashboard?.openDataFolder()}
+            >
+              Open data folder
+            </button>
+          )}
+          <button type="button" className="ghost" onClick={() => void copyDiagnostics()}>
+            Copy diagnostics
+          </button>
+          <a
+            className="ghost mini"
+            href="https://github.com/bibitupa-b/Local-Dashboard/releases/latest"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Check for updates
+          </a>
+          {window.dashboard && (
+            <button type="button" className="danger" onClick={() => window.dashboard?.quit()}>
+              Quit application
+            </button>
+          )}
+        </div>
+        <p className="sub">
+          Closing the window keeps the app in the tray. Use Quit above, the tray menu, or Ctrl+Q to
+          stop the server.
+        </p>
+      </section>
+
       <form className="card settings" onSubmit={(event) => void savePreferences(event)}>
         <h2>Preferences</h2>
         <label>
@@ -383,20 +437,7 @@ export function SettingsPanel({
           <button type="submit" className="primary">
             Save preferences
           </button>
-          {window.dashboard && (
-            <button
-              type="button"
-              className="danger"
-              onClick={() => window.dashboard?.quit()}
-            >
-              Quit application
-            </button>
-          )}
         </div>
-        <p className="sub">
-          Closing the window keeps the app in the tray. Use Quit in the tray menu, Ctrl+Q, or the button
-          above to stop the server.
-        </p>
       </form>
 
       {editing && (

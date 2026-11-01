@@ -225,6 +225,9 @@ function quitApp() {
 }
 
 ipcMain.on('app:quit', quitApp)
+ipcMain.on('app:open-data', () => {
+  void shell.openPath(dataDir)
+})
 
 async function probeDashboard(url) {
   try {

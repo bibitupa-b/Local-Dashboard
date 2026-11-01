@@ -1,128 +1,153 @@
 # Local Dashboard
 
-A single-user dashboard that runs on your own machine and shows one quiet screen: what changed in your notes and cloud drive, what is waiting for your attention, and a short daily briefing written by DeepSeek.
+**One quiet screen that answers two questions: what changed lately, and what needs me now.**
 
-Everything stays local. The only outbound request is the digest sent to the DeepSeek API when a briefing is generated.
+Local Dashboard reads your notes, mail, calendar, Drive, GitHub and browser history, keeps a
+local history of what moved, and turns it into a short daily briefing written by DeepSeek.
+Everything runs on your own machine. Only a compact digest leaves it, and only when a briefing
+is generated.
 
-> Status: 0.9 — Unbounded/Onest typography, Glassy Orbit icon and tilt-shift motion; 1.0 follows after stabilisation.
+![Dashboard](docs/screenshots/current/dashboard.jpeg)
 
-Screens: open `docs/screenshots/0.8/index.html`.
+`Windows` · `Local-first` · `Read-only` · `Single user` · `MIT`
 
 ## What it does
 
-- **Activity history** — detects edits to a local Obsidian vault and changes in Google Drive, keeps a diff-backed log.
-- **Attention queue** — open tasks from notes (grouped by tag), projects marked `status: Undone` that have gone stale, notes left in the Inbox, unread mail and the next calendar event.
-- **Today** — a slim strip with the day's calendar events, free windows and conflicts.
+- **Activity history** — a diff-backed log of edits to your Obsidian vault and changes in Google
+  Drive. Click a note to see exactly which lines changed.
+- **Needs attention** — open tasks grouped by tag, projects marked `status: Undone` that have gone
+  stale, notes left in the Inbox, unread mail and review requests. Each row opens its source.
+- **Today** — the day's calendar events, free windows and conflicts in one strip.
+- **Daily briefing** — 5–7 bullets covering what moved, what is stuck and one suggestion for
+  today. Runs at 08:00, on demand, or on the first start after a missed day.
 - **Search** — one query across note text, mail, Drive file names and Google Docs content.
-- **Browser history** — reads a copy of Chrome/Edge history; digest sees only domain aggregates, and sensitive domains can be excluded.
-- **GitHub** — unread notifications and review requests in the attention queue.
-- **Notifications** — Windows toasts 15 minutes before an event and when an automatic briefing is ready.
-- **Daily briefing** — DeepSeek receives a compact digest (not your vault) and returns 5–7 bullets: what moved, what is stuck, one suggestion for today. Runs on a schedule and on demand.
-- **Mail** — read-only Gmail over IMAP: subjects, senders and text of messages from the last 90 days (up to 512 KB each); older mail keeps headers only. Attachments are indexed by name, never downloaded.
+- **Mail** — read-only Gmail over IMAP: senders, subjects and the last 90 days of message text.
+  Attachments are indexed by name only and never downloaded.
+- **Browser history** — Chrome, Edge or Helium domains; only aggregate counts reach the briefing.
+- **GitHub** — unread notifications and review requests.
+- **Desktop shell** — Electron window, tray, native notifications and optional autostart.
 
-Explicit non-goals: writing to your services, cloud storage of your data, mobile clients, multiple users, email and calendar (later phases).
+## Install
 
-## Requirements
+### Windows installer (recommended)
 
-- Windows (primary target; the server itself is portable)
-- Node.js 26+ — SQLite comes from the built-in `node:sqlite`, so there is no native build step
-- A DeepSeek API key
-- A Google Cloud OAuth client (Desktop app) for Drive and Calendar
-- Gmail with 2-Step Verification, for an app password (mail is read over IMAP)
+1. Download the latest `Local Dashboard Setup <version>.exe` from
+   [Releases](https://github.com/bibitupa-b/Local-Dashboard/releases/latest).
+2. Run it. The build is not code-signed, so SmartScreen may ask you to confirm the publisher.
+3. Start the app and connect at least one source. The dashboard shows a **Get started** checklist
+   until a vault and a DeepSeek key are in place.
 
-## Setup
+The packaged app needs no Node.js installation. Data lives in
+`%APPDATA%\Local Dashboard\data`.
+
+### From source
 
 ```powershell
 git clone git@github.com:bibitupa-b/Local-Dashboard.git
 cd Local-Dashboard
 npm install
+npm run electron:dev   # desktop window
+# or
+npm run dev            # server + Vite at http://localhost:4317
 ```
 
-For the desktop app, install `release\Local Dashboard Setup <version>.exe`. For running from source, `npm run electron:dev`.
+Source builds need **Node.js 26+**; SQLite comes from `node:sqlite`, so there is no native build
+step. `npm run dist` produces a Windows installer and portable exe in `release/`.
 
-`.env` is optional. It is imported once on first start and stays useful for CLI runs:
+## Connect your sources
 
-| Variable | Purpose |
+Everything is configured in **Settings → Connections**. Each service has a `?` hint with exact
+steps. Multiple accounts per service are supported.
+
+| Source | What you get | What it needs |
+| --- | --- | --- |
+| Obsidian vault | Diffs, tasks, stale projects, Inbox backlog | One or more vault folders |
+| Google Drive & Calendar | Drive changes, Docs text, today's events | OAuth **Desktop app** client, published to Production |
+| Gmail | Unread mail, awaiting reply, search | Gmail address + app password (2-Step Verification) |
+| GitHub | Notifications and review requests | Personal access token with `notifications` |
+| Browser history | Domain aggregates | Auto-detected Chrome, Edge or Helium |
+| DeepSeek | Daily briefing | API key from platform.deepseek.com |
+
+For Google, add the redirect URI
+`http://127.0.0.1:4317/api/oauth/google/callback` (change the port if you set `PORT`). Keep the
+OAuth app in **Production**; while it stays in Testing, Google expires refresh tokens after seven
+days.
+
+`.env` is optional and imported once on first start. See [`.env.example`](.env.example) for the
+available keys: `PORT`, `VAULT_PATH`, `DEEPSEEK_API_KEY`, Google credentials, `GMAIL_USER`,
+`GMAIL_APP_PASSWORD`, `GITHUB_TOKEN`, `BROWSER_HISTORY_PATH`.
+
+## The briefing and your privacy
+
+1. The digest contains note paths with line counts, task titles, project names, Drive file names,
+   today's calendar, unread mail subjects/senders and the first ~200 characters of unread mail.
+2. It is sent to `https://api.deepseek.com` (`deepseek-chat`) only when a briefing is generated.
+3. The reply is stored in the local database and shown as a card. Earlier briefings stay available.
+
+**Never sent:** vault note bodies, full mail bodies, attachments, browser URLs or page titles,
+OAuth tokens, passwords. Browser history reaches the model as domain counts only. There is no
+telemetry, no analytics and no cloud account.
+
+## Screens
+
+| | |
 | --- | --- |
-| `PORT` | Local port. Defaults to `4317`. |
-| `DEEPSEEK_API_KEY` | Optional fallback; the key can be entered in Settings instead. |
-| `VAULT_PATH` | Optional default vault path; add vaults in Settings. |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional import for a Google connection. |
-| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Optional import for a Gmail connection. |
-| `GITHUB_TOKEN` | Optional import for a GitHub connection. |
-| `BROWSER_HISTORY_PATH` | Optional import for browser history. |
+| ![Activity](docs/screenshots/current/activity.jpeg) | ![Search](docs/screenshots/current/search-suggestions.jpeg) |
+| Activity, attention and diffs | Search across notes, mail and Drive |
+| ![Settings](docs/screenshots/current/settings-connections.jpeg) | ![Diff](docs/screenshots/current/diff.jpeg) |
+| Connections with per-service hints | A note change expanded inline |
 
-Google Drive and Calendar are connected from **Settings → Connections**. Use a **Desktop app** OAuth client with the redirect URI `http://127.0.0.1:4317/api/oauth/google/callback` (change the port if you set `PORT`). Set the app's publishing status to **Production** — while it stays in *Testing*, Google expires refresh tokens after 7 days.
+More screens: [`docs/screenshots/current/index.html`](docs/screenshots/current/index.html).
 
-## Connections
+## Troubleshooting
 
-Everything is configured in **Settings → Connections** and stored in the local database; secrets are encrypted with a key file in `data/`.
+| Symptom | What to do |
+| --- | --- |
+| SmartScreen warns about the publisher | Expected: the build is not code-signed. Choose **More info → Run anyway**. |
+| `Port 4317 is already in use` | Another copy or a dev server is running. Quit it, or set `PORT` for a CLI run. |
+| Google stops syncing after a week | The OAuth app is still in Testing. Publish it to Production and reconnect. |
+| Mail says sign-in failed | Create a new Gmail app password and update the connection. |
+| Briefing fails with 402 | The DeepSeek balance is empty. Top up and press **Briefing now**. |
+| Closing the window seems to quit | It hides to the tray. Quit from the tray menu, `Ctrl+Q`, or Settings. |
+| Something else | Open **Settings → Application** and use **Copy diagnostics**, then check `data/server.log`. |
 
-- **Obsidian vault** — one or more folders, read-only.
-- **Google Drive & Calendar** — Client ID/secret plus one OAuth consent; the token is stored per connection.
-- **Gmail (IMAP)** — address and app password.
-- **GitHub** — personal access token with the `notifications` scope.
-- **Browser history** — Helium/Chrome/Edge auto-detected, or a custom Chromium profile path.
-- **DeepSeek API** — key for the daily briefing.
+Backups are taken daily into `data/backups/` and kept for seven days. Backups include the database
+but **not** `data/secret.key`; copy that file separately if you want to restore encrypted
+connection secrets on another machine.
 
-Each group has a **?** hint with the exact steps to obtain access. After the first account is connected, **+ Add account** adds another one of the same service.
-
-## Desktop app
-
-The dashboard ships as an Electron app: the same Fastify server runs inside the desktop process, the window points at the local port, and the tray keeps it one click away.
+## Development
 
 ```powershell
-npm run electron:dev   # build UI + server bundle, open the desktop window
-npm run dist           # Windows installer and portable exe in release/
+npm run dev          # Fastify + Vite with hot reload
+npm run build        # typecheck and build the UI
+npm run build:server # bundle the server for Electron
+npm run electron:dev # build everything and open the desktop window
+npm run dist         # Windows installer and portable exe
+npm test             # vitest
+npm start            # single process serving the built UI
 ```
 
-In the packaged app:
+The app is one Node process: Fastify on `127.0.0.1:4317`, SQLite through `node:sqlite`, sources
+registered behind a small `configured / sync / digest` contract, React + Vite + plain CSS for the
+interface. The Electron shell starts the same server in-process and owns the tray, notifications
+and autostart. See [`AGENTS.md`](AGENTS.md) for the architecture and [`DESIGN.md`](DESIGN.md) for
+the visual language.
 
-- data lives in `%APPDATA%\Local Dashboard\data` (database, logs, backups);
-- closing the window keeps the app in the tray; **Quit** in the tray menu, `Ctrl+Q`, or the Settings button stops the server and frees the port;
-- **Start with Windows** is enabled on first launch and can be toggled from the tray;
-- if the port is already served by another copy or a dev server, the window attaches to it instead of failing.
-
-## Running without the desktop shell
-
-```powershell
-npm run dev    # server + Vite with hot reload
-npm run build  # production build
-npm start      # single process serving the built UI
-```
-
-Open http://localhost:4317.
-
-The server writes its SQLite database and logs to `data/`, which is gitignored. A copy of the database is taken daily into `data/backups/`, keeping the last seven days. Logs go to `data/server.log` (rotated at 5 MB).
+Keyboard: `/` focuses search, `b` generates a briefing, `Esc` clears results.
 
 ## Security
 
-- The server binds to `127.0.0.1` only, rejects foreign `Host` headers and cross-origin write requests, and sends CSP, `nosniff`, `X-Frame-Options` and `Referrer-Policy` headers.
-- Connection secrets are encrypted with AES-256-GCM using `data/secret.key`. The key stays on the machine; without it the encrypted values cannot be recovered. Backups copy the database but not the key — keep a copy of `secret.key` if you plan to restore elsewhere.
-- The app is read-only toward services: it never writes notes, mail, calendar or Drive.
-- The build is not code-signed, so Windows SmartScreen may warn on first launch.
+The server binds to localhost, rejects foreign `Host` headers and cross-origin writes, and sets
+CSP and security headers. Connection secrets are encrypted with AES-256-GCM using
+`data/secret.key`. The app is read-only toward every service. Details:
+[`SECURITY.md`](SECURITY.md).
 
+## Non-goals
 
-## How the briefing works
+No cloud sync, no writing to your services, no mobile client, no multi-user accounts, no
+telemetry. Dark interface only.
 
-1. The scheduler (default 08:00) or the **Briefing now** button assembles a digest for the period since the previous briefing (or the last 24 hours on first run): notes changed with line counts, completed and new tasks, projects still `Undone`, Inbox backlog size, Drive changes, today's calendar and unread mail.
-2. The digest is sent to DeepSeek (`deepseek-chat`, OpenAI-compatible API). For mail it contains subjects, senders and the first ~200 characters of unread messages — never full bodies or attachments.
-3. The reply is stored in SQLite and rendered as a card; previous briefings stay available.
-4. If the machine was off at the scheduled time, a briefing is generated on next start when today's is missing.
+## License and credits
 
-Your vault is never uploaded. Only the digest leaves the machine, so folder or note exclusions can be applied at digest time if needed.
-
-## Stack
-
-Node 26 · Fastify · `node:sqlite` · React + Vite + plain CSS · `chokidar` (vault watch) · `googleapis` (Drive, Calendar) · `imapflow` + `mailparser` (Gmail) · `node-cron`
-
-## Roadmap
-
-1. ~~Vault sync, history, attention queue, DeepSeek briefing, autostart~~
-2. ~~Gmail and Google Calendar as additional sources~~
-3. Tray icon, native notifications, search across history
-4. Optional Tauri shell if a browser tab stops being convenient
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+MIT — see [`LICENSE`](LICENSE). Typefaces: [Unbounded](https://fonts.google.com/specimen/Unbounded)
+and [Onest](https://fonts.google.com/specimen/Onest), self-hosted under the SIL Open Font License.

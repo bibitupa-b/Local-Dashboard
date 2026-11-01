@@ -85,6 +85,7 @@ export type Settings = {
   githubConnected: boolean
   digestWindowHours: number
   enabledSources: string[]
+  dataDir: string
 }
 
 export type Service = 'vault' | 'google' | 'imap' | 'github' | 'browser' | 'deepseek'

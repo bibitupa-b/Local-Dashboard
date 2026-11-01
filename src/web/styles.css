@@ -1892,3 +1892,28 @@ body.motion-paused *::after {
     transform: none;
   }
 }
+
+.setup ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.setup li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.setup li.done {
+  color: var(--ink);
+}
+
+.setup .tick {
+  color: var(--accent);
+  font-size: 0.9em;
+}
+

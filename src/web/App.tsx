@@ -51,6 +51,13 @@ export function App() {
   } | null>(null)
   const [glow, setGlow] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [welcome, setWelcome] = useState(() => {
+    try {
+      return !localStorage.getItem('dashboard.welcomed')
+    } catch {
+      return false
+    }
+  })
   const [syncOutcome, setSyncOutcome] = useState<'ok' | 'error' | null>(null)
   const wasRunning = useRef(false)
   const [query, setQuery] = useState('')
@@ -202,6 +209,15 @@ export function App() {
 
   function closeSettings(): void {
     withViewTransition(() => setShowSettings(false))
+  }
+
+  function dismissWelcome(): void {
+    try {
+      localStorage.setItem('dashboard.welcomed', '1')
+    } catch {
+      // private mode: the welcome returns next launch, which is harmless
+    }
+    setWelcome(false)
   }
 
   async function generate() {
@@ -384,6 +400,16 @@ export function App() {
     return [...map.values()]
   })()
 
+  const setupSteps = [
+    {
+      label: 'Connect a vault',
+      done: status?.sources.some((source) => source.kind === 'vault' && source.configured) ?? false,
+    },
+    { label: 'Add a DeepSeek key', done: settings?.hasDeepSeekKey ?? false },
+    { label: 'Generate the first briefing', done: briefings.length > 0 },
+  ]
+  const setupDone = setupSteps.every((step) => step.done)
+
   return (
     <div className="page app-enter">
       {splash !== 'hidden' && (
@@ -523,6 +549,27 @@ export function App() {
         <p className={`note ${note.tone}`} role="status" aria-live="polite">
           {note.text}
         </p>
+      )}
+
+      {settings && status && !setupDone && (
+        <section className="card setup enter-item" style={{ '--i': 1 } as React.CSSProperties}>
+          <div className="card-head">
+            <h2>Get started</h2>
+            <button className="ghost mini" onClick={toggleSettings}>
+              Open settings
+            </button>
+          </div>
+          <ul>
+            {setupSteps.map((step) => (
+              <li key={step.label} className={step.done ? 'done' : ''}>
+                <span className="tick" aria-hidden="true">
+                  {step.done ? '✓' : '○'}
+                </span>
+                <span>{step.label}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {today && settings && (
@@ -687,7 +734,11 @@ export function App() {
             </div>
           </>
         ) : (
-          <p className="empty">No briefing yet. Generate one whenever you are ready.</p>
+          <p className="empty">
+            {settings && !settings.hasDeepSeekKey
+              ? 'Add a DeepSeek key to get your first briefing.'
+              : 'No briefing yet. Generate one whenever you are ready.'}
+          </p>
         )}
         {latest && status && !status.briefingToday && (
           <p className="empty">No briefing for today yet — showing the last one.</p>
@@ -708,7 +759,16 @@ export function App() {
       <div className="columns enter-item" style={{ '--i': 4 } as React.CSSProperties}>
         <section className="card">
           <h2>Activity</h2>
-          {feed.length === 0 && <p className="empty">No changes yet.</p>}
+          {feed.length === 0 && (
+            <>
+              <p className="empty">No changes yet.</p>
+              {!status?.sources.some((source) => source.configured) && (
+                <button className="ghost mini" onClick={toggleSettings}>
+                  Connect a source
+                </button>
+              )}
+            </>
+          )}
           {feed.map((day) => {
             const expanded = expandedDays.includes(day.date)
             const visible = expanded ? day.items : day.items.slice(0, 6)
@@ -794,6 +854,39 @@ export function App() {
           </ul>
         </section>
       </div>
+
+      {welcome && (
+        <div className="modal-backdrop" onClick={dismissWelcome}>
+          <div
+            className="modal card"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Welcome to Local Dashboard"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2>Welcome to Local Dashboard</h2>
+            <p>
+              Your notes, mail, calendar and Drive stay on this machine. Only a short digest —
+              subjects, senders and the first lines of unread mail — is sent to DeepSeek when you
+              ask for a briefing.
+            </p>
+            <div className="row">
+              <button
+                className="primary"
+                onClick={() => {
+                  dismissWelcome()
+                  toggleSettings()
+                }}
+              >
+                Set up sources
+              </button>
+              <button className="ghost" onClick={dismissWelcome}>
+                Explore first
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

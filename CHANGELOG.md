@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- First-run welcome explains what stays local and what is sent to DeepSeek.
+- **Get started** checklist on the dashboard until a vault, a key and a first briefing exist.
+- Settings → Application: data folder path, Open data folder, Copy diagnostics, Check for updates.
+- Empty briefing states point at the missing step instead of a generic message.
+- README rewritten as a product page: install first, source table, privacy, troubleshooting.
+
 ## 0.9.5
 
 - Search shows the matching line instead of the first characters of the note.

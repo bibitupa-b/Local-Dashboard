@@ -1,12 +1,22 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor } from '@testing-library/react'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { App } from '../src/web/App.js'
 import { SettingsPanel } from '../src/web/Settings.js'
 
 const responses: Record<string, unknown> = {
   '/api/status': {
-    sources: [{ id: 'vault', configured: true, lastSync: null }],
+    sources: [
+      {
+        id: 'vault:default',
+        kind: 'vault',
+        service: 'vault',
+        connectionId: 'default',
+        label: 'vault',
+        configured: true,
+        lastSync: null,
+      },
+    ],
     briefingToday: false,
     sync: { running: false, source: null, sourceIndex: 0, sourceTotal: 0, done: 0, total: 0 },
   },
@@ -32,8 +42,13 @@ const responses: Record<string, unknown> = {
     githubConnected: false,
     digestWindowHours: 24,
     enabledSources: [],
+    dataDir: 'C:/data',
   },
 }
+
+beforeEach(() => {
+  localStorage.clear()
+})
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -53,7 +68,7 @@ test('renders the three blocks and their empty states', async () => {
   await waitFor(() => {
     expect(screen.getByText('No changes yet.')).toBeTruthy()
     expect(screen.getByText('Nothing needs attention.')).toBeTruthy()
-    expect(screen.getByText('No briefing yet. Generate one whenever you are ready.')).toBeTruthy()
+    expect(screen.getByText('Add a DeepSeek key to get your first briefing.')).toBeTruthy()
   })
 
   unmount()
@@ -127,5 +142,73 @@ test('every empty service offers a connect button', async () => {
     expect(screen.getAllByText('Connect').length).toBeGreaterThanOrEqual(6)
   })
   expect(screen.getByText('DeepSeek API')).toBeTruthy()
+  unmount()
+})
+
+test('first visit explains what leaves the machine', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({ ok: true, json: async () => responses[url] ?? {} })),
+  )
+  const { unmount } = render(<App />)
+  expect(await screen.findByText('Welcome to Local Dashboard')).toBeTruthy()
+  expect(screen.getByText(/Only a short digest/i)).toBeTruthy()
+  unmount()
+})
+
+test('welcome stays dismissed after the first visit', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({ ok: true, json: async () => responses[url] ?? {} })),
+  )
+  const { unmount } = render(<App />)
+  await waitFor(() => expect(screen.getByText('Briefing')).toBeTruthy())
+  expect(screen.queryByText('Welcome to Local Dashboard')).toBeNull()
+  unmount()
+})
+
+test('setup checklist names the missing steps', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({ ok: true, json: async () => responses[url] ?? {} })),
+  )
+  const { unmount } = render(<App />)
+  await waitFor(() => expect(screen.getByText('Get started')).toBeTruthy())
+  expect(screen.getByText('Add a DeepSeek key')).toBeTruthy()
+  expect(screen.getByText('Generate the first briefing')).toBeTruthy()
+  unmount()
+})
+
+test('setup checklist disappears when everything is configured', async () => {
+  const settings = {
+    ...(responses['/api/settings'] as Record<string, unknown>),
+    hasDeepSeekKey: true,
+  }
+  const briefings = {
+    items: [
+      {
+        id: 1,
+        created_at: '2026-11-01T08:00:00.000Z',
+        trigger: 'auto',
+        markdown: 'One bullet',
+      },
+    ],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url === '/api/settings'
+          ? settings
+          : url === '/api/briefings?limit=10'
+            ? briefings
+            : responses[url] ?? {},
+    })),
+  )
+  const { unmount } = render(<App />)
+  await waitFor(() => expect(screen.getByText('One bullet')).toBeTruthy())
+  expect(screen.queryByText('Get started')).toBeNull()
   unmount()
 })

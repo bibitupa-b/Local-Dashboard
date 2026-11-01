@@ -279,6 +279,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       ),
       digestWindowHours: digestWindowHours(db),
       enabledSources: getList(db, 'enabled_sources'),
+      dataDir: config.dataDir,
     }
   })
 
