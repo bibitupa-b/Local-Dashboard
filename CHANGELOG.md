@@ -1,12 +1,18 @@
 # Changelog
 
-## Unreleased
+## 1.0.0
+
+First stable release. The daily loop — history, attention, briefing — plus the desktop shell is
+now usable without reading the source: a first-run welcome, a setup checklist, clickable attention
+rows, errors that say what to do next, and a product README.
 
 - First-run welcome explains what stays local and what is sent to DeepSeek.
 - **Get started** checklist on the dashboard until a vault, a key and a first briefing exist.
 - Settings → Application: data folder path, Open data folder, Copy diagnostics, Check for updates.
 - Empty briefing states point at the missing step instead of a generic message.
 - README rewritten as a product page: install first, source table, privacy, troubleshooting.
+- All 0.9.5 fixes are included: linked attention items, search snippets around the match,
+  human-readable errors, en-GB dates, always-visible Today strip, 90-day browser retention.
 
 ## 0.9.5
 
