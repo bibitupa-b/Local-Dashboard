@@ -1,4 +1,15 @@
-const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, dialog, shell } = require('electron')
+const {
+  app,
+  BrowserWindow,
+  Tray,
+  Menu,
+  Notification,
+  nativeImage,
+  dialog,
+  shell,
+  ipcMain,
+  globalShortcut,
+} = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 
@@ -7,6 +18,7 @@ app.setAppUserModelId('com.bibitupa.localdashboard')
 
 const root = path.join(__dirname, '..')
 const iconPath = path.join(root, 'assets', 'icon.png')
+const trayIconPath = path.join(root, 'assets', 'icon-tray.png')
 const isDev = !app.isPackaged
 const dataDir = isDev ? path.join(root, 'data') : path.join(app.getPath('userData'), 'data')
 
@@ -27,6 +39,7 @@ let splash = null
 let splashShownAt = 0
 let tray = null
 let quitting = false
+let hideNoticeShown = false
 let baseUrl = ''
 
 function showWindow() {
@@ -76,7 +89,12 @@ function createWindow() {
     icon: iconPath,
     autoHideMenuBar: true,
     show: false,
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs'),
+    },
   })
   win.webContents.once('did-finish-load', () => {
     const wait = Math.max(0, 900 - (Date.now() - splashShownAt))
@@ -98,6 +116,20 @@ function createWindow() {
     if (quitting) return
     event.preventDefault()
     win.hide()
+    if (!hideNoticeShown) {
+      hideNoticeShown = true
+      notify(
+        'Local Dashboard',
+        'Still running in the tray. Right-click the tray icon and choose Quit to exit.',
+      )
+    }
+  })
+
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.control && input.key.toLowerCase() === 'q') {
+      event.preventDefault()
+      quitApp()
+    }
   })
   void win.loadURL(baseUrl)
 }
@@ -110,7 +142,7 @@ async function callApi(route, method = 'POST') {
 async function trayBriefing() {
   try {
     const result = await callApi('/api/briefings/generate')
-    if (result.error === 'no-key') notify('Briefing', 'Add DEEPSEEK_API_KEY to your .env file.')
+    if (result.error === 'no-key') notify('Briefing', 'Add a DeepSeek key in Settings -> Connections.')
     else if (result.error) notify('Briefing failed', result.error)
     else notify('Daily briefing is ready', result.markdown.split('\n')[0].slice(0, 160))
   } catch (error) {
@@ -136,7 +168,7 @@ function setAutostart(enabled) {
 }
 
 function createTray() {
-  const image = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
+  const image = nativeImage.createFromPath(trayIconPath).resize({ width: 16, height: 16 })
   tray = new Tray(image)
   tray.setToolTip('Local Dashboard')
   const menu = Menu.buildFromTemplate([
@@ -151,20 +183,50 @@ function createTray() {
       checked: autostartEnabled(),
       click: (item) => setAutostart(item.checked),
     },
-    {
-      label: 'Quit',
-      click: () => {
-        quitting = true
-        app.quit()
-      },
-    },
+    { type: 'separator' },
+    { label: 'Quit Local Dashboard', click: quitApp },
   ])
   tray.setContextMenu(menu)
   tray.on('click', showWindow)
+  watchTrayStatus()
 }
 
-async function probeDashboard(url) {
-  try {
+function watchTrayStatus() {
+  setInterval(() => {
+    if (!tray || quitting || !baseUrl) return
+    fetch(`${baseUrl}/api/status`)
+      .then((response) => response.json())
+      .then((status) => {
+        const failed = status.sources?.some((source) => source.lastError)
+        const state = failed ? 'sync error' : status.sync?.running ? 'syncing' : 'ready'
+        tray.setToolTip(`Local Dashboard - ${state}`)
+      })
+      .catch(() => tray?.setToolTip('Local Dashboard - offline'))
+  }, 15_000)
+}
+
+function quitApp() {
+  if (quitting) return
+  quitting = true
+  if (!server) {
+    app.exit(0)
+    return
+  }
+  const current = server
+  server = null
+  const force = setTimeout(() => app.exit(0), 3000)
+  current
+    .close()
+    .catch((error) => console.error('[desktop] close failed:', error))
+    .finally(() => {
+      clearTimeout(force)
+      app.exit(0)
+    })
+}
+
+ipcMain.on('app:quit', quitApp)
+
+async function probeDashboard(url) {  try {
     const response = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1500) })
     if (!response.ok) return false
     const body = await response.json()
@@ -232,24 +294,24 @@ async function boot() {
   }
 }
 
-app.whenReady().then(boot)
+app.whenReady().then(() => {
+  globalShortcut.register('Control+Q', quitApp)
+  void boot()
+})
 
 app.on('before-quit', (event) => {
-  if (!server) return
+  if (quitting) return
   event.preventDefault()
-  quitting = true
-  const current = server
-  server = null
-  current
-    .close()
-    .catch((error) => console.error('[desktop] close failed:', error))
-    .finally(() => app.exit(0))
+  quitApp()
 })
 
 app.on('window-all-closed', () => {
   // Keep running in the tray.
 })
 
-app.on('will-quit', closeSplash)
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
+  closeSplash()
+})
 
 app.on('activate', showWindow)

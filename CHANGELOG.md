@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.4
+
+- Quit no longer waits for the first sync: scheduler, watcher and server stop immediately, with a 3-second hard exit fallback. The port is released right away.
+- Tray: brighter dedicated icon, `Quit Local Dashboard` menu item, status tooltip (`syncing`, `ready`, `sync error`, `offline`) and a one-time “still running in the tray” notification when the window is closed.
+- Quit routes: tray menu, `Ctrl+Q`, and a `Quit application` button in Settings (Electron only, via a context-isolated preload bridge).
+
 ## 0.9.3
 
 - App icon now has a dark glass tile for the taskbar/dock and installer, while the in-app header and splash keep the transparent emblem.

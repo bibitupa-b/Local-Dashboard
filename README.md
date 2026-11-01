@@ -79,7 +79,7 @@ npm run dist           # Windows installer and portable exe in release/
 In the packaged app:
 
 - data lives in `%APPDATA%\Local Dashboard\data` (database, logs, backups);
-- closing the window keeps the app in the tray; **Quit** in the tray stops the server;
+- closing the window keeps the app in the tray; **Quit** in the tray menu, `Ctrl+Q`, or the Settings button stops the server and frees the port;
 - **Start with Windows** is enabled on first launch and can be toggled from the tray;
 - if the port is already served by another copy or a dev server, the window attaches to it instead of failing.
 

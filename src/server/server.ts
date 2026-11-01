@@ -99,6 +99,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const webRoot = options.webRoot ?? join(process.cwd(), 'dist', 'web')
   const send = options.notify ?? notify
   let ready = false
+  let closed = false
   let syncing: Promise<void> | null = null
   let health = createHealth(sources.map((source) => source.id))
   const syncState = createSyncState()
@@ -227,7 +228,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   }
 
   function maybeBrief(): void {
-    if (!ready) return
+    if (!ready || closed) return
     const last = db.prepare('SELECT created_at FROM briefings ORDER BY id DESC LIMIT 1').get() as
       | { created_at: string }
       | undefined
@@ -260,6 +261,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   // The UI is served immediately; a slow mailbox must not block startup.
   const startup = (async () => {
     await syncAll()
+    if (closed) return
     ready = true
     maybeBrief()
     try {
@@ -269,15 +271,21 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
   })().catch((error) => console.error('[startup] sync failed:', error))
 
+
   return {
     app,
     port,
     close: async () => {
+      if (closed) return
+      closed = true
       for (const task of tasks) task.stop()
-      await Promise.all(stopWatchers.map((stop) => stop()))
-      await startup
-      await app.close()
-      db.close()
+      await Promise.all(stopWatchers.map((stop) => stop().catch(() => {})))
+      await app.close().catch(() => {})
+      try {
+        db.close()
+      } catch {
+        // already closed by an in-flight shutdown
+      }
     },
   }
 }

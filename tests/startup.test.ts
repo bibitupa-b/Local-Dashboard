@@ -32,3 +32,10 @@ test('startServer boots, serves the API and closes cleanly', async () => {
     await server.close()
   }
 })
+
+test('close releases the port quickly even during the first sync', async () => {
+  const server = await startServer({ dataDir, port: 0, envFile: null })
+  const started = Date.now()
+  await server.close()
+  expect(Date.now() - started).toBeLessThan(5000)
+})

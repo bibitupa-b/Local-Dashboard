@@ -352,7 +352,20 @@ export function SettingsPanel({
           <button type="submit" className="primary">
             Save preferences
           </button>
+          {window.dashboard && (
+            <button
+              type="button"
+              className="danger"
+              onClick={() => window.dashboard?.quit()}
+            >
+              Quit application
+            </button>
+          )}
         </div>
+        <p className="sub">
+          Closing the window keeps the app in the tray. Use Quit in the tray menu, Ctrl+Q, or the button
+          above to stop the server.
+        </p>
       </form>
 
       {editing && (
