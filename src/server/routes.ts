@@ -182,7 +182,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
 
     const mail = db
       .prepare(
-        `SELECT sender, subject, date FROM mail_messages
+        `SELECT sender, subject, date, message_id AS messageId FROM mail_messages
          WHERE subject LIKE ? ESCAPE '\\' OR sender LIKE ? ESCAPE '\\' OR snippet LIKE ? ESCAPE '\\'
          GROUP BY COALESCE(message_id, folder || ':' || uid)
          ORDER BY MAX(date) DESC LIMIT 10`,
@@ -191,7 +191,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
 
     const drive = db
       .prepare(
-        `SELECT f.name, f.modified_time AS modifiedTime,
+        `SELECT f.id, f.name, f.modified_time AS modifiedTime,
                 (SELECT substr(d.text, 1, 160) FROM drive_doc_text d WHERE d.file_id = f.id) AS snippet
          FROM drive_files f
          WHERE f.name LIKE ? ESCAPE '\\'

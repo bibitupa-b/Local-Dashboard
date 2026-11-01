@@ -49,8 +49,8 @@ export type Today = {
 }
 export type SearchResults = {
   notes: Array<{ path: string; snippet: string }>
-  mail: Array<{ sender: string; subject: string; date: string }>
-  drive: Array<{ name: string; modifiedTime: string; snippet?: string | null }>
+  mail: Array<{ sender: string; subject: string; date: string; messageId: string | null }>
+  drive: Array<{ id: string; name: string; modifiedTime: string; snippet?: string | null }>
 }
 export type Settings = {
   vaultPath: string

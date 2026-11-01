@@ -122,6 +122,8 @@ test('search covers notes, mail and drive names', async () => {
   expect(body.notes[0].path).toBe('01 Projects/Zen.md')
   expect(body.mail[0].subject).toBe('Zen retreat')
   expect(body.drive[0].name).toBe('Zen budget.xlsx')
+  expect(body.drive[0].id).toBe('f1')
+  expect(body.mail[0].messageId).toBeNull()
   expect(body.drive.some((file: { name: string }) => file.name === 'Meeting notes')).toBe(true)
 
   const short = await app.inject({ method: 'GET', url: '/api/search?q=z' })

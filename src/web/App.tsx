@@ -11,6 +11,7 @@ import {
   type Today,
 } from './api.js'
 import { SettingsPanel } from './Settings.js'
+import { driveUrl, mailUrl, obsidianUrl, sourceUrl } from './links.js'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -39,6 +40,7 @@ export function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResults | null>(null)
+  const [resultsQuery, setResultsQuery] = useState('')
   const [suggestions, setSuggestions] = useState<SearchResults | null>(null)
   const [activeSuggestion, setActiveSuggestion] = useState(0)
   const [openDiff, setOpenDiff] = useState<{ id: number; path: string; diff: string } | null>(null)
@@ -127,49 +129,51 @@ export function App() {
 
   async function search(event: React.FormEvent) {
     event.preventDefault()
-    if (query.trim().length < 2) {
+    const term = query.trim()
+    if (term.length < 2) {
       setResults(null)
+      setResultsQuery('')
       return
     }
-    setResults(await api.search(query.trim()))
+    setResults(await api.search(term))
+    setResultsQuery(term)
     setSuggestions(null)
   }
 
-  type Suggestion = { kind: 'note' | 'mail' | 'drive'; label: string; detail?: string; path?: string }
+  type Suggestion = { kind: 'note' | 'mail' | 'drive'; label: string; detail?: string; url: string }
 
+  const vaultPath = settings?.vaultPath ?? ''
   const items: Suggestion[] = suggestions
     ? [
         ...suggestions.notes.map((note) => ({
           kind: 'note' as const,
           label: note.path,
-          path: note.path,
+          url: obsidianUrl(vaultPath, note.path),
         })),
         ...suggestions.mail.map((message) => ({
           kind: 'mail' as const,
           label: message.subject,
           detail: message.sender,
+          url: mailUrl(message.messageId, message.subject),
         })),
-        ...suggestions.drive.map((file) => ({ kind: 'drive' as const, label: file.name })),
+        ...suggestions.drive.map((file) => ({
+          kind: 'drive' as const,
+          label: file.name,
+          url: driveUrl(file.id),
+        })),
       ]
     : []
 
-  function openNote(path: string) {
-    const vault =
-      (settings?.vaultPath ?? '').split(/[\\/]/).filter(Boolean).pop() ?? 'Main Obsidian Vault'
-    window.location.href = `obsidian://open?vault=${encodeURIComponent(vault)}&file=${encodeURIComponent(
-      path.replace(/\.md$/i, ''),
-    )}`
+  function open(url: string) {
+    if (url.startsWith('obsidian://')) window.location.href = url
+    else window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   function choose(item?: Suggestion) {
     const target = item ?? items[activeSuggestion]
     if (!target) return
-    if (target.kind === 'note' && target.path) {
-      openNote(target.path)
-      return
-    }
-    setResults(suggestions)
     setSuggestions(null)
+    open(target.url)
   }
 
   function onSearchKey(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -208,22 +212,39 @@ export function App() {
           </p>
         </div>
         <div className="status">
-          {status?.sources.map((source) => (
-            <span
-              key={source.id}
-              className={`pill ${source.configured ? 'ok' : 'off'}${source.lastError ? ' bad' : ''}`}
-              title={source.lastError ?? undefined}
-            >
-              {source.id}
-              {source.progress
-                ? ` · ${source.progress.done}/${source.progress.total}`
-                : source.configured
-                  ? source.lastSync
-                    ? ` · ${time(source.lastSync)}`
-                    : ''
-                  : ' · not connected'}
-            </span>
-          ))}
+          {status?.sources.map((source) => {
+            const url = sourceUrl(source.id, vaultPath)
+            const className = `pill ${source.configured ? 'ok' : 'off'}${source.lastError ? ' bad' : ''}`
+            const title = source.lastError ?? url ?? source.id
+            const label = (
+              <>
+                {source.id}
+                {source.progress
+                  ? ` · ${source.progress.done}/${source.progress.total}`
+                  : source.configured
+                    ? source.lastSync
+                      ? ` · ${time(source.lastSync)}`
+                      : ''
+                    : ' · not connected'}
+              </>
+            )
+            return url ? (
+              <a
+                key={source.id}
+                className={className}
+                href={url}
+                title={title}
+                target={url.startsWith('obsidian://') ? undefined : '_blank'}
+                rel={url.startsWith('obsidian://') ? undefined : 'noreferrer'}
+              >
+                {label}
+              </a>
+            ) : (
+              <span key={source.id} className={className} title={title}>
+                {label}
+              </span>
+            )
+          })}
           <button
             className="ghost"
             onClick={() => {
@@ -332,6 +353,7 @@ export function App() {
             onClick={() => {
               setQuery('')
               setResults(null)
+              setResultsQuery('')
               setSuggestions(null)
             }}
           >
@@ -340,30 +362,49 @@ export function App() {
         )}
       </form>
 
-      {results && (
+      {results && resultsQuery && (
         <section className="card results">
-          <h2>Results for “{query}”</h2>
+          <h2>Results for “{resultsQuery}”</h2>
           {results.notes.length === 0 && results.mail.length === 0 && results.drive.length === 0 && (
             <p className="empty">Nothing found.</p>
           )}
           {results.notes.map((note) => (
-            <div key={note.path} className="result">
+            <a
+              key={note.path}
+              className="result"
+              href={obsidianUrl(vaultPath, note.path)}
+              title="Open in Obsidian"
+            >
               <span className="dot vault" />
               <span className="label">{note.path}</span>
-            </div>
+            </a>
           ))}
           {results.mail.map((message, index) => (
-            <div key={`mail-${index}`} className="result">
+            <a
+              key={`mail-${index}`}
+              className="result"
+              href={mailUrl(message.messageId, message.subject)}
+              target="_blank"
+              rel="noreferrer"
+              title="Open in Gmail"
+            >
               <span className="dot mail" />
               <span className="label">{message.subject}</span>
               <span className="detail">{message.sender}</span>
-            </div>
+            </a>
           ))}
           {results.drive.map((file, index) => (
-            <div key={`drive-${index}`} className="result">
+            <a
+              key={`drive-${index}`}
+              className="result"
+              href={driveUrl(file.id)}
+              target="_blank"
+              rel="noreferrer"
+              title="Open in Google Drive"
+            >
               <span className="dot drive" />
               <span className="label">{file.name}</span>
-            </div>
+            </a>
           ))}
         </section>
       )}
