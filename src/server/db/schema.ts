@@ -126,4 +126,17 @@ CREATE TABLE IF NOT EXISTS drive_doc_text (
   text TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS connections (
+  id TEXT PRIMARY KEY,
+  service TEXT NOT NULL,
+  label TEXT NOT NULL,
+  config TEXT NOT NULL DEFAULT '{}',
+  secret TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  last_error TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS connections_service ON connections (service);
 `

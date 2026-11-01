@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { setSetting } from '../db/index.js'
 import { isExcludedFolder, isExcludedSender } from '../settings.js'
-import type { Source } from './types.js'
+import { sourceMeta, type Source, type SourceMeta } from './types.js'
 
 export type MailFolder = { path: string }
 export type MailMessage = {
@@ -30,9 +30,9 @@ export type MailApi = {
 const IGNORED_FOLDER = /all mail/i
 export const UNREAD_WINDOW_DAYS = 30
 
-export function createMailSource(api: MailApi | null): Source {
+export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceMeta('mail', 'imap')): Source {
   return {
-    id: 'mail',
+    ...meta,
     configured: () => api !== null,
     async sync(db, now = new Date(), progress) {
       if (!api) return

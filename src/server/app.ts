@@ -7,35 +7,43 @@ import type { Config } from './config.js'
 import type { Source } from './sources/types.js'
 import type { createBriefing } from './briefing/index.js'
 import type { HealthMap, SyncState } from './health.js'
+import type { ConnectionsApi } from './routes.js'
 import { registerRoutes } from './routes.js'
 
 export type Deps = {
   db: DatabaseSync
   config: Config
-  sources?: Source[]
+  sources?: Source[] | (() => Source[])
+  getSources?: () => Source[]
   generate?: typeof createBriefing
   webRoot?: string
-  onDriveConnected?: () => void
   isReady?: () => boolean
   health?: () => HealthMap
   syncState?: () => SyncState
   syncNow?: () => Promise<void>
+  reload?: () => Promise<void>
+  connections?: ConnectionsApi
+  googleStart?: (connectionId: string, state: string) => string | null
+  googleComplete?: (connectionId: string, code: string) => Promise<void>
 }
 
 export function buildApp(deps: Deps): FastifyInstance {
   const app = Fastify({ logger: false })
-  const sources = deps.sources ?? []
+  const sources = deps.getSources?.() ?? deps.sources ?? []
 
   registerRoutes(app, {
     db: deps.db,
     config: deps.config,
-    sources,
+    sources: deps.getSources ?? sources,
     generate: deps.generate,
-    onDriveConnected: deps.onDriveConnected,
     isReady: deps.isReady,
     health: deps.health,
     syncState: deps.syncState,
     syncNow: deps.syncNow,
+    reload: deps.reload,
+    connections: deps.connections,
+    googleStart: deps.googleStart,
+    googleComplete: deps.googleComplete,
   })
 
   const webRoot = deps.webRoot ?? join(process.cwd(), 'dist', 'web')

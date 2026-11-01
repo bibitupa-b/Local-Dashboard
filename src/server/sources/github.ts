@@ -1,7 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { setSetting } from '../db/index.js'
-import type { Source } from './types.js'
-import type { Config } from '../config.js'
+import { sourceMeta, type Source, type SourceMeta } from './types.js'
 
 export type GithubItem = {
   id: string
@@ -14,9 +13,9 @@ export type GithubItem = {
 
 export type GithubApi = { items(): Promise<GithubItem[]> }
 
-export function createGithubSource(api: GithubApi | null): Source {
+export function createGithubSource(api: GithubApi | null, meta: SourceMeta = sourceMeta('github', 'github')): Source {
   return {
-    id: 'github',
+    ...meta,
     configured: () => api !== null,
     async sync(db, now = new Date()) {
       if (!api) return
@@ -59,11 +58,11 @@ export function createGithubSource(api: GithubApi | null): Source {
   }
 }
 
-export function createGithubApi(config: Config): GithubApi | null {
-  if (!config.githubToken) return null
+export function createGithubApi(token: string | null): GithubApi | null {
+  if (!token) return null
   const headers = {
     accept: 'application/vnd.github+json',
-    authorization: `Bearer ${config.githubToken}`,
+    authorization: `Bearer ${token}`,
     'user-agent': 'local-dashboard',
     'x-github-api-version': '2022-11-28',
   }

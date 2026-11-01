@@ -7,15 +7,8 @@ import { getSetting, openDb, setSetting } from './db/index.js'
 import { createBriefing } from './briefing/index.js'
 import { shouldCatchUp } from './briefing/schedule.js'
 import { initLogging } from './log.js'
-import { createDriveSource, createGoogleDriveApi } from './sources/drive.js'
-import { createCalendarSource, createGoogleCalendarApi } from './sources/calendar.js'
-import { createMailSource } from './sources/mail.js'
-import { createImapMailApi } from './sources/mail-imap.js'
-import { createBrowserSource } from './sources/browser.js'
-import { createChromiumBrowserReader } from './sources/browser-chromium.js'
-import { createGithubApi, createGithubSource } from './sources/github.js'
 import type { Source } from './sources/types.js'
-import { createVaultSource, startVaultWatcher } from './sources/vault/index.js'
+import { startVaultWatcher } from './sources/vault/index.js'
 import {
   createHealth,
   createSyncState,
@@ -29,6 +22,18 @@ import {
 import { dueEventNotification, notify } from './notify.js'
 import { todayEvents } from './sources/calendar.js'
 import { backupDb } from './backup.js'
+import { createSecretBox } from './secrets.js'
+import {
+  deleteConnection,
+  getConnection,
+  importConnectionsFromEnv,
+  listConnections,
+  saveConnection,
+  type ConnectionInput,
+} from './connections.js'
+import { buildSources, googleCreds, publicConnections, toPublicConnection } from './registry.js'
+import { testConnection } from './connection-test.js'
+import { exchangeGoogleCode, googleAuthUrl } from './google.js'
 
 export type ServerOptions = {
   dataDir?: string
@@ -62,24 +67,20 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   if (options.port !== undefined) config.port = options.port
   initLogging(config.dataDir)
   const db = openDb(config.dbPath)
+  const box = createSecretBox(config.dataDir)
+  importConnectionsFromEnv(db, box, config, config.dataDir)
 
   config.vaultPath = getSetting(db, 'vault_path') ?? config.vaultPath
   config.briefingHour = Number(getSetting(db, 'briefing_hour')) || config.briefingHour
 
-  const sources: Source[] = [
-    createVaultSource(config.vaultPath),
-    createDriveSource(await createGoogleDriveApi(config)),
-    createMailSource(createImapMailApi(config)),
-    createCalendarSource(await createGoogleCalendarApi(config)),
-    createBrowserSource(createChromiumBrowserReader(config.dataDir, config.browserHistoryPath)),
-    createGithubSource(createGithubApi(config)),
-  ]
+  let sources: Source[] = buildSources({ db, box, config, dataDir: config.dataDir })
+  let stopWatchers: Array<() => Promise<void>> = []
 
   const webRoot = options.webRoot ?? join(process.cwd(), 'dist', 'web')
   const send = options.notify ?? notify
   let ready = false
   let syncing: Promise<void> | null = null
-  const health = createHealth(sources.map((source) => source.id))
+  let health = createHealth(sources.map((source) => source.id))
   const syncState = createSyncState()
 
   async function syncAll(): Promise<void> {
@@ -107,29 +108,73 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
   }
 
+  function watchVaults(): void {
+    for (const connection of listConnections(db, box)) {
+      if (connection.service !== 'vault' || !connection.enabled) continue
+      stopWatchers.push(startVaultWatcher(connection.config.path || config.vaultPath, db))
+    }
+  }
+
+  async function reloadSources(): Promise<void> {
+    if (syncing) await syncing.catch(() => {})
+    await Promise.all(stopWatchers.map((stop) => stop()))
+    stopWatchers = []
+    sources = buildSources({ db, box, config, dataDir: config.dataDir })
+    health = createHealth(sources.map((source) => source.id))
+    watchVaults()
+    void syncAll()
+  }
+
+  watchVaults()
+
   const app = buildApp({
     db,
     config,
     sources,
+    getSources: () => sources,
     webRoot,
     isReady: () => ready,
     health: () => health,
     syncState: () => syncState,
     syncNow: syncAll,
-    onDriveConnected: () => {
-      void (async () => {
-        const drive = await createGoogleDriveApi(config)
-        const calendar = await createGoogleCalendarApi(config)
-        const driveIndex = sources.findIndex((source) => source.id === 'drive')
-        const calendarIndex = sources.findIndex((source) => source.id === 'calendar')
-        if (drive && driveIndex >= 0) sources[driveIndex] = createDriveSource(drive)
-        if (calendar && calendarIndex >= 0) sources[calendarIndex] = createCalendarSource(calendar)
-        await syncAll()
-      })().catch((error) => console.error('[google] reconnect failed:', error))
+    reload: reloadSources,
+    connections: {
+      list: () => publicConnections(db, box),
+      save: (input: ConnectionInput) => toPublicConnection(saveConnection(db, box, input)),
+      remove: (id: string) => deleteConnection(db, id),
+      test: async (id: string) => {
+        const connection = getConnection(db, box, id)
+        return connection ? testConnection(connection) : { ok: false, error: 'Unknown connection' }
+      },
+    },
+    googleStart: (connectionId, state) => {
+      const connection = getConnection(db, box, connectionId)
+      if (!connection || connection.service !== 'google') return null
+      if (!connection.config.clientId || !connection.secret?.clientSecret) return null
+      return googleAuthUrl(
+        googleCreds(connection, { db, box, config, dataDir: config.dataDir }),
+        state,
+      )
+    },
+    googleComplete: async (connectionId, code) => {
+      const connection = getConnection(db, box, connectionId)
+      if (!connection || connection.service !== 'google') {
+        throw new Error('Unknown Google connection')
+      }
+      const tokens = await exchangeGoogleCode(
+        googleCreds(connection, { db, box, config, dataDir: config.dataDir }),
+        code,
+      )
+      saveConnection(db, box, {
+        id: connection.id,
+        service: 'google',
+        label: connection.label,
+        config: connection.config,
+        secret: { ...connection.secret, tokens },
+      })
+      await reloadSources()
     },
   })
-
-  const stopWatcher = startVaultWatcher(config.vaultPath, db)
 
   async function brief(trigger: 'auto' | 'manual'): Promise<void> {
     const result = await createBriefing(db, sources, config, { trigger })
@@ -203,7 +248,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     port,
     close: async () => {
       for (const task of tasks) task.stop()
-      await stopWatcher()
+      await Promise.all(stopWatchers.map((stop) => stop()))
       await startup
       await app.close()
       db.close()

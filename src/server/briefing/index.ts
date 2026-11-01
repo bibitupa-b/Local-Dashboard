@@ -76,7 +76,7 @@ export async function createBriefing(
     driveChanges,
     extra: sources
       .filter((source) => ['mail', 'calendar', 'browser', 'github'].includes(source.id) && source.configured())
-      .filter((source) => isSourceEnabled(db, source.id))
+      .filter((source) => isSourceEnabled(db, source.kind))
       .map((source) => ({
         title:
           source.id === 'mail'

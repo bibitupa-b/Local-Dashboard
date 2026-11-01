@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { setSetting } from '../db/index.js'
 import { getList, LIST_KEYS } from '../settings.js'
-import type { Source } from './types.js'
+import { sourceMeta, type Source, type SourceMeta } from './types.js'
 
 export type BrowserVisit = { url: string; domain: string; title: string; visitedAt: string }
 export type BrowserReader = {
@@ -22,9 +22,9 @@ export function isExcludedDomain(db: DatabaseSync, domain: string): boolean {
   return getList(db, LIST_KEYS.browserDomains).some((pattern) => domain.includes(pattern))
 }
 
-export function createBrowserSource(reader: BrowserReader | null): Source {
+export function createBrowserSource(reader: BrowserReader | null, meta: SourceMeta = sourceMeta('browser', 'browser')): Source {
   return {
-    id: 'browser',
+    ...meta,
     configured: () => reader !== null,
     async sync(db, now = new Date()) {
       if (!reader) return

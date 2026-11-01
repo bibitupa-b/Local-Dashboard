@@ -8,7 +8,7 @@ import { lineDiff } from './diff.js'
 import { parseNote } from './parse.js'
 import { scanVaultDetailed, isIgnoredPath, type VaultEntry } from './scan.js'
 import { setSetting } from '../../db/index.js'
-import type { Source } from '../types.js'
+import { sourceMeta, type Source, type SourceMeta } from '../types.js'
 
 type FileRow = { hash: string; mtime: string; size: number; previous_text: string }
 
@@ -107,9 +107,9 @@ export function applyVaultChanges(
   return changes
 }
 
-export function createVaultSource(root: string): Source {
+export function createVaultSource(root: string, meta: SourceMeta = sourceMeta('vault', 'vault')): Source {
   return {
-    id: 'vault',
+    ...meta,
     configured: () => existsSync(root),
     async sync(db, now = new Date()) {
       const { entries, complete } = await scanVaultDetailed(root)

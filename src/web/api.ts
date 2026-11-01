@@ -1,5 +1,9 @@
 export type SourceStatus = {
   id: string
+  kind: 'vault' | 'drive' | 'mail' | 'calendar' | 'browser' | 'github'
+  service: 'vault' | 'google' | 'imap' | 'github' | 'browser'
+  connectionId: string
+  label: string
   configured: boolean
   lastSync: string | null
   lastError?: string | null
@@ -56,7 +60,6 @@ export type Settings = {
   vaultPath: string
   briefingHour: number
   hasDeepSeekKey: boolean
-  googleConfigured: boolean
   driveConnected: boolean
   mailConfigured: boolean
   mailConnected: boolean
@@ -70,6 +73,27 @@ export type Settings = {
   githubConnected: boolean
   digestWindowHours: number
   enabledSources: string[]
+}
+
+export type Service = 'vault' | 'google' | 'imap' | 'github' | 'browser'
+
+export type Connection = {
+  id: string
+  service: Service
+  label: string
+  config: Record<string, string>
+  enabled: boolean
+  lastError: string | null
+  createdAt: string
+  secretsSet: string[]
+}
+
+export type ConnectionInput = {
+  service: Service
+  label: string
+  config: Record<string, string>
+  secret?: Record<string, string>
+  enabled?: boolean
 }
 
 async function get<T>(url: string): Promise<T> {
@@ -96,7 +120,6 @@ export const api = {
     return res.json()
   },
   saveSettings: async (body: {
-    vaultPath?: string
     briefingHour?: number
     excludedSenders?: string[]
     excludedVaultPrefixes?: string[]
@@ -110,4 +133,31 @@ export const api = {
       body: JSON.stringify(body),
     })
   },
+  connections: () => get<{ items: Connection[] }>('/api/connections'),
+  addConnection: async (input: ConnectionInput): Promise<Connection> => {
+    const res = await fetch('/api/connections', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    if (!res.ok) throw new Error((await res.json()).error ?? `HTTP ${res.status}`)
+    return res.json()
+  },
+  updateConnection: async (id: string, input: ConnectionInput): Promise<Connection> => {
+    const res = await fetch(`/api/connections/${id}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    if (!res.ok) throw new Error((await res.json()).error ?? `HTTP ${res.status}`)
+    return res.json()
+  },
+  deleteConnection: async (id: string): Promise<void> => {
+    await fetch(`/api/connections/${id}`, { method: 'DELETE' })
+  },
+  testConnection: (id: string) =>
+    fetch(`/api/connections/${id}/test`, { method: 'POST' }).then(
+      (res) => res.json() as Promise<{ ok: boolean; error?: string }>,
+    ),
 }
+

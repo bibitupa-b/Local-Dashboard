@@ -202,6 +202,41 @@ export function App() {
 
   const latest = briefings[0]
 
+  if (showSettings && settings) {
+    return (
+      <div className="page">
+        <SettingsPanel
+          settings={settings}
+          onClose={() => setShowSettings(false)}
+          onSaved={(next) => {
+            setSettings(next)
+            setNote('Preferences saved.')
+          }}
+        />
+      </div>
+    )
+  }
+
+  const statusGroups = (() => {
+    const map = new Map<
+      string,
+      { service: string; total: number; configured: number; error: string | null; lastSync: string | null }
+    >()
+    for (const source of status?.sources ?? []) {
+      const group =
+        map.get(source.service) ??
+        { service: source.service, total: 0, configured: 0, error: null, lastSync: null }
+      group.total++
+      if (source.configured) group.configured++
+      if (source.lastError) group.error = source.lastError
+      if (source.lastSync && (!group.lastSync || source.lastSync > group.lastSync)) {
+        group.lastSync = source.lastSync
+      }
+      map.set(source.service, group)
+    }
+    return [...map.values()]
+  })()
+
   return (
     <div className="page">
       <header className="head">
@@ -212,25 +247,20 @@ export function App() {
           </p>
         </div>
         <div className="status">
-          {status?.sources.map((source) => {
-            const url = sourceUrl(source.id, vaultPath)
-            const className = `pill ${source.configured ? 'ok' : 'off'}${source.lastError ? ' bad' : ''}`
-            const title = source.lastError ?? url ?? source.id
+          {statusGroups.map((group) => {
+            const url = sourceUrl(group.service, vaultPath)
+            const className = `pill ${group.configured > 0 ? 'ok' : 'off'}${group.error ? ' bad' : ''}`
+            const title = group.error ?? `${group.configured}/${group.total} connected`
             const label = (
               <>
-                {source.id}
-                {source.progress
-                  ? ` · ${source.progress.done}/${source.progress.total}`
-                  : source.configured
-                    ? source.lastSync
-                      ? ` · ${time(source.lastSync)}`
-                      : ''
-                    : ' · not connected'}
+                {group.service}
+                {group.total > 1 ? ` · ${group.total}` : ''}
+                {group.lastSync ? ` · ${time(group.lastSync)}` : group.configured > 0 ? '' : ' · not connected'}
               </>
             )
             return url ? (
               <a
-                key={source.id}
+                key={group.service}
                 className={className}
                 href={url}
                 title={title}
@@ -240,7 +270,7 @@ export function App() {
                 {label}
               </a>
             ) : (
-              <span key={source.id} className={className} title={title}>
+              <span key={group.service} className={className} title={title}>
                 {label}
               </span>
             )
@@ -407,16 +437,6 @@ export function App() {
             </a>
           ))}
         </section>
-      )}
-
-      {showSettings && settings && (
-        <SettingsPanel
-          settings={settings}
-          onSaved={(next) => {
-            setSettings(next)
-            setNote('Saved. Restart the server to apply a new vault path.')
-          }}
-        />
       )}
 
       <section className="card briefing">

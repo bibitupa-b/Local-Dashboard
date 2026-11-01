@@ -55,6 +55,18 @@ Google Drive and Calendar are connected once from the settings page: the app ope
 
 Use a **Desktop app** OAuth client with the redirect URI `http://127.0.0.1:4317/api/oauth/google/callback` (change the port if you set `PORT`). Set the app's publishing status to **Production** — while it stays in *Testing*, Google expires refresh tokens after 7 days and you would have to sign in again every week.
 
+## Connections
+
+Everything except the DeepSeek key is configured in **Settings → Connections** and stored in the local database; secrets are encrypted with a key file in `data/`. The `.env` file is imported automatically on first start and remains supported for CLI runs.
+
+- **Obsidian vault** — one or more folders, read-only.
+- **Google Drive & Calendar** — Client ID/secret plus one OAuth consent; the token is stored per connection.
+- **Gmail (IMAP)** — address and app password.
+- **GitHub** — personal access token with the `notifications` scope.
+- **Browser history** — Helium/Chrome/Edge auto-detected, or a custom Chromium profile path.
+
+Each group has a **?** hint with the exact steps to obtain access. After the first account is connected, **+ Add account** adds another one of the same service.
+
 ## Desktop app
 
 The dashboard ships as an Electron app: the same Fastify server runs inside the desktop process, the window points at the local port, and the tray keeps it one click away.

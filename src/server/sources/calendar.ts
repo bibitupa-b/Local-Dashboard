@@ -1,9 +1,8 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { google } from 'googleapis'
+import type { OAuth2Client } from 'google-auth-library'
 import { setSetting } from '../db/index.js'
-import { authorizedClient, hasScope, CALENDAR_SCOPE } from '../google.js'
-import type { Source } from './types.js'
-import type { Config } from '../config.js'
+import { sourceMeta, type Source, type SourceMeta } from './types.js'
 
 export type CalendarEvent = {
   id: string
@@ -25,9 +24,9 @@ export function localDayBounds(now: Date): { from: string; to: string } {
   return { from: start.toISOString(), to: end.toISOString() }
 }
 
-export function createCalendarSource(api: CalendarApi | null): Source {
+export function createCalendarSource(api: CalendarApi | null, meta: SourceMeta = sourceMeta('calendar', 'google')): Source {
   return {
-    id: 'calendar',
+    ...meta,
     configured: () => api !== null,
     async sync(db, now = new Date()) {
       if (!api) return
@@ -86,9 +85,7 @@ export function createCalendarSource(api: CalendarApi | null): Source {
   }
 }
 
-export async function createGoogleCalendarApi(config: Config): Promise<CalendarApi | null> {
-  if (!(await hasScope(config, CALENDAR_SCOPE))) return null
-  const client = await authorizedClient(config)
+export function createGoogleCalendarApi(client: OAuth2Client | null): CalendarApi | null {
   if (!client) return null
   const calendar = google.calendar({ version: 'v3', auth: client })
 

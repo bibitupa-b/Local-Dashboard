@@ -1,6 +1,5 @@
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
-import type { Config } from '../config.js'
 import type { MailApi, MailFlags, MailMessage } from './mail.js'
 
 const BODY_DAYS = 90
@@ -41,10 +40,13 @@ export function isBulkMessage(headers: HeadersLike): boolean {
   return auto !== '' && auto !== 'no'
 }
 
-export function createImapMailApi(config: Config): MailApi | null {
-  if (!config.gmailUser || !config.gmailPassword) return null
-  const user = config.gmailUser
-  const pass = config.gmailPassword
+export function createImapMailApi(creds: {
+  user: string | null
+  password: string | null
+}): MailApi | null {
+  if (!creds.user || !creds.password) return null
+  const user = creds.user
+  const pass = creds.password
   let client: ImapFlow | null = null
 
   async function connection(): Promise<ImapFlow> {

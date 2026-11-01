@@ -1,8 +1,7 @@
 import { google } from 'googleapis'
+import type { OAuth2Client } from 'google-auth-library'
 import { getSetting, setSetting } from '../db/index.js'
-import { authorizedClient, hasScope, DRIVE_SCOPE } from '../google.js'
-import type { Source } from './types.js'
-import type { Config } from '../config.js'
+import { sourceMeta, type Source, type SourceMeta } from './types.js'
 
 export type DriveFile = { id: string; name: string; mimeType: string; modifiedTime: string }
 export type DriveApi = {
@@ -14,9 +13,9 @@ const GOOGLE_DOC = /^application\/vnd\.google-apps\.(document|spreadsheet|presen
 const MAX_DOC_CHARS = 20_000
 const MAX_EXPORTS_PER_SYNC = 20
 
-export function createDriveSource(api: DriveApi | null): Source {
+export function createDriveSource(api: DriveApi | null, meta: SourceMeta = sourceMeta('drive', 'google')): Source {
   return {
-    id: 'drive',
+    ...meta,
     configured: () => api !== null,
     async sync(db, now = new Date()) {
       if (!api) return
@@ -82,9 +81,7 @@ export function createDriveSource(api: DriveApi | null): Source {
   }
 }
 
-export async function createGoogleDriveApi(config: Config): Promise<DriveApi | null> {
-  if (!(await hasScope(config, DRIVE_SCOPE))) return null
-  const client = await authorizedClient(config)
+export function createGoogleDriveApi(client: OAuth2Client | null): DriveApi | null {
   if (!client) return null
   const drive = google.drive({ version: 'v3', auth: client })
 
@@ -125,4 +122,3 @@ export async function createGoogleDriveApi(config: Config): Promise<DriveApi | n
   }
 }
 
-export { googleAuthUrl, saveGoogleCode } from '../google.js'

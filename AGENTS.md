@@ -12,6 +12,7 @@ One Node process:
 
 - **API** — Fastify, served on `127.0.0.1:4317` (configurable via `PORT`).
 - **Desktop shell** — Electron (`electron/main.cjs`) starts `startServer()` from `src/server/server.ts`, opens a window on the local port and owns the tray, native notifications and Windows autostart. `dist/server/server.cjs` is the bundled server.
+- **Connections** — `connections` table rows are the source of truth; `registry.ts` builds one source per connection (Google yields Drive and Calendar). Secrets are encrypted with AES-256-GCM using `data/secret.key`. `.env` is imported once via `importConnectionsFromEnv`.
 - **UI** — React + Vite with plain CSS, built to static assets and served by the same process. In dev, Vite proxies to the API.
 - **Storage** — SQLite through the built-in `node:sqlite`. No ORM, no native dependencies.
 - **Vault source** — `chokidar` watches `<VAULT_PATH>`, hashes changed notes, stores a snapshot plus a line diff.
@@ -60,6 +61,7 @@ These were agreed with the user; do not re-litigate them without asking.
 
 - Local web app first; a Tauri shell is optional later.
 - Desktop shell is Electron: it embeds the existing Node server rather than requiring a system Node install. Packaged data lives in `%APPDATA%\Local Dashboard\data`; `.env` is copied there by the user, never bundled.
+- Services are configured as connections (multiple accounts per service allowed) through the settings screen; `.env` is imported once and remains a CLI fallback. DeepSeek stays a single global key.
 - Read-only everywhere. Never write to notes, the vault, or Drive.
 - Two dashboard halves: **history** (diff-backed activity log) and **attention queue**.
 - Sources for phase 1: the Obsidian vault, Google Drive, Gmail (read-only IMAP) and Google Calendar.
@@ -83,7 +85,8 @@ These were agreed with the user; do not re-litigate them without asking.
 | `mail_folders` | folder path, UIDVALIDITY, last synced UID, last sync time |
 | `mail_messages` | folder, UID, sender, subject, date, seen/starred, snippet, body (90 days), attachment names |
 | `calendar_events` | Google event id, calendar, summary, start/end, location, status |
-| `settings` | key/value: vault path, schedule, exclusions, last sync cursors |
+| `connections` | service, label, config JSON, encrypted secret, enabled, last error |
+| `settings` | key/value: schedule, exclusions, enabled sources, sync cursors |
 
 Snapshots are affordable: the vault is small (tens of notes). Keep them; they make diffs and "what did I write last week" work without rescanning history.
 

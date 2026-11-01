@@ -31,8 +31,8 @@ test('status reports configured sources and no briefing yet', async () => {
   const res = await app.inject({ method: 'GET', url: '/api/status' })
   expect(res.statusCode).toBe(200)
   expect(res.json().sources).toMatchObject([
-    { id: 'vault', configured: true, lastSync: null },
-    { id: 'drive', configured: false, lastSync: null },
+    { id: 'vault:default', configured: true, lastSync: null },
+    { id: 'drive:default', configured: false, lastSync: null },
   ])
   expect(res.json().briefingToday).toBe(false)
   await app.close()
@@ -80,7 +80,11 @@ test('status carries health and the sync endpoint runs a sync', async () => {
     sources: [createVaultSource(root)],
     webRoot: join(root, 'no-ui'),
     health: () => ({
-      vault: { lastError: 'boom', lastErrorAt: '2026-10-31T10:00:00.000Z', progress: null },
+      'vault:default': {
+        lastError: 'boom',
+        lastErrorAt: '2026-10-31T10:00:00.000Z',
+        progress: null,
+      },
     }),
     syncNow: async () => {
       synced++
@@ -88,7 +92,7 @@ test('status carries health and the sync endpoint runs a sync', async () => {
   })
 
   const status = await app.inject({ method: 'GET', url: '/api/status' })
-  expect(status.json().sources[0]).toMatchObject({ id: 'vault', lastError: 'boom' })
+  expect(status.json().sources[0]).toMatchObject({ id: 'vault:default', lastError: 'boom' })
   expect(status.json().sync).toMatchObject({ running: false })
 
   const sync = await app.inject({ method: 'POST', url: '/api/sync' })
@@ -171,6 +175,61 @@ test('status exposes the active sync segment', async () => {
     done: 3,
     total: 7,
   })
+  await app.close()
+})
+
+test('connections API saves, tests and reloads sources', async () => {
+  const db = openDb(':memory:')
+  const config = loadConfig({ VAULT_PATH: root })
+  let reloads = 0
+  const savedRows: Array<{ id: string; service: string; label: string }> = []
+  const app = buildApp({
+    db,
+    config,
+    sources: [],
+    webRoot: join(root, 'no-ui'),
+    reload: async () => {
+      reloads++
+    },
+    connections: {
+      list: () => [],
+      save: (input) => {
+        const row = {
+          id: `${input.service}-test`,
+          service: input.service,
+          label: input.label,
+          config: input.config,
+          enabled: true,
+          lastError: null,
+          createdAt: '2026-11-01T00:00:00.000Z',
+          secretsSet: Object.keys(input.secret ?? {}),
+        }
+        savedRows.push(row)
+        return row
+      },
+      remove: () => {},
+      test: async () => ({ ok: true }),
+    },
+  })
+
+  const created = await app.inject({
+    method: 'POST',
+    url: '/api/connections',
+    payload: { service: 'vault', label: 'Main', config: { path: 'C:/notes' } },
+  })
+  expect(created.statusCode).toBe(200)
+  expect(created.json()).toMatchObject({ service: 'vault', label: 'Main' })
+  expect(reloads).toBe(1)
+
+  const tested = await app.inject({ method: 'POST', url: '/api/connections/vault-test/test' })
+  expect(tested.json()).toEqual({ ok: true })
+
+  const invalid = await app.inject({
+    method: 'POST',
+    url: '/api/connections',
+    payload: { label: 'no service' },
+  })
+  expect(invalid.statusCode).toBe(400)
   await app.close()
 })
 

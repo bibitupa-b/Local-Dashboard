@@ -5,7 +5,6 @@ import type { Config } from './config.js'
 import { buildAttention } from './attention.js'
 import { createBriefing } from './briefing/index.js'
 import type { Source } from './sources/types.js'
-import { googleAuthUrl, saveGoogleCode } from './google.js'
 import { todayEvents, dayPlan } from './sources/calendar.js'
 import type { HealthMap, SyncState } from './health.js'
 import { getSetting, setSetting } from './db/index.js'
@@ -16,17 +15,40 @@ import {
   normalizeVaultPrefixes,
   setList,
 } from './settings.js'
+import type { ConnectionInput } from './connections.js'
+
+export type PublicConnection = {
+  id: string
+  service: string
+  label: string
+  config: Record<string, string>
+  enabled: boolean
+  lastError: string | null
+  createdAt: string
+  secretsSet: string[]
+}
+
+export type ConnectionsApi = {
+  list: () => PublicConnection[]
+  save: (input: ConnectionInput) => PublicConnection
+  remove: (id: string) => void
+  test: (id: string) => Promise<{ ok: boolean; error?: string }>
+}
 
 export type RouteDeps = {
   db: DatabaseSync
   config: Config
-  sources: Source[]
+  sources: Source[] | (() => Source[])
+  getSources?: () => Source[]
   generate?: typeof createBriefing
-  onDriveConnected?: () => void
   isReady?: () => boolean
   health?: () => HealthMap
   syncState?: () => SyncState
   syncNow?: () => Promise<void>
+  reload?: () => Promise<void>
+  connections?: ConnectionsApi
+  googleStart?: (connectionId: string, state: string) => string | null
+  googleComplete?: (connectionId: string, code: string) => Promise<void>
 }
 
 type FeedItem = {
@@ -88,7 +110,9 @@ function feed(db: DatabaseSync, days: number): Array<{ date: string; items: Feed
 }
 
 export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
-  const { db, config, sources } = deps
+  const { db, config } = deps
+  const sourceList = (): Source[] =>
+    typeof deps.sources === 'function' ? deps.sources() : deps.sources
 
   app.get('/api/health', async () => ({ ok: true }))
 
@@ -98,8 +122,12 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       created_at: string
     }>
     return {
-      sources: sources.map((source) => ({
+      sources: sourceList().map((source) => ({
         id: source.id,
+        kind: source.kind,
+        service: source.service,
+        connectionId: source.connectionId,
+        label: source.label,
         configured: source.configured(),
         lastSync: source.lastSync(db),
         ...(deps.health?.()[source.id] ?? { lastError: null, lastErrorAt: null, progress: null }),
@@ -149,7 +177,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     if (generating) return reply.code(429).send({ error: 'briefing is already being generated' })
     generating = true
     try {
-      const result = await (deps.generate ?? createBriefing)(db, sources, config, {
+      const result = await (deps.generate ?? createBriefing)(db, sourceList(), config, {
         trigger: 'manual',
       })
       if ('markdown' in result) return result
@@ -212,30 +240,74 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     return row
   })
 
-  app.get('/api/settings', async () => ({
-    vaultPath: config.vaultPath,
-    briefingHour: config.briefingHour,
-    hasDeepSeekKey: Boolean(config.deepseekKey),
-    googleConfigured: Boolean(config.googleClientId && config.googleClientSecret),
-    driveConnected: Boolean(getSetting(db, 'drive_cursor')),
-    mailConfigured: Boolean(config.gmailUser && config.gmailPassword),
-    mailConnected: Boolean(getSetting(db, 'last_sync_mail')),
-    calendarConnected: Boolean(getSetting(db, 'last_sync_calendar')),
-    excludedSenders: getList(db, LIST_KEYS.mailSenders),
-    excludedMailFolders: getList(db, LIST_KEYS.mailFolders),
-    excludedVaultPrefixes: getList(db, LIST_KEYS.vaultPrefixes),
-    excludedBrowserDomains: getList(db, LIST_KEYS.browserDomains),
-    browserConfigured:
-      sources.find((source) => source.id === 'browser')?.configured() ?? false,
-    githubConfigured: Boolean(config.githubToken),
-    githubConnected: Boolean(getSetting(db, 'last_sync_github')),
-    digestWindowHours: digestWindowHours(db),
-    enabledSources: getList(db, 'enabled_sources'),
-  }))
+  app.get('/api/settings', async () => {
+    const connections = deps.connections?.list() ?? []
+    const has = (service: string) => connections.some((row) => row.service === service)
+    return {
+      vaultPath:
+        deps.connections?.list().find((row) => row.service === 'vault')?.config.path ??
+        config.vaultPath,
+      briefingHour: config.briefingHour,
+      hasDeepSeekKey: Boolean(config.deepseekKey),
+      driveConnected: connections.some(
+        (row) => row.service === 'google' && row.secretsSet.includes('tokens'),
+      ),
+      mailConfigured: has('imap'),
+      mailConnected: Boolean(getSetting(db, 'last_sync_mail')),
+      calendarConnected: Boolean(getSetting(db, 'last_sync_calendar')),
+      excludedSenders: getList(db, LIST_KEYS.mailSenders),
+      excludedMailFolders: getList(db, LIST_KEYS.mailFolders),
+      excludedVaultPrefixes: getList(db, LIST_KEYS.vaultPrefixes),
+      excludedBrowserDomains: getList(db, LIST_KEYS.browserDomains),
+      browserConfigured: has('browser'),
+      githubConfigured: has('github'),
+      githubConnected: Boolean(getSetting(db, 'last_sync_github')),
+      digestWindowHours: digestWindowHours(db),
+      enabledSources: getList(db, 'enabled_sources'),
+    }
+  })
+
+  app.get('/api/connections', async () => ({ items: deps.connections?.list() ?? [] }))
+
+  app.post('/api/connections', async (request, reply) => {
+    if (!deps.connections) return reply.code(503).send({ error: 'connections are not available' })
+    const body = (request.body ?? {}) as ConnectionInput
+    if (!body.service || !body.label) {
+      return reply.code(400).send({ error: 'service and label are required' })
+    }
+    const saved = deps.connections.save({ ...body, id: undefined })
+    await deps.reload?.()
+    return saved
+  })
+
+  app.put('/api/connections/:id', async (request, reply) => {
+    if (!deps.connections) return reply.code(503).send({ error: 'connections are not available' })
+    const { id } = request.params as { id: string }
+    const body = (request.body ?? {}) as Omit<ConnectionInput, 'id'>
+    try {
+      const saved = deps.connections.save({ ...body, id })
+      await deps.reload?.()
+      return saved
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : String(error) })
+    }
+  })
+
+  app.delete('/api/connections/:id', async (request) => {
+    const { id } = request.params as { id: string }
+    deps.connections?.remove(id)
+    await deps.reload?.()
+    return { ok: true }
+  })
+
+  app.post('/api/connections/:id/test', async (request, reply) => {
+    if (!deps.connections) return reply.code(503).send({ error: 'connections are not available' })
+    const { id } = request.params as { id: string }
+    return deps.connections.test(id)
+  })
 
   app.put('/api/settings', async (request) => {
     const body = (request.body ?? {}) as {
-      vaultPath?: string
       briefingHour?: number
       excludedSenders?: string[]
       excludedMailFolders?: string[]
@@ -243,15 +315,6 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       excludedBrowserDomains?: string[]
       digestWindowHours?: number
       enabledSources?: string[]
-    }
-    if (typeof body.vaultPath === 'string' && body.vaultPath.trim()) {
-      const next = body.vaultPath.trim()
-      if (next !== config.vaultPath) {
-        // Re-index the new vault from scratch; keeping the old rows would fake mass deletions.
-        db.exec('DELETE FROM vault_files; DELETE FROM vault_changes; DELETE FROM tasks')
-      }
-      config.vaultPath = next
-      setSetting(db, 'vault_path', next)
     }
     if (typeof body.briefingHour === 'number' && body.briefingHour >= 0 && body.briefingHour <= 23) {
       config.briefingHour = body.briefingHour
@@ -275,28 +338,32 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     return { ok: true }
   })
 
-  app.get('/api/oauth/google/start', async (_request, reply) => {
+  app.get('/api/oauth/google/start', async (request, reply) => {
+    const { connection } = request.query as { connection?: string }
+    const target =
+      connection ?? deps.connections?.list().find((row) => row.service === 'google')?.id
+    if (!target) return reply.code(400).send({ error: 'No Google connection configured' })
     const state = randomBytes(16).toString('hex')
-    setSetting(db, 'google_oauth_state', state)
-    const url = googleAuthUrl(config, state)
+    setSetting(db, 'google_oauth_state', `${state}|${target}`)
+    const url = deps.googleStart?.(target, state)
     if (!url) return reply.code(400).send({ error: 'Google credentials are not configured' })
     return reply.redirect(url)
   })
 
   app.get('/api/oauth/google/callback', async (request, reply) => {
     const { code, state, error } = request.query as { code?: string; state?: string; error?: string }
-    const expected = getSetting(db, 'google_oauth_state')
-    if (error || !code || !state || !expected || state !== expected) {
+    const expected = getSetting(db, 'google_oauth_state') ?? ''
+    const [expectedState, connectionId] = expected.split('|')
+    if (error || !code || !state || !expectedState || !connectionId || state !== expectedState) {
       return reply.redirect('/?drive=error')
     }
     setSetting(db, 'google_oauth_state', '')
     try {
-      await saveGoogleCode(config, code)
+      await deps.googleComplete?.(connectionId, code)
     } catch (failure) {
-      console.error('[drive] OAuth exchange failed:', failure)
+      console.error('[google] OAuth exchange failed:', failure)
       return reply.redirect('/?drive=error')
     }
-    deps.onDriveConnected?.()
     return reply.redirect('/?drive=connected')
   })
 }
