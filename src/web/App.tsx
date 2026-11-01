@@ -335,7 +335,7 @@ export function App() {
         <div className={`boot${splash === 'leaving' ? ' leaving' : ''}`} aria-hidden="true">
           <div className="boot-emblem">
             <span className="boot-ring" />
-            <img src="/icon.png" alt="" />
+            <img src="/icon-transparent.png" alt="" />
           </div>
           <div className="boot-title">Local Dashboard</div>
           <div className="boot-bar">
@@ -345,7 +345,10 @@ export function App() {
       )}
       <header className="head enter-item" style={{ '--i': 0 } as React.CSSProperties}>
         <div className="brand">
-          <img className="brand-mark" src="/icon.png" alt="" />
+          <span className="brand-mark">
+            <img src="/icon-transparent.png" alt="" />
+            <span className="brand-orbit" />
+          </span>
           <div>
             <h1>Local Dashboard</h1>
             <p className="sub">

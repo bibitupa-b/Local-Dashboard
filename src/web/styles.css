@@ -440,19 +440,49 @@ button:disabled,
 }
 
 .brand-mark {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  animation: mark-breathe 6s ease-in-out infinite alternate;
+}
+
+.brand-mark img {
   width: 46px;
   height: 46px;
   object-fit: contain;
   filter: drop-shadow(0 8px 20px rgba(189, 162, 122, 0.2));
-  animation: mark-orbit 9s ease-in-out infinite alternate;
 }
 
-@keyframes mark-orbit {
+.brand-orbit {
+  position: absolute;
+  inset: 1px;
+  border-radius: 50%;
+  border: 1px solid rgba(155, 175, 158, 0.3);
+  animation: spin 9s linear infinite;
+  pointer-events: none;
+}
+
+.brand-orbit::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(155, 175, 158, 0.65);
+}
+
+@keyframes mark-breathe {
   from {
-    transform: rotate(-1.5deg) translateY(0) scale(0.99);
+    transform: translateY(0) rotate(-1deg) scale(0.98);
   }
   to {
-    transform: rotate(1.5deg) translateY(-2px) scale(1.02);
+    transform: translateY(-2px) rotate(1.5deg) scale(1.03);
   }
 }
 
@@ -1829,7 +1859,8 @@ body.motion-paused *::after {
     animation: none;
   }
 
-  .brand-mark {
+  .brand-mark,
+  .brand-orbit {
     animation: none;
   }
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.3
+
+- App icon now has a dark glass tile for the taskbar/dock and installer, while the in-app header and splash keep the transparent emblem.
+- Header emblem animates continuously: breathing tilt plus an orbiting dot ring.
+- Sets an explicit AppUserModelID so Windows groups the window under the app icon.
+
 ## 0.9.2
 
 - Mouse glow is livelier: sage plus warm halo, smoothed pointer following, and a hard reset when the pointer leaves the window (fixes the centre flash).

@@ -3,6 +3,7 @@ const path = require('node:path')
 const fs = require('node:fs')
 
 app.setName('Local Dashboard')
+app.setAppUserModelId('com.bibitupa.localdashboard')
 
 const root = path.join(__dirname, '..')
 const iconPath = path.join(root, 'assets', 'icon.png')
