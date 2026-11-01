@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.2
+
+- Mouse glow is livelier: sage plus warm halo, smoothed pointer following, and a hard reset when the pointer leaves the window (fixes the centre flash).
+- Search suggestions now paint above cards; `index.html` is served with `no-store` so stale bundles cannot linger.
+- Sync completion animates: sage bar and glow on success, clay on failure, then fades.
+- Dashboard ↔ Settings uses the View Transitions API with a short fade and rise.
+- Briefing lines appear in a staggered cascade and do not replay on the 60-second refresh.
+- App icon has a transparent background; the Glassy Orbit mark now sits in the header with a slow breathing animation and the same art is used by the splash and installer.
+
 ## 0.9.1
 
 - Tilt-shift is stronger and applies to links, inputs, summaries, chips, rows and cards: up to 4°, specular sheen, 3.5 px edge blur and lift shadow.

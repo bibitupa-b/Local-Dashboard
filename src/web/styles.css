@@ -319,6 +319,8 @@ button,
 /* Global tilt-shift: the surface leans toward the pointer, edges lose focus. */
 .tilt-target {
   position: relative;
+  --mx: -100%;
+  --my: -100%;
   will-change: transform;
   transition:
     transform 280ms var(--ease),
@@ -349,11 +351,18 @@ button,
 /* specular sheen following the pointer */
 .tilt-target::before {
   z-index: 3;
-  background: radial-gradient(
-    240px circle at var(--mx, 50%) var(--my, 50%),
-    rgba(233, 231, 224, 0.16),
-    transparent 62%
-  );
+  background:
+    radial-gradient(
+      340px circle at var(--mx) var(--my),
+      rgba(233, 231, 224, 0.2),
+      rgba(155, 175, 158, 0.12) 36%,
+      transparent 66%
+    ),
+    radial-gradient(
+      220px circle at var(--mx) var(--my),
+      rgba(189, 162, 122, 0.18),
+      transparent 70%
+    );
 }
 
 /* depth-of-field bands: the middle stays sharp, edges blur */
@@ -422,6 +431,29 @@ button:disabled,
 
 .head > div:first-child {
   flex: none;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 20px rgba(189, 162, 122, 0.2));
+  animation: mark-orbit 9s ease-in-out infinite alternate;
+}
+
+@keyframes mark-orbit {
+  from {
+    transform: rotate(-1.5deg) translateY(0) scale(0.99);
+  }
+  to {
+    transform: rotate(1.5deg) translateY(-2px) scale(1.02);
+  }
 }
 
 .head {
@@ -518,6 +550,43 @@ a.pill:hover {
   transition: width 350ms linear;
 }
 
+.syncbar.done {
+  animation: sync-done 1.4s var(--ease) both;
+}
+
+.syncbar.done .seg i {
+  background: var(--accent);
+}
+
+.syncbar.done.ok {
+  filter: drop-shadow(0 0 6px rgba(155, 175, 158, 0.5));
+}
+
+.syncbar.done.error .seg i {
+  background: var(--danger);
+}
+
+.syncbar.done.error {
+  filter: drop-shadow(0 0 6px rgba(182, 127, 118, 0.55));
+}
+
+@keyframes sync-done {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.96);
+  }
+  15% {
+    opacity: 1;
+    transform: none;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 .syncbar .seg.active i {
   background: linear-gradient(90deg, var(--accent), #c7d6c9, var(--accent));
   background-size: 200% 100%;
@@ -601,6 +670,8 @@ a.pill:hover {
 /* ---------- search ---------- */
 
 .search {
+  position: relative;
+  z-index: 60;
   display: flex;
   gap: 8px;
   margin-bottom: 20px;
@@ -641,7 +712,8 @@ a.pill:hover {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  z-index: 30;
+  z-index: 100;
+  isolation: isolate;
   background: var(--raised);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
@@ -766,7 +838,25 @@ li .label {
 .briefing .markdown {
   font: 400 17px/1.7 var(--font-sans);
   max-width: 72ch;
-  white-space: pre-wrap;
+}
+
+.md-line {
+  display: block;
+  animation: line-in 340ms var(--ease) backwards;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+@keyframes line-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
 }
 
 .briefing .sub {
@@ -1456,6 +1546,28 @@ input:-webkit-autofill {
   }
 }
 
+::view-transition-old(root) {
+  animation: view-out 140ms var(--ease-out) both;
+}
+
+::view-transition-new(root) {
+  animation: view-in 240ms var(--ease) both;
+}
+
+@keyframes view-out {
+  to {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
 /* ---------- motion ---------- */
 
 .app-enter h1,
@@ -1464,7 +1576,7 @@ input:-webkit-autofill {
 }
 
 .app-enter .enter-item {
-  animation: fade-rise var(--dur-panel) var(--ease) both;
+  animation: fade-rise var(--dur-panel) var(--ease) backwards;
   animation-delay: calc(var(--i, 0) * 40ms);
 }
 
@@ -1711,6 +1823,24 @@ body.motion-paused *::after {
   .boot-bar span {
     width: 100%;
     background: var(--accent);
+  }
+
+  .md-line {
+    animation: none;
+  }
+
+  .brand-mark {
+    animation: none;
+  }
+
+  .syncbar.done {
+    animation: none;
+    opacity: 1;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
   }
 
   .syncbar .seg.active i {

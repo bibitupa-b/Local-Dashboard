@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import {
   api,
   type AttentionItem,
@@ -50,6 +50,8 @@ export function App() {
   } | null>(null)
   const [glow, setGlow] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [syncOutcome, setSyncOutcome] = useState<'ok' | 'error' | null>(null)
+  const wasRunning = useRef(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResults | null>(null)
   const [resultsQuery, setResultsQuery] = useState('')
@@ -136,6 +138,40 @@ export function App() {
     const timer = setTimeout(() => setGlow(false), 700)
     return () => clearTimeout(timer)
   }, [glow])
+
+  useEffect(() => {
+    if (!status) return
+    if (wasRunning.current && !status.sync.running) {
+      setSyncOutcome(status.sources.some((source) => source.lastError) ? 'error' : 'ok')
+      const timer = setTimeout(() => setSyncOutcome(null), 1400)
+      wasRunning.current = false
+      return () => clearTimeout(timer)
+    }
+    wasRunning.current = status.sync.running
+    return undefined
+  }, [status])
+
+  function withViewTransition(update: () => void): void {
+    const doc = document as Document & {
+      startViewTransition?: (callback: () => void) => unknown
+    }
+    if (
+      doc.startViewTransition &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      doc.startViewTransition(update)
+      return
+    }
+    update()
+  }
+
+  function toggleSettings(): void {
+    withViewTransition(() => setShowSettings((value) => !value))
+  }
+
+  function closeSettings(): void {
+    withViewTransition(() => setShowSettings(false))
+  }
 
   async function generate() {
     setBusy(true)
@@ -263,7 +299,7 @@ export function App() {
       <div className="page app-enter">
         <SettingsPanel
           settings={settings}
-          onClose={() => setShowSettings(false)}
+          onClose={closeSettings}
           onSaved={(next) => {
             setSettings(next)
             setNote({ text: 'Preferences saved.', tone: 'success' })
@@ -308,11 +344,14 @@ export function App() {
         </div>
       )}
       <header className="head enter-item" style={{ '--i': 0 } as React.CSSProperties}>
-        <div>
-          <h1>Local Dashboard</h1>
-          <p className="sub">
-            {new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
-          </p>
+        <div className="brand">
+          <img className="brand-mark" src="/icon.png" alt="" />
+          <div>
+            <h1>Local Dashboard</h1>
+            <p className="sub">
+              {new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
+          </div>
         </div>
         <div className="status">
           <div className="pills">
@@ -359,38 +398,50 @@ export function App() {
             >
               Sync
             </button>
-            <button className="ghost" onClick={() => setShowSettings((value) => !value)}>
+            <button className="ghost" onClick={toggleSettings}>
               Settings
             </button>
           </div>
         </div>
       </header>
 
-      {status?.sync.running && (
+      {(status?.sync.running || syncOutcome) && status && (
         <div
-          className="syncbar"
+          className={`syncbar${syncOutcome ? ` done ${syncOutcome}` : ''}`}
           role="progressbar"
-          aria-label={`Syncing ${status.sync.source ?? 'sources'}`}
+          aria-label={
+            syncOutcome
+              ? syncOutcome === 'ok'
+                ? 'Sync completed'
+                : 'Sync completed with errors'
+              : `Syncing ${status.sync.source ?? 'sources'}`
+          }
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={Math.round(
-            ((status.sync.sourceIndex + status.sync.done / Math.max(status.sync.total, 1)) /
-              Math.max(status.sync.sourceTotal, 1)) *
-              100,
-          )}
+          aria-valuenow={
+            syncOutcome
+              ? 100
+              : Math.round(
+                  ((status.sync.sourceIndex + status.sync.done / Math.max(status.sync.total, 1)) /
+                    Math.max(status.sync.sourceTotal, 1)) *
+                    100,
+                )
+          }
         >
           {status.sources.map((source, index) => {
             const active = status.sync.source === source.id
             const complete = !active && index < status.sync.sourceIndex
-            const percent = active
-              ? Math.round((status.sync.done / Math.max(status.sync.total, 1)) * 100)
-              : complete
-                ? 100
-                : 0
+            const percent = syncOutcome
+              ? 100
+              : active
+                ? Math.round((status.sync.done / Math.max(status.sync.total, 1)) * 100)
+                : complete
+                  ? 100
+                  : 0
             return (
               <span
                 key={source.id}
-                className={`seg${active ? ' active' : ''}`}
+                className={`seg${active && !syncOutcome ? ' active' : ''}`}
                 title={active ? `${source.id} ${status.sync.done}/${status.sync.total}` : source.id}
               >
                 <i style={{ width: `${percent}%` }} />
@@ -549,7 +600,17 @@ export function App() {
             <p className="sub">
               {new Date(latest.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
             </p>
-            <div className="markdown">{latest.markdown}</div>
+            <div className="markdown">
+              {latest.markdown.split('\n').map((line, index) => (
+                <span
+                  className="md-line"
+                  key={`${latest.id}-${index}`}
+                  style={{ '--i': Math.min(index, 12) } as React.CSSProperties}
+                >
+                  {line || '\u00A0'}
+                </span>
+              ))}
+            </div>
           </>
         ) : (
           <p className="empty">No briefing yet. Generate one whenever you are ready.</p>

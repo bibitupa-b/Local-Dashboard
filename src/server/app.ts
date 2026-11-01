@@ -92,7 +92,23 @@ export function buildApp(deps: Deps): FastifyInstance {
   })
 
   if (hasUi) {
-    app.register(fastifyStatic, { root: webRoot })
+    app.register(fastifyStatic, {
+      root: webRoot,
+      cacheControl: false,
+      setHeaders(res, filePath) {
+        const cache = filePath.endsWith('index.html')
+          ? 'no-store'
+          : /[\\/]assets[\\/]/.test(filePath)
+            ? 'public, max-age=31536000, immutable'
+            : 'no-cache'
+        const carrier = res as unknown as {
+          header?: (name: string, value: string) => void
+          setHeader?: (name: string, value: string) => void
+        }
+        if (carrier.header) carrier.header('Cache-Control', cache)
+        else carrier.setHeader?.('Cache-Control', cache)
+      },
+    })
   }
 
   return app
