@@ -56,6 +56,7 @@ export function App() {
   const [suggestions, setSuggestions] = useState<SearchResults | null>(null)
   const [activeSuggestion, setActiveSuggestion] = useState(0)
   const [openDiff, setOpenDiff] = useState<{ id: number; path: string; diff: string } | null>(null)
+  const [expandedDays, setExpandedDays] = useState<string[]>([])
 
   async function load() {
     try {
@@ -546,36 +547,50 @@ export function App() {
         <section className="card">
           <h2>Activity</h2>
           {feed.length === 0 && <p className="empty">No changes yet.</p>}
-          {feed.map((day) => (
-            <div key={day.date} className="day">
-              <h3>{dayLabel(day.date)}</h3>
-              <ul>
-                {day.items.map((item, index) => (
-                  <li key={`${day.date}-${index}`}>
-                    <span className={`dot ${item.source}`} />
-                    {item.source === 'vault' && item.id ? (
-                      <button
-                        className="link"
-                        aria-expanded={openDiff?.id === item.id}
-                        aria-controls={`diff-${item.id}`}
-                        onClick={() => void toggleDiff(item.id!)}
-                      >
-                        {item.label}
-                      </button>
-                    ) : (
-                      <span className="label">{item.label}</span>
-                    )}
-                    <span className="detail">{item.detail}</span>
-                    {openDiff && openDiff.id === item.id && (
-                      <div className="diff-wrap" id={`diff-${item.id}`}>
-                        <pre className="diff">{openDiff.diff || 'No line changes'}</pre>
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          {feed.map((day) => {
+            const expanded = expandedDays.includes(day.date)
+            const visible = expanded ? day.items : day.items.slice(0, 6)
+            const hidden = day.items.length - visible.length
+            return (
+              <div key={day.date} className="day">
+                <h3>{dayLabel(day.date)}</h3>
+                <ul>
+                  {visible.map((item, index) => (
+                    <li key={`${day.date}-${index}`}>
+                      <span className={`dot ${item.source}`} />
+                      {item.source === 'vault' && item.id ? (
+                        <button
+                          className="link"
+                          aria-expanded={openDiff?.id === item.id}
+                          aria-controls={`diff-${item.id}`}
+                          onClick={() => void toggleDiff(item.id!)}
+                        >
+                          {item.label}
+                        </button>
+                      ) : (
+                        <span className="label">{item.label}</span>
+                      )}
+                      <span className="detail">{item.detail}</span>
+                      {openDiff && openDiff.id === item.id && (
+                        <div className="diff-wrap" id={`diff-${item.id}`}>
+                          <pre className="diff">{openDiff.diff || 'No line changes'}</pre>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {hidden > 0 && (
+                  <button
+                    type="button"
+                    className="ghost mini day-more"
+                    onClick={() => setExpandedDays((current) => [...current, day.date])}
+                  >
+                    Show {hidden} more
+                  </button>
+                )}
+              </div>
+            )
+          })}
         </section>
 
         <section className="card">

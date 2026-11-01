@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Local Dashboard 0.8.0 — screens</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #15191a;
+        --surface: #202627;
+        --line: #394243;
+        --ink: #e9e7e0;
+        --muted: #a6ada7;
+        --accent: #9baf9e;
+      }
+      body {
+        margin: 0;
+        padding: 32px;
+        background: var(--bg);
+        color: var(--ink);
+        font: 400 15px/1.6 "Segoe UI", system-ui, sans-serif;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 24px;
+        letter-spacing: -0.015em;
+      }
+      p.sub {
+        margin: 0 0 28px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+        gap: 20px;
+      }
+      figure {
+        margin: 0;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      figure img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      figcaption {
+        padding: 10px 14px;
+        font-size: 12px;
+        color: var(--muted);
+        border-top: 1px solid var(--line);
+      }
+      figcaption b {
+        color: var(--accent);
+        font-weight: 500;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Local Dashboard 0.8.0</h1>
+    <p class="sub">All screens at 884 px window width. Dark only; motion is live in the app.</p>
+    <div class="grid">
+      <figure>
+        <img src="dashboard.jpeg" alt="Dashboard header, today strip, search and briefing" />
+        <figcaption><b>Dashboard</b> — header, status pills, today strip, search, briefing hero.</figcaption>
+      </figure>
+      <figure>
+        <img src="activity.jpeg" alt="Activity feed and attention queue" />
+        <figcaption><b>Activity</b> — six rows per day, “Show N more”, attention queue below.</figcaption>
+      </figure>
+      <figure>
+        <img src="search-suggestions.jpeg" alt="Search suggestions" />
+        <figcaption><b>Search</b> — notes, mail and Drive suggestions with keyboard-active row.</figcaption>
+      </figure>
+      <figure>
+        <img src="diff.jpeg" alt="Expanded note diff" />
+        <figcaption><b>Diff</b> — note change expanded under the row.</figcaption>
+      </figure>
+      <figure>
+        <img src="settings-connections.jpeg" alt="Settings connections" />
+        <figcaption><b>Settings</b> — connections grouped by service with hints.</figcaption>
+      </figure>
+      <figure>
+        <img src="settings-preferences.jpeg" alt="Settings preferences" />
+        <figcaption><b>Preferences</b> — digest window, exclusions, source toggles.</figcaption>
+      </figure>
+      <figure>
+        <img src="connection-modal.jpeg" alt="Connection modal" />
+        <figcaption><b>Modal</b> — edit connection, blurred backdrop, focus trap.</figcaption>
+      </figure>
+      <figure>
+        <img src="confirm-dialog.jpeg" alt="Disconnect confirmation" />
+        <figcaption><b>Confirm</b> — destructive action with its own dialog.</figcaption>
+      </figure>
+    </div>
+  </body>
+</html>

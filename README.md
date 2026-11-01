@@ -6,6 +6,8 @@ Everything stays local. The only outbound request is the digest sent to the Deep
 
 > Status: 0.8 — dark, motion-aware interface on top of the 0.7 feature set; 1.0 follows after stabilisation.
 
+Screens: open `docs/screenshots/0.8.0/index.html`.
+
 ## What it does
 
 - **Activity history** — detects edits to a local Obsidian vault and changes in Google Drive, keeps a diff-backed log.

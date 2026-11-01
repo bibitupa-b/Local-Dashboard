@@ -674,6 +674,11 @@ li .label {
   margin-top: 0;
 }
 
+.day-more {
+  margin: 8px 0 2px;
+  width: fit-content;
+}
+
 ul {
   list-style: none;
   margin: 0;
@@ -1109,6 +1114,17 @@ input:-webkit-autofill {
 .confirm p {
   font-size: 14px;
   color: var(--ink);
+}
+
+/* Inside raised dialogs clay text fails contrast; express danger with a border. */
+.modal .danger {
+  color: var(--ink);
+  border-color: rgba(182, 127, 118, 0.45);
+}
+
+.modal .danger:hover {
+  border-color: var(--danger);
+  background: var(--danger-wash);
 }
 
 .confirm .row {
