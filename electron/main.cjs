@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, Notification, nativeImage } = require('electron')
+const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, dialog } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 
@@ -122,6 +122,17 @@ function createTray() {
   tray.on('click', showWindow)
 }
 
+async function probeDashboard(url) {
+  try {
+    const response = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1500) })
+    if (!response.ok) return false
+    const body = await response.json()
+    return body?.ok === true
+  } catch {
+    return false
+  }
+}
+
 async function boot() {
   if (!app.requestSingleInstanceLock()) {
     app.quit()
@@ -141,7 +152,26 @@ async function boot() {
       notify,
     })
   } catch (error) {
+    const port = Number(process.env.PORT) || 4317
+    const existing = `http://127.0.0.1:${port}`
+    if (error && error.code === 'EADDRINUSE' && (await probeDashboard(existing))) {
+      // A dev server or another copy already serves the dashboard: reuse it.
+      console.log(`[desktop] attached to a dashboard already running on ${existing}`)
+      baseUrl = existing
+      createWindow()
+      createTray()
+      notify('Local Dashboard', `Using the dashboard already running on port ${port}.`)
+      return
+    }
     console.error('[desktop] server failed to start:', error)
+    dialog.showErrorBox(
+      'Local Dashboard could not start',
+      `${error instanceof Error ? error.message : String(error)}\n\n${
+        error && error.code === 'EADDRINUSE'
+          ? `Port ${port} is busy with another application. Close it and try again.`
+          : 'See data/server.log for details.'
+      }`,
+    )
     app.quit()
     return
   }
