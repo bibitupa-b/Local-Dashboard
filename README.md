@@ -16,7 +16,8 @@ is generated.
 - **Activity history** — a diff-backed log of edits to your Obsidian vault and changes in Google
   Drive. Click a note to see exactly which lines changed.
 - **Needs attention** — open tasks grouped by tag, projects marked `status: Undone` that have gone
-  stale, notes left in the Inbox, unread mail and review requests. Each row opens its source.
+  stale, notes left in the Inbox, unread mail and review requests. Rows link to the note, mail,
+  GitHub item or Drive file when one is available.
 - **Today** — the day's calendar events, free windows and conflicts in one strip.
 - **Daily briefing** — 5–7 bullets covering what moved, what is stuck and one suggestion for
   today. Runs at 08:00, on demand, or on the first start after a missed day.
