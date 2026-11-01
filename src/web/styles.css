@@ -206,18 +206,18 @@ button::after,
   opacity: 0;
 }
 
-button:active::after,
+button:active:not(:disabled)::after,
 .btn:active::after,
 .ghost:active::after,
-.primary:active::after,
+.primary:active:not(:disabled)::after,
 .danger:active::after {
   animation: click-fade 320ms var(--ease-out) 1;
 }
 
-button:hover,
-.btn:hover,
+button:hover:not(:disabled),
+.btn:hover:not(:disabled),
 .ghost:hover,
-.primary:hover,
+.primary:hover:not(:disabled),
 .danger:hover {
   animation: btn-glitch 260ms steps(2, end) 1;
 }

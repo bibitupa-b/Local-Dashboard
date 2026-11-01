@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.3
+
+- Disabled buttons no longer play hover or press animations.
+
 ## 0.8.2
 
 - Added/removed line counts are colored: additions sage, removals clay.
