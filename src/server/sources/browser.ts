@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { setSetting } from '../db/index.js'
+import { getSetting, setSetting } from '../db/index.js'
 import { getList, LIST_KEYS } from '../settings.js'
 import { sourceMeta, type Source, type SourceMeta } from './types.js'
 
@@ -23,32 +23,31 @@ export function isExcludedDomain(db: DatabaseSync, domain: string): boolean {
 }
 
 export function createBrowserSource(reader: BrowserReader | null, meta: SourceMeta = sourceMeta('browser', 'browser')): Source {
+  const connectionId = meta.connectionId
+  const cursorKey = `browser_cursor:${connectionId}`
+  const syncKey = `last_sync_browser:${connectionId}`
   return {
     ...meta,
     configured: () => reader !== null,
     async sync(db, now = new Date()) {
       if (!reader) return
-      const cursor = (db.prepare("SELECT value FROM settings WHERE key = 'browser_cursor'").get() as
-        | { value: string }
-        | undefined)?.value
+      const cursor = getSetting(db, cursorKey)
       const visits = await reader.visitsSince(cursor ?? null)
 
       const insert = db.prepare(
-        `INSERT OR IGNORE INTO browser_visits (url, domain, title, visited_at) VALUES (?, ?, ?, ?)`,
+        `INSERT OR IGNORE INTO browser_visits (connection_id, url, domain, title, visited_at)
+         VALUES (?, ?, ?, ?, ?)`,
       )
       let newest = cursor
       for (const visit of visits) {
         if (!newest || visit.visitedAt > newest) newest = visit.visitedAt
         if (isExcludedDomain(db, visit.domain)) continue
-        insert.run(visit.url, visit.domain, visit.title, visit.visitedAt)
+        insert.run(connectionId, visit.url, visit.domain, visit.title, visit.visitedAt)
       }
-      if (newest) setSetting(db, 'browser_cursor', newest)
-      setSetting(db, 'last_sync_browser', now.toISOString())
+      if (newest) setSetting(db, cursorKey, newest)
+      setSetting(db, syncKey, now.toISOString())
     },
-    lastSync: (db) =>
-      (db.prepare("SELECT value FROM settings WHERE key = 'last_sync_browser'").get() as
-        | { value: string }
-        | undefined)?.value ?? null,
+    lastSync: (db) => getSetting(db, syncKey),
     digest: (db, since) => {
       const rows = db
         .prepare(

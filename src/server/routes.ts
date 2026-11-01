@@ -90,7 +90,7 @@ function feed(db: DatabaseSync, days: number): Array<{ date: string; items: Feed
     db
       .prepare(
         `SELECT COALESCE(f.name, c.file_id) AS name, c.kind, c.detected_at FROM drive_changes c
-         LEFT JOIN drive_files f ON f.id = c.file_id WHERE c.detected_at >= ?
+         LEFT JOIN drive_files f ON f.connection_id = c.connection_id AND f.id = c.file_id WHERE c.detected_at >= ?
          ORDER BY c.detected_at DESC LIMIT 300`,
       )
       .all(since) as Array<{ name: string; kind: string; detected_at: string }>
@@ -253,15 +253,19 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
         (row) => row.service === 'google' && row.secretsSet.includes('tokens'),
       ),
       mailConfigured: has('imap'),
-      mailConnected: Boolean(getSetting(db, 'last_sync_mail')),
-      calendarConnected: Boolean(getSetting(db, 'last_sync_calendar')),
+      mailConnected: sourceList().some((source) => source.kind === 'mail' && source.lastSync(db)),
+      calendarConnected: sourceList().some(
+        (source) => source.kind === 'calendar' && source.lastSync(db),
+      ),
       excludedSenders: getList(db, LIST_KEYS.mailSenders),
       excludedMailFolders: getList(db, LIST_KEYS.mailFolders),
       excludedVaultPrefixes: getList(db, LIST_KEYS.vaultPrefixes),
       excludedBrowserDomains: getList(db, LIST_KEYS.browserDomains),
       browserConfigured: has('browser'),
       githubConfigured: has('github'),
-      githubConnected: Boolean(getSetting(db, 'last_sync_github')),
+      githubConnected: sourceList().some(
+        (source) => source.kind === 'github' && source.lastSync(db),
+      ),
       digestWindowHours: digestWindowHours(db),
       enabledSources: getList(db, 'enabled_sources'),
     }

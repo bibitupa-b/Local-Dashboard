@@ -219,7 +219,7 @@ export function buildAttention(
   const drive = db
     .prepare(
       `SELECT c.kind, COALESCE(f.name, c.file_id) AS name FROM drive_changes c
-       LEFT JOIN drive_files f ON f.id = c.file_id
+       LEFT JOIN drive_files f ON f.connection_id = c.connection_id AND f.id = c.file_id
        WHERE c.detected_at >= ? ORDER BY c.detected_at DESC LIMIT 10`,
     )
     .all(new Date(now.getTime() - 7 * 86_400_000).toISOString()) as Array<{ kind: string; name: string }>

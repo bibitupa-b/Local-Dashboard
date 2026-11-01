@@ -33,14 +33,14 @@ test('first scan indexes silently, later scans log nothing', async () => {
   const db = openDb(':memory:')
   const entries = await scanVault(root)
 
-  expect(applyVaultChanges(db, entries)).toBe(0)
+  expect(applyVaultChanges(db, 'v', entries)).toBe(0)
   expect(db.prepare('SELECT COUNT(*) AS n FROM vault_changes').get()).toEqual({ n: 0 })
-  expect(applyVaultChanges(db, entries)).toBe(0)
+  expect(applyVaultChanges(db, 'v', entries)).toBe(0)
 
   const file = join(root, 'Inbox', 'Idea.md')
   await writeFile(file, (await readFile(file, 'utf8')) + '- [ ] another idea\n')
   const edited = await scanVault(root)
-  expect(applyVaultChanges(db, edited)).toBe(1)
+  expect(applyVaultChanges(db, 'v', edited)).toBe(1)
 
   const change = db
     .prepare("SELECT path, added, removed FROM vault_changes WHERE path = 'Inbox/Idea.md' ORDER BY id DESC LIMIT 1")
@@ -51,10 +51,10 @@ test('first scan indexes silently, later scans log nothing', async () => {
 test('a partial batch from the watcher does not treat other notes as deleted', async () => {
   const db = openDb(':memory:')
   const entries = await scanVault(root)
-  applyVaultChanges(db, entries)
+  applyVaultChanges(db, 'v', entries)
 
   const one = entries.find((entry) => entry.path === 'Inbox/Idea.md')!
-  applyVaultChanges(db, [{ ...one, hash: 'changed', text: `${one.text}- [ ] watcher edit\n` }], new Date(), {
+  applyVaultChanges(db, 'v', [{ ...one, hash: 'changed', text: `${one.text}- [ ] watcher edit\n` }], new Date(), {
     reconcileDeletes: false,
   })
 
@@ -64,20 +64,20 @@ test('a partial batch from the watcher does not treat other notes as deleted', a
 
 test('indexes tasks and drops them when the note is deleted', async () => {
   const db = openDb(':memory:')
-  applyVaultChanges(db, await scanVault(root))
+  applyVaultChanges(db, 'v', await scanVault(root))
   const tasks = db.prepare('SELECT path, text, tag, done FROM tasks ORDER BY path').all()
   expect(tasks.length).toBeGreaterThanOrEqual(5)
   expect(tasks.some((task) => (task as { tag: string }).tag === 'учёба')).toBe(true)
 
   await unlink(join(root, 'Inbox', 'Idea.md'))
-  expect(applyVaultChanges(db, await scanVault(root))).toBe(1)
+  expect(applyVaultChanges(db, 'v', await scanVault(root))).toBe(1)
   expect(db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE path = 'Inbox/Idea.md'").get()).toEqual({ n: 0 })
 })
 
 test('counts repeated identical task lines separately', async () => {
   const db = openDb(':memory:')
   await writeFile(join(root, 'Inbox', 'Repeats.md'), '- [ ] #vitamins Zinc\n- [ ] #vitamins Zinc\n')
-  applyVaultChanges(db, await scanVault(root))
+  applyVaultChanges(db, 'v', await scanVault(root))
 
   const row = db
     .prepare("SELECT COUNT(*) AS n FROM tasks WHERE path = 'Inbox/Repeats.md' AND text LIKE '%Zinc%'")

@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { setSetting } from '../db/index.js'
+import { getSetting, setSetting } from '../db/index.js'
 import { sourceMeta, type Source, type SourceMeta } from './types.js'
 
 export type GithubItem = {
@@ -14,6 +14,8 @@ export type GithubItem = {
 export type GithubApi = { items(): Promise<GithubItem[]> }
 
 export function createGithubSource(api: GithubApi | null, meta: SourceMeta = sourceMeta('github', 'github')): Source {
+  const connectionId = meta.connectionId
+  const syncKey = `last_sync_github:${connectionId}`
   return {
     ...meta,
     configured: () => api !== null,
@@ -22,28 +24,33 @@ export function createGithubSource(api: GithubApi | null, meta: SourceMeta = sou
       const items = await api.items()
 
       const insert = db.prepare(
-        `INSERT INTO github_items (id, kind, repo, title, url, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, repo = excluded.repo,
+        `INSERT INTO github_items (connection_id, id, kind, repo, title, url, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(connection_id, id) DO UPDATE SET kind = excluded.kind, repo = excluded.repo,
            title = excluded.title, url = excluded.url, updated_at = excluded.updated_at`,
       )
       db.exec('BEGIN')
       try {
-        db.prepare('DELETE FROM github_items').run()
+        db.prepare('DELETE FROM github_items WHERE connection_id = ?').run(connectionId)
         for (const item of items) {
-          insert.run(item.id, item.kind, item.repo, item.title, item.url, item.updatedAt)
+          insert.run(
+            connectionId,
+            item.id,
+            item.kind,
+            item.repo,
+            item.title,
+            item.url,
+            item.updatedAt,
+          )
         }
         db.exec('COMMIT')
       } catch (error) {
         db.exec('ROLLBACK')
         throw error
       }
-      setSetting(db, 'last_sync_github', now.toISOString())
+      setSetting(db, syncKey, now.toISOString())
     },
-    lastSync: (db) =>
-      (db.prepare("SELECT value FROM settings WHERE key = 'last_sync_github'").get() as
-        | { value: string }
-        | undefined)?.value ?? null,
+    lastSync: (db) => getSetting(db, syncKey),
     digest: (db) => {
       const rows = db
         .prepare('SELECT kind, repo, title FROM github_items ORDER BY updated_at DESC LIMIT 20')

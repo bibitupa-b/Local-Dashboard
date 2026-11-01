@@ -7,7 +7,7 @@ import chokidar from 'chokidar'
 import { lineDiff } from './diff.js'
 import { parseNote } from './parse.js'
 import { scanVaultDetailed, isIgnoredPath, type VaultEntry } from './scan.js'
-import { setSetting } from '../../db/index.js'
+import { getSetting, setSetting } from '../../db/index.js'
 import { sourceMeta, type Source, type SourceMeta } from '../types.js'
 
 type FileRow = { hash: string; mtime: string; size: number; previous_text: string }
@@ -17,9 +17,17 @@ function lineCount(text: string): number {
   return trimmed === '' ? 0 : trimmed.split('\n').length
 }
 
-function refreshTasks(db: DatabaseSync, path: string, text: string, now: string): void {
+function refreshTasks(
+  db: DatabaseSync,
+  connectionId: string,
+  path: string,
+  text: string,
+  now: string,
+): void {
   const kept = new Map<string, string>()
-  for (const row of db.prepare('SELECT text, occurrence, first_seen FROM tasks WHERE path = ?').all(path)) {
+  for (const row of db
+    .prepare('SELECT text, occurrence, first_seen FROM tasks WHERE connection_id = ? AND path = ?')
+    .all(connectionId, path)) {
     const { text: taskText, occurrence, first_seen } = row as {
       text: string
       occurrence: number
@@ -27,16 +35,17 @@ function refreshTasks(db: DatabaseSync, path: string, text: string, now: string)
     }
     kept.set(`${taskText}#${occurrence}`, first_seen)
   }
-  db.prepare('DELETE FROM tasks WHERE path = ?').run(path)
+  db.prepare('DELETE FROM tasks WHERE connection_id = ? AND path = ?').run(connectionId, path)
   const insert = db.prepare(
-    `INSERT OR IGNORE INTO tasks (path, text, occurrence, tag, done, first_seen, last_seen)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR IGNORE INTO tasks (connection_id, path, text, occurrence, tag, done, first_seen, last_seen)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   )
   const seen = new Map<string, number>()
   for (const task of parseNote(text).tasks) {
     const occurrence = seen.get(task.text) ?? 0
     seen.set(task.text, occurrence + 1)
     insert.run(
+      connectionId,
       path,
       task.text,
       occurrence,
@@ -50,13 +59,16 @@ function refreshTasks(db: DatabaseSync, path: string, text: string, now: string)
 
 export function applyVaultChanges(
   db: DatabaseSync,
+  connectionId: string,
   entries: VaultEntry[],
   now: Date = new Date(),
   opts: { reconcileDeletes?: boolean } = {},
 ): number {
   const nowIso = now.toISOString()
   const existing = new Map<string, FileRow>()
-  for (const row of db.prepare('SELECT path, hash, mtime, size, previous_text FROM vault_files').all()) {
+  for (const row of db
+    .prepare('SELECT path, hash, mtime, size, previous_text FROM vault_files WHERE connection_id = ?')
+    .all(connectionId)) {
     const { path, ...rest } = row as { path: string } & FileRow
     existing.set(path, rest)
   }
@@ -64,12 +76,14 @@ export function applyVaultChanges(
   const initial = existing.size === 0
 
   const upsert = db.prepare(
-    `INSERT INTO vault_files (path, hash, mtime, size, previous_text) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(path) DO UPDATE SET hash = excluded.hash, mtime = excluded.mtime,
+    `INSERT INTO vault_files (connection_id, path, hash, mtime, size, previous_text)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(connection_id, path) DO UPDATE SET hash = excluded.hash, mtime = excluded.mtime,
        size = excluded.size, previous_text = excluded.previous_text`,
   )
   const record = db.prepare(
-    `INSERT INTO vault_changes (path, detected_at, added, removed, diff) VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO vault_changes (connection_id, path, detected_at, added, removed, diff)
+     VALUES (?, ?, ?, ?, ?, ?)`,
   )
 
   let changes = 0
@@ -81,25 +95,28 @@ export function applyVaultChanges(
       if (!initial) {
         if (previous) {
           const { added, removed, diff } = lineDiff(previous.previous_text, entry.text)
-          record.run(entry.path, nowIso, added, removed, diff)
+          record.run(connectionId, entry.path, nowIso, added, removed, diff)
         } else {
-          record.run(entry.path, nowIso, lineCount(entry.text), 0, '')
+          record.run(connectionId, entry.path, nowIso, lineCount(entry.text), 0, '')
         }
         changes++
       }
-      upsert.run(entry.path, entry.hash, entry.mtime, entry.size, entry.text)
+      upsert.run(connectionId, entry.path, entry.hash, entry.mtime, entry.size, entry.text)
     }
     // Always re-derive tasks: they are cheap to rebuild and must survive schema migrations.
-    refreshTasks(db, entry.path, entry.text, nowIso)
+    refreshTasks(db, connectionId, entry.path, entry.text, nowIso)
   }
 
   if (opts.reconcileDeletes !== false) {
     for (const path of existing.keys()) {
       if (seen.has(path)) continue
       const removed = lineCount(existing.get(path)!.previous_text)
-      record.run(path, nowIso, 0, removed, '')
-      db.prepare('DELETE FROM vault_files WHERE path = ?').run(path)
-      db.prepare('DELETE FROM tasks WHERE path = ?').run(path)
+      record.run(connectionId, path, nowIso, 0, removed, '')
+      db.prepare('DELETE FROM vault_files WHERE connection_id = ? AND path = ?').run(
+        connectionId,
+        path,
+      )
+      db.prepare('DELETE FROM tasks WHERE connection_id = ? AND path = ?').run(connectionId, path)
       changes++
     }
   }
@@ -107,25 +124,27 @@ export function applyVaultChanges(
   return changes
 }
 
-export function createVaultSource(root: string, meta: SourceMeta = sourceMeta('vault', 'vault')): Source {
+export function createVaultSource(
+  root: string,
+  meta: SourceMeta = sourceMeta('vault', 'vault'),
+): Source {
+  const syncKey = `last_sync_vault:${meta.connectionId}`
   return {
     ...meta,
     configured: () => existsSync(root),
     async sync(db, now = new Date()) {
       const { entries, complete } = await scanVaultDetailed(root)
-      applyVaultChanges(db, entries, now, { reconcileDeletes: complete })
-      setSetting(db, 'last_sync_vault', now.toISOString())
+      applyVaultChanges(db, meta.connectionId, entries, now, { reconcileDeletes: complete })
+      setSetting(db, syncKey, now.toISOString())
     },
-    lastSync: (db) =>
-      (db.prepare("SELECT value FROM settings WHERE key = 'last_sync_vault'").get() as
-        | { value: string }
-        | undefined)?.value ?? null,
+    lastSync: (db) => getSetting(db, syncKey),
     digest: (db, since) =>
       db
         .prepare(
-          `SELECT path, added, removed FROM vault_changes WHERE detected_at >= ? ORDER BY detected_at DESC`,
+          `SELECT path, added, removed FROM vault_changes
+           WHERE connection_id = ? AND detected_at >= ? ORDER BY detected_at DESC`,
         )
-        .all(since.toISOString())
+        .all(meta.connectionId, since.toISOString())
         .map((row) => {
           const { path, added, removed } = row as { path: string; added: number; removed: number }
           return `${path} (+${added}/-${removed})`
@@ -133,7 +152,11 @@ export function createVaultSource(root: string, meta: SourceMeta = sourceMeta('v
   }
 }
 
-export function startVaultWatcher(root: string, db: DatabaseSync): () => Promise<void> {
+export function startVaultWatcher(
+  root: string,
+  db: DatabaseSync,
+  connectionId: string,
+): () => Promise<void> {
   if (!existsSync(root)) {
     console.warn(`[vault] not found: ${root} — watching disabled`)
     return async () => {}
@@ -168,28 +191,40 @@ export function startVaultWatcher(root: string, db: DatabaseSync): () => Promise
         // file vanished or is unreadable; the next full scan reconciles deletions
       }
     }
-    if (entries.length > 0) applyVaultChanges(db, entries, new Date(), { reconcileDeletes: false })
+    if (entries.length > 0) {
+      applyVaultChanges(db, connectionId, entries, new Date(), { reconcileDeletes: false })
+    }
   }
 
   const schedule = (path: string) => {
     pending.add(path)
     if (timer) clearTimeout(timer)
-    timer = setTimeout(() => void flush().catch((error) => console.error('[vault] flush failed:', error)), 1000)
+    timer = setTimeout(
+      () => void flush().catch((error) => console.error('[vault] flush failed:', error)),
+      1000,
+    )
   }
 
   watcher.on('add', schedule).on('change', schedule)
   watcher.on('unlink', (path: string) => {
     try {
       const relative = relativePath(root, path).split(sep).join('/')
-      const row = db.prepare('SELECT previous_text FROM vault_files WHERE path = ?').get(relative) as
-        | { previous_text: string }
-        | undefined
+      const row = db
+        .prepare('SELECT previous_text FROM vault_files WHERE connection_id = ? AND path = ?')
+        .get(connectionId, relative) as { previous_text: string } | undefined
       if (!row) return
       db.prepare(
-        `INSERT INTO vault_changes (path, detected_at, added, removed, diff) VALUES (?, ?, 0, ?, '')`,
-      ).run(relative, new Date().toISOString(), lineCount(row.previous_text))
-      db.prepare('DELETE FROM vault_files WHERE path = ?').run(relative)
-      db.prepare('DELETE FROM tasks WHERE path = ?').run(relative)
+        `INSERT INTO vault_changes (connection_id, path, detected_at, added, removed, diff)
+         VALUES (?, ?, ?, 0, ?, '')`,
+      ).run(connectionId, relative, new Date().toISOString(), lineCount(row.previous_text))
+      db.prepare('DELETE FROM vault_files WHERE connection_id = ? AND path = ?').run(
+        connectionId,
+        relative,
+      )
+      db.prepare('DELETE FROM tasks WHERE connection_id = ? AND path = ?').run(
+        connectionId,
+        relative,
+      )
     } catch (error) {
       console.error('[vault] unlink handling failed:', error)
     }

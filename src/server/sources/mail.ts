@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { setSetting } from '../db/index.js'
+import { getSetting, setSetting } from '../db/index.js'
 import { isExcludedFolder, isExcludedSender } from '../settings.js'
 import { sourceMeta, type Source, type SourceMeta } from './types.js'
 
@@ -31,6 +31,8 @@ const IGNORED_FOLDER = /all mail/i
 export const UNREAD_WINDOW_DAYS = 30
 
 export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceMeta('mail', 'imap')): Source {
+  const connectionId = meta.connectionId
+  const syncKey = `last_sync_mail:${connectionId}`
   return {
     ...meta,
     configured: () => api !== null,
@@ -41,10 +43,13 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
       )
       let index = 0
       progress?.(0, folders.length)
-      const findFolder = db.prepare('SELECT uid_validity, last_uid FROM mail_folders WHERE path = ?')
+      const findFolder = db.prepare(
+        'SELECT uid_validity, last_uid FROM mail_folders WHERE connection_id = ? AND path = ?',
+      )
       const upsertFolder = db.prepare(
-        `INSERT INTO mail_folders (path, uid_validity, last_uid, last_sync) VALUES (?, ?, ?, ?)
-         ON CONFLICT(path) DO UPDATE SET
+        `INSERT INTO mail_folders (connection_id, path, uid_validity, last_uid, last_sync)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(connection_id, path) DO UPDATE SET
            last_uid = CASE
              WHEN mail_folders.uid_validity = excluded.uid_validity
              THEN MAX(mail_folders.last_uid, excluded.last_uid)
@@ -55,19 +60,21 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
       )
       const insertMessage = db.prepare(
         `INSERT INTO mail_messages
-           (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(folder, uid) DO UPDATE SET seen = excluded.seen, starred = excluded.starred,
+           (connection_id, folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(connection_id, folder, uid) DO UPDATE SET seen = excluded.seen, starred = excluded.starred,
            bulk = excluded.bulk`,
       )
       const updateFlags = db.prepare(
-        'UPDATE mail_messages SET seen = ?, starred = ? WHERE folder = ? AND uid = ?',
+        'UPDATE mail_messages SET seen = ?, starred = ? WHERE connection_id = ? AND folder = ? AND uid = ?',
       )
-      const maxUid = db.prepare('SELECT COALESCE(MAX(uid), 0) AS uid FROM mail_messages WHERE folder = ?')
+      const maxUid = db.prepare(
+        'SELECT COALESCE(MAX(uid), 0) AS uid FROM mail_messages WHERE connection_id = ? AND folder = ?',
+      )
 
       for (const folder of folders) {
         try {
-          const row = findFolder.get(folder.path) as
+          const row = findFolder.get(connectionId, folder.path) as
             | { uid_validity: string; last_uid: number }
             | undefined
           const fromUid = row?.last_uid ?? 0
@@ -75,13 +82,17 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
 
           if (row && result.uidValidity !== row.uid_validity) {
             // The server renumbered the folder; cached UIDs are meaningless.
-            db.prepare('DELETE FROM mail_messages WHERE folder = ?').run(folder.path)
+            db.prepare('DELETE FROM mail_messages WHERE connection_id = ? AND folder = ?').run(
+              connectionId,
+              folder.path,
+            )
             result = await api.syncFolder(folder.path, 0)
           }
           const { messages, uidValidity, flags } = result
 
           for (const message of messages) {
             insertMessage.run(
+              connectionId,
               message.folder,
               message.uid,
               message.messageId,
@@ -97,10 +108,16 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
             )
           }
           for (const flag of flags) {
-            updateFlags.run(flag.seen ? 1 : 0, flag.starred ? 1 : 0, folder.path, flag.uid)
+            updateFlags.run(
+              flag.seen ? 1 : 0,
+              flag.starred ? 1 : 0,
+              connectionId,
+              folder.path,
+              flag.uid,
+            )
           }
-          const highest = (maxUid.get(folder.path) as { uid: number }).uid
-          upsertFolder.run(folder.path, uidValidity, highest, now.toISOString())
+          const highest = (maxUid.get(connectionId, folder.path) as { uid: number }).uid
+          upsertFolder.run(connectionId, folder.path, uidValidity, highest, now.toISOString())
         } catch (error) {
           // One broken folder must not stop the rest of the mailbox.
           console.error(`[mail] folder ${folder.path} failed:`, error)
@@ -113,16 +130,13 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
         '',
         cutoff,
       )
-      setSetting(db, 'last_sync_mail', now.toISOString())
+      setSetting(db, syncKey, now.toISOString())
     },
-    lastSync: (db) =>
-      (db.prepare("SELECT value FROM settings WHERE key = 'last_sync_mail'").get() as
-        | { value: string }
-        | undefined)?.value ?? null,
+    lastSync: (db) => getSetting(db, syncKey),
     digest: (db, since) => {
       const rows = db
         .prepare(
-          `SELECT sender, subject, snippet, COALESCE(message_id, folder || ':' || uid) AS key
+          `SELECT sender, subject, snippet, COALESCE(message_id, connection_id || ':' || folder || ':' || uid) AS key
            FROM mail_messages
            WHERE seen = 0 AND bulk = 0 AND folder IN ('INBOX', '[Gmail]/Important') AND date >= ?
            ORDER BY date DESC`,

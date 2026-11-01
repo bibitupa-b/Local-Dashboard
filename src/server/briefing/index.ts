@@ -54,7 +54,7 @@ export async function createBriefing(
     ? (db
         .prepare(
           `SELECT COALESCE(f.name, c.file_id) AS name, c.kind FROM drive_changes c
-           LEFT JOIN drive_files f ON f.id = c.file_id WHERE c.detected_at >= ?`,
+           LEFT JOIN drive_files f ON f.connection_id = c.connection_id AND f.id = c.file_id WHERE c.detected_at >= ?`,
         )
         .all(since.toISOString()) as Array<{ name: string; kind: string }>)
     : []

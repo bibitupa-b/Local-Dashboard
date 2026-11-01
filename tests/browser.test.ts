@@ -39,7 +39,7 @@ test('indexes visits and skips excluded domains', async () => {
   await createBrowserSource(reader).sync(db)
   const rows = db.prepare('SELECT domain, count(*) AS n FROM browser_visits GROUP BY domain').all()
   expect(rows).toEqual([{ domain: 'github.com', n: 1 }])
-  expect(db.prepare("SELECT value FROM settings WHERE key = 'browser_cursor'").get()).toEqual({
+  expect(db.prepare("SELECT value FROM settings WHERE key = 'browser_cursor:default'").get()).toEqual({
     value: '2026-10-31T10:05:00.000Z',
   })
 

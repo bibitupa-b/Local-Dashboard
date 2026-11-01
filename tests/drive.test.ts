@@ -55,7 +55,7 @@ test('failed sync leaves the cursor untouched', async () => {
   await createDriveSource(fakeApi([{ files: [], nextCursor: 'cursor-1' }])).sync(db)
   const failing: DriveApi = { listSince: async () => { throw new Error('network') } }
   await expect(createDriveSource(failing).sync(db)).rejects.toThrow('network')
-  expect((db.prepare("SELECT value FROM settings WHERE key = 'drive_cursor'").get() as { value: string }).value).toBe('cursor-1')
+  expect((db.prepare("SELECT value FROM settings WHERE key = 'drive_cursor:default'").get() as { value: string }).value).toBe('cursor-1')
 })
 
 test('exports text for changed Google Docs', async () => {

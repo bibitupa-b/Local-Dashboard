@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { google } from 'googleapis'
 import type { OAuth2Client } from 'google-auth-library'
-import { setSetting } from '../db/index.js'
+import { getSetting, setSetting } from '../db/index.js'
 import { sourceMeta, type Source, type SourceMeta } from './types.js'
 
 export type CalendarEvent = {
@@ -25,6 +25,8 @@ export function localDayBounds(now: Date): { from: string; to: string } {
 }
 
 export function createCalendarSource(api: CalendarApi | null, meta: SourceMeta = sourceMeta('calendar', 'google')): Source {
+  const connectionId = meta.connectionId
+  const syncKey = `last_sync_calendar:${connectionId}`
   return {
     ...meta,
     configured: () => api !== null,
@@ -35,16 +37,17 @@ export function createCalendarSource(api: CalendarApi | null, meta: SourceMeta =
       const events = await api.upcoming(from, to)
 
       const insert = db.prepare(
-        `INSERT INTO calendar_events (id, calendar_id, summary, start, end, location, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET summary = excluded.summary, start = excluded.start,
+        `INSERT INTO calendar_events (connection_id, id, calendar_id, summary, start, end, location, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(connection_id, id) DO UPDATE SET summary = excluded.summary, start = excluded.start,
            end = excluded.end, location = excluded.location, status = excluded.status`,
       )
       db.exec('BEGIN')
       try {
-        db.prepare('DELETE FROM calendar_events').run()
+        db.prepare('DELETE FROM calendar_events WHERE connection_id = ?').run(connectionId)
         for (const event of events) {
           insert.run(
+            connectionId,
             event.id,
             event.calendarId,
             event.summary,
@@ -59,12 +62,9 @@ export function createCalendarSource(api: CalendarApi | null, meta: SourceMeta =
         db.exec('ROLLBACK')
         throw error
       }
-      setSetting(db, 'last_sync_calendar', now.toISOString())
+      setSetting(db, syncKey, now.toISOString())
     },
-    lastSync: (db) =>
-      (db.prepare("SELECT value FROM settings WHERE key = 'last_sync_calendar'").get() as
-        | { value: string }
-        | undefined)?.value ?? null,
+    lastSync: (db) => getSetting(db, syncKey),
     digest: (db, _since) => {
       const { from, to } = localDayBounds(new Date())
       const rows = db

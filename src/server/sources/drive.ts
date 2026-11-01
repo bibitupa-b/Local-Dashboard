@@ -14,66 +14,67 @@ const MAX_DOC_CHARS = 20_000
 const MAX_EXPORTS_PER_SYNC = 20
 
 export function createDriveSource(api: DriveApi | null, meta: SourceMeta = sourceMeta('drive', 'google')): Source {
+  const connectionId = meta.connectionId
+  const cursorKey = `drive_cursor:${connectionId}`
+  const syncKey = `last_sync_drive:${connectionId}`
   return {
     ...meta,
     configured: () => api !== null,
     async sync(db, now = new Date()) {
       if (!api) return
-      const cursor = getSetting(db, 'drive_cursor')
+      const cursor = getSetting(db, cursorKey)
       const { files, nextCursor } = await api.listSince(cursor)
 
       const upsert = db.prepare(
-        `INSERT INTO drive_files (id, name, mime_type, modified_time, parents) VALUES (?, ?, ?, ?, '[]')
-         ON CONFLICT(id) DO UPDATE SET name = excluded.name, mime_type = excluded.mime_type,
+        `INSERT INTO drive_files (connection_id, id, name, mime_type, modified_time, parents)
+         VALUES (?, ?, ?, ?, ?, '[]')
+         ON CONFLICT(connection_id, id) DO UPDATE SET name = excluded.name, mime_type = excluded.mime_type,
            modified_time = excluded.modified_time`,
       )
       const record = db.prepare(
-        `INSERT INTO drive_changes (file_id, kind, detected_at) VALUES (?, ?, ?)`,
+        `INSERT INTO drive_changes (connection_id, file_id, kind, detected_at) VALUES (?, ?, ?, ?)`,
       )
-      const find = db.prepare('SELECT modified_time FROM drive_files WHERE id = ?')
+      const find = db.prepare('SELECT modified_time FROM drive_files WHERE connection_id = ? AND id = ?')
       const nowIso = now.toISOString()
       const changed: DriveFile[] = []
 
       for (const file of files) {
-        const existing = find.get(file.id) as { modified_time: string } | undefined
+        const existing = find.get(connectionId, file.id) as { modified_time: string } | undefined
         if (cursor !== null) {
-          if (!existing) record.run(file.id, 'added', nowIso)
-          else if (file.modifiedTime > existing.modified_time) record.run(file.id, 'modified', nowIso)
+          if (!existing) record.run(connectionId, file.id, 'added', nowIso)
+          else if (file.modifiedTime > existing.modified_time) record.run(connectionId, file.id, 'modified', nowIso)
         }
         if (!existing || file.modifiedTime > existing.modified_time) changed.push(file)
-        upsert.run(file.id, file.name, file.mimeType, file.modifiedTime)
+        upsert.run(connectionId, file.id, file.name, file.mimeType, file.modifiedTime)
       }
 
       if (api.exportText) {
         const store = db.prepare(
-          `INSERT INTO drive_doc_text (file_id, text, updated_at) VALUES (?, ?, ?)
-           ON CONFLICT(file_id) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at`,
+          `INSERT INTO drive_doc_text (connection_id, file_id, text, updated_at) VALUES (?, ?, ?, ?)
+           ON CONFLICT(connection_id, file_id) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at`,
         )
         for (const file of changed.filter((entry) => GOOGLE_DOC.test(entry.mimeType)).slice(0, MAX_EXPORTS_PER_SYNC)) {
           try {
             const text = await api.exportText(file.id)
-            if (text !== null) store.run(file.id, text.slice(0, MAX_DOC_CHARS), nowIso)
+            if (text !== null) store.run(connectionId, file.id, text.slice(0, MAX_DOC_CHARS), nowIso)
           } catch (error) {
             console.error(`[drive] export failed for ${file.name}:`, error)
           }
         }
       }
 
-      setSetting(db, 'drive_cursor', nextCursor ?? cursor ?? nowIso)
-      setSetting(db, 'last_sync_drive', nowIso)
+      setSetting(db, cursorKey, nextCursor ?? cursor ?? nowIso)
+      setSetting(db, syncKey, nowIso)
     },
-    lastSync: (db) =>
-      (db.prepare("SELECT value FROM settings WHERE key = 'last_sync_drive'").get() as
-        | { value: string }
-        | undefined)?.value ?? null,
+    lastSync: (db) => getSetting(db, syncKey),
     digest: (db, since) =>
       db
         .prepare(
           `SELECT COALESCE(f.name, c.file_id) AS name, c.kind FROM drive_changes c
-           LEFT JOIN drive_files f ON f.id = c.file_id
-           WHERE c.detected_at >= ? ORDER BY c.detected_at DESC`,
+           LEFT JOIN drive_files f ON f.connection_id = c.connection_id AND f.id = c.file_id
+           WHERE c.connection_id = ? AND c.detected_at >= ? ORDER BY c.detected_at DESC`,
         )
-        .all(since.toISOString())
+        .all(connectionId, since.toISOString())
         .map((row) => {
           const { name, kind } = row as { name: string; kind: string }
           return `${name} (${kind})`

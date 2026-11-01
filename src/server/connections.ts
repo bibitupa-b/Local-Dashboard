@@ -129,7 +129,58 @@ export function markConnectionSync(
   db.prepare('UPDATE connections SET last_error = ? WHERE id = ?').run(error, id)
 }
 
-/** One-time import of the existing .env configuration into connection rows. */
+/** Legacy single-account rows are attached to the first connection of their service. */
+export function assignLegacyConnections(db: DatabaseSync): void {
+  if (getSetting(db, 'data_scoped')) return
+  const first = (service: Service): string | null =>
+    (db.prepare('SELECT id FROM connections WHERE service = ? ORDER BY created_at LIMIT 1').get(service) as
+      | { id: string }
+      | undefined)?.id ?? null
+
+  const mapping: Record<string, string | null> = {
+    vault_files: first('vault'),
+    vault_changes: first('vault'),
+    tasks: first('vault'),
+    mail_folders: first('imap'),
+    mail_messages: first('imap'),
+    drive_files: first('google'),
+    drive_changes: first('google'),
+    drive_doc_text: first('google'),
+    calendar_events: first('google'),
+    browser_visits: first('browser'),
+    github_items: first('github'),
+  }
+
+  for (const [table, connectionId] of Object.entries(mapping)) {
+    if (connectionId) {
+      db.prepare(`UPDATE "${table}" SET connection_id = ? WHERE connection_id = 'legacy'`).run(
+        connectionId,
+      )
+    } else {
+      db.prepare(`DELETE FROM "${table}" WHERE connection_id = 'legacy'`).run()
+    }
+  }
+  setSetting(db, 'data_scoped', new Date().toISOString())
+}
+
+export function purgeConnectionData(db: DatabaseSync, connectionId: string): void {
+  for (const table of [
+    'vault_files',
+    'vault_changes',
+    'tasks',
+    'mail_folders',
+    'mail_messages',
+    'drive_files',
+    'drive_changes',
+    'drive_doc_text',
+    'calendar_events',
+    'browser_visits',
+    'github_items',
+  ]) {
+    db.prepare(`DELETE FROM "${table}" WHERE connection_id = ?`).run(connectionId)
+  }
+}
+
 export function importConnectionsFromEnv(
   db: DatabaseSync,
   box: SecretBox,

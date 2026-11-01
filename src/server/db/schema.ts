@@ -1,13 +1,17 @@
-export const SCHEMA = `CREATE TABLE IF NOT EXISTS vault_files (
-  path TEXT PRIMARY KEY,
+export const SCHEMA = `
+CREATE TABLE IF NOT EXISTS vault_files (
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
+  path TEXT NOT NULL,
   hash TEXT NOT NULL,
   mtime TEXT NOT NULL,
   size INTEGER NOT NULL,
-  previous_text TEXT NOT NULL DEFAULT ''
+  previous_text TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (connection_id, path)
 );
 
 CREATE TABLE IF NOT EXISTS vault_changes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
   path TEXT NOT NULL,
   detected_at TEXT NOT NULL,
   added INTEGER NOT NULL DEFAULT 0,
@@ -17,17 +21,21 @@ CREATE TABLE IF NOT EXISTS vault_changes (
 );
 
 CREATE INDEX IF NOT EXISTS vault_changes_detected ON vault_changes (detected_at);
+CREATE INDEX IF NOT EXISTS vault_changes_connection ON vault_changes (connection_id);
 
 CREATE TABLE IF NOT EXISTS drive_files (
-  id TEXT PRIMARY KEY,
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
+  id TEXT NOT NULL,
   name TEXT NOT NULL,
   mime_type TEXT NOT NULL,
   modified_time TEXT NOT NULL,
-  parents TEXT NOT NULL DEFAULT '[]'
+  parents TEXT NOT NULL DEFAULT '[]',
+  PRIMARY KEY (connection_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS drive_changes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
   file_id TEXT NOT NULL,
   kind TEXT NOT NULL,
   detected_at TEXT NOT NULL
@@ -37,6 +45,7 @@ CREATE INDEX IF NOT EXISTS drive_changes_detected ON drive_changes (detected_at)
 
 CREATE TABLE IF NOT EXISTS tasks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
   path TEXT NOT NULL,
   text TEXT NOT NULL,
   occurrence INTEGER NOT NULL DEFAULT 0,
@@ -44,7 +53,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   done INTEGER NOT NULL DEFAULT 0,
   first_seen TEXT NOT NULL,
   last_seen TEXT NOT NULL,
-  UNIQUE (path, text, occurrence)
+  UNIQUE (connection_id, path, text, occurrence)
 );
 
 CREATE INDEX IF NOT EXISTS tasks_open ON tasks (done, tag);
@@ -63,14 +72,17 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 CREATE TABLE IF NOT EXISTS mail_folders (
-  path TEXT PRIMARY KEY,
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
+  path TEXT NOT NULL,
   uid_validity TEXT NOT NULL,
   last_uid INTEGER NOT NULL DEFAULT 0,
-  last_sync TEXT
+  last_sync TEXT,
+  PRIMARY KEY (connection_id, path)
 );
 
 CREATE TABLE IF NOT EXISTS mail_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
   folder TEXT NOT NULL,
   uid INTEGER NOT NULL,
   message_id TEXT,
@@ -83,48 +95,55 @@ CREATE TABLE IF NOT EXISTS mail_messages (
   body TEXT,
   attachments TEXT NOT NULL DEFAULT '[]',
   bulk INTEGER NOT NULL DEFAULT 0,
-  UNIQUE (folder, uid)
+  UNIQUE (connection_id, folder, uid)
 );
 
 CREATE INDEX IF NOT EXISTS mail_messages_recent ON mail_messages (folder, date);
 CREATE INDEX IF NOT EXISTS mail_messages_unread ON mail_messages (seen, folder);
 
 CREATE TABLE IF NOT EXISTS calendar_events (
-  id TEXT PRIMARY KEY,
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
+  id TEXT NOT NULL,
   calendar_id TEXT NOT NULL,
   summary TEXT NOT NULL,
   start TEXT NOT NULL,
   end TEXT NOT NULL,
   location TEXT,
-  status TEXT NOT NULL DEFAULT 'confirmed'
+  status TEXT NOT NULL DEFAULT 'confirmed',
+  PRIMARY KEY (connection_id, id)
 );
 
 CREATE INDEX IF NOT EXISTS calendar_events_start ON calendar_events (start);
 
 CREATE TABLE IF NOT EXISTS browser_visits (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
   url TEXT NOT NULL,
   domain TEXT NOT NULL,
   title TEXT NOT NULL DEFAULT '',
   visited_at TEXT NOT NULL,
-  UNIQUE (url, visited_at)
+  UNIQUE (connection_id, url, visited_at)
 );
 
 CREATE INDEX IF NOT EXISTS browser_visits_time ON browser_visits (visited_at);
 
 CREATE TABLE IF NOT EXISTS github_items (
-  id TEXT PRIMARY KEY,
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
+  id TEXT NOT NULL,
   kind TEXT NOT NULL,
   repo TEXT NOT NULL,
   title TEXT NOT NULL,
   url TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (connection_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS drive_doc_text (
-  file_id TEXT PRIMARY KEY,
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
+  file_id TEXT NOT NULL,
   text TEXT NOT NULL DEFAULT '',
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (connection_id, file_id)
 );
 
 CREATE TABLE IF NOT EXISTS connections (

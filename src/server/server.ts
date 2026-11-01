@@ -24,10 +24,12 @@ import { todayEvents } from './sources/calendar.js'
 import { backupDb } from './backup.js'
 import { createSecretBox } from './secrets.js'
 import {
+  assignLegacyConnections,
   deleteConnection,
   getConnection,
   importConnectionsFromEnv,
   listConnections,
+  purgeConnectionData,
   saveConnection,
   type ConnectionInput,
 } from './connections.js'
@@ -69,6 +71,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const db = openDb(config.dbPath)
   const box = createSecretBox(config.dataDir)
   importConnectionsFromEnv(db, box, config, config.dataDir)
+  assignLegacyConnections(db)
 
   config.vaultPath = getSetting(db, 'vault_path') ?? config.vaultPath
   config.briefingHour = Number(getSetting(db, 'briefing_hour')) || config.briefingHour
@@ -111,7 +114,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   function watchVaults(): void {
     for (const connection of listConnections(db, box)) {
       if (connection.service !== 'vault' || !connection.enabled) continue
-      stopWatchers.push(startVaultWatcher(connection.config.path || config.vaultPath, db))
+      stopWatchers.push(
+        startVaultWatcher(connection.config.path || config.vaultPath, db, connection.id),
+      )
     }
   }
 
@@ -141,7 +146,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     connections: {
       list: () => publicConnections(db, box),
       save: (input: ConnectionInput) => toPublicConnection(saveConnection(db, box, input)),
-      remove: (id: string) => deleteConnection(db, id),
+      remove: (id: string) => {
+        purgeConnectionData(db, id)
+        deleteConnection(db, id)
+      },
       test: async (id: string) => {
         const connection = getConnection(db, box, id)
         return connection ? testConnection(connection) : { ok: false, error: 'Unknown connection' }

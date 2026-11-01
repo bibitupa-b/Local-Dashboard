@@ -3,12 +3,55 @@ import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { SCHEMA } from './schema.js'
 
-export function migrate(db: DatabaseSync): void {
-  // tasks is derived data; early builds had a UNIQUE(path, text) that collapsed repeats.
-  const columns = db.prepare("PRAGMA table_info('tasks')").all() as Array<{ name: string }>
-  if (columns.length > 0 && !columns.some((column) => column.name === 'occurrence')) {
-    db.exec('DROP TABLE tasks')
+const SCOPED_TABLES = [
+  'vault_files',
+  'vault_changes',
+  'tasks',
+  'mail_folders',
+  'mail_messages',
+  'drive_files',
+  'drive_changes',
+  'drive_doc_text',
+  'calendar_events',
+  'browser_visits',
+  'github_items',
+]
+
+function exists(db: DatabaseSync, name: string): boolean {
+  return Boolean(
+    db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(name),
+  )
+}
+
+function columnNames(db: DatabaseSync, table: string): string[] {
+  return (db.prepare(`PRAGMA table_info('${table}')`).all() as Array<{ name: string }>).map(
+    (column) => column.name,
+  )
+}
+
+/** Rebuilds pre-0.6 tables so every row carries a connection id; legacy rows are scoped later. */
+function rebuildForConnections(db: DatabaseSync): void {
+  const present = SCOPED_TABLES.filter((table) => exists(db, table))
+  if (present.length === 0) return
+  if (columnNames(db, 'vault_files').includes('connection_id')) return
+
+  for (const table of present) db.exec(`ALTER TABLE "${table}" RENAME TO "${table}_legacy"`)
+  db.exec(SCHEMA)
+  for (const table of present) {
+    const shared = columnNames(db, `${table}_legacy`).filter((column) => column !== 'connection_id')
+    const target = ['connection_id', ...shared].map((column) => `"${column}"`).join(', ')
+    const source = shared.map((column) => `"${column}"`).join(', ')
+    db.exec(
+      `INSERT INTO "${table}" (${target}) SELECT 'legacy', ${source} FROM "${table}_legacy"`,
+    )
+    db.exec(`DROP TABLE "${table}_legacy"`)
   }
+  // Renamed tables keep their indexes; recreate the ones that were dropped with them.
+  db.exec(SCHEMA)
+}
+
+export function migrate(db: DatabaseSync): void {
+  rebuildForConnections(db)
   db.exec(SCHEMA)
   const mailColumns = db.prepare("PRAGMA table_info('mail_messages')").all() as Array<{ name: string }>
   if (mailColumns.length > 0 && !mailColumns.some((column) => column.name === 'bulk')) {
