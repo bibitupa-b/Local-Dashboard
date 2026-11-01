@@ -195,3 +195,33 @@ test('the same message in INBOX and Important counts once', () => {
   const lines = createMailSource({ folders: async () => [], syncFolder: async () => ({ messages: [], uidValidity: '1', flags: [] }) }).digest(db, new Date())
   expect(lines.join('\n')).toContain('Unread mail: 1')
 })
+
+test('localized Gmail folders are stored under their special-use alias', async () => {
+  const db = openDb(':memory:')
+  const api: MailApi = {
+    folders: async () => [{ path: '[Gmail]/Помеченные', specialUse: '\\Important' }],
+    syncFolder: async (folder) => ({
+      messages: [
+        {
+          folder,
+          uid: 5,
+          messageId: null,
+          sender: 'Alice <a@x.com>',
+          subject: 'Important one',
+          date: new Date().toISOString(),
+          seen: false,
+          starred: false,
+          snippet: '',
+          body: null,
+          attachments: [],
+        },
+      ],
+      uidValidity: '1',
+      flags: [],
+    }),
+  }
+  await createMailSource(api).sync(db)
+  expect(db.prepare('SELECT folder FROM mail_messages').get()).toEqual({
+    folder: '[Gmail]/Important',
+  })
+})

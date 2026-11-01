@@ -29,7 +29,9 @@ import {
   getConnection,
   importConnectionsFromEnv,
   listConnections,
+  normalizeMailFolders,
   purgeConnectionData,
+  resolveDeepseekKey,
   saveConnection,
   type ConnectionInput,
 } from './connections.js'
@@ -72,6 +74,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const box = createSecretBox(config.dataDir)
   importConnectionsFromEnv(db, box, config, config.dataDir)
   assignLegacyConnections(db)
+  normalizeMailFolders(db)
+
+  const envDeepseekKey = config.deepseekKey
+  function applyDeepseekKey(): void {
+    config.deepseekKey = resolveDeepseekKey(db, box, envDeepseekKey)
+  }
+  applyDeepseekKey()
 
   config.vaultPath = getSetting(db, 'vault_path') ?? config.vaultPath
   config.briefingHour = Number(getSetting(db, 'briefing_hour')) || config.briefingHour
@@ -124,6 +133,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if (syncing) await syncing.catch(() => {})
     await Promise.all(stopWatchers.map((stop) => stop()))
     stopWatchers = []
+    applyDeepseekKey()
     sources = buildSources({ db, box, config, dataDir: config.dataDir })
     health = createHealth(sources.map((source) => source.id))
     watchVaults()

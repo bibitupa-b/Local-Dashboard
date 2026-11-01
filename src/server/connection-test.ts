@@ -42,12 +42,27 @@ export async function testConnection(connection: Connection): Promise<TestResult
           logger: false,
         })
         client.on('error', () => {})
+        let timer: NodeJS.Timeout | undefined
         try {
-          await client.connect()
+          await Promise.race([
+            client.connect(),
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(() => reject(new Error('IMAP connection timed out')), 15_000)
+            }),
+          ])
           return { ok: true }
         } finally {
+          if (timer) clearTimeout(timer)
           await client.logout().catch(() => {})
         }
+      }
+      case 'deepseek': {
+        const key = connection.secret?.key
+        if (!key) return { ok: false, error: 'API key is missing' }
+        const res = await fetch('https://api.deepseek.com/models', {
+          headers: { authorization: `Bearer ${key}` },
+        })
+        return res.ok ? { ok: true } : { ok: false, error: `DeepSeek responded ${res.status}` }
       }
       case 'google': {
         const tokens = connection.secret?.tokens

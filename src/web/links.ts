@@ -22,8 +22,10 @@ export function sourceUrl(id: string, vaultPath: string): string | null {
     case 'vault':
       return obsidianUrl(vaultPath)
     case 'drive':
+    case 'google':
       return 'https://drive.google.com'
     case 'mail':
+    case 'imap':
       return 'https://mail.google.com'
     case 'calendar':
       return 'https://calendar.google.com'

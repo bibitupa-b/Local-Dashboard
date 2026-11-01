@@ -75,7 +75,7 @@ export type Settings = {
   enabledSources: string[]
 }
 
-export type Service = 'vault' | 'google' | 'imap' | 'github' | 'browser'
+export type Service = 'vault' | 'google' | 'imap' | 'github' | 'browser' | 'deepseek'
 
 export type Connection = {
   id: string
@@ -156,8 +156,10 @@ export const api = {
     await fetch(`/api/connections/${id}`, { method: 'DELETE' })
   },
   testConnection: (id: string) =>
-    fetch(`/api/connections/${id}/test`, { method: 'POST' }).then(
-      (res) => res.json() as Promise<{ ok: boolean; error?: string }>,
-    ),
+    fetch(`/api/connections/${id}/test`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    }).then((res) => res.json() as Promise<{ ok: boolean; error?: string }>),
 }
 

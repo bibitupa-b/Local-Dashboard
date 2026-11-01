@@ -3,7 +3,7 @@ import { getSetting, setSetting } from '../db/index.js'
 import { isExcludedFolder, isExcludedSender } from '../settings.js'
 import { sourceMeta, type Source, type SourceMeta } from './types.js'
 
-export type MailFolder = { path: string }
+export type MailFolder = { path: string; specialUse?: string }
 export type MailMessage = {
   folder: string
   uid: number
@@ -28,6 +28,19 @@ export type MailApi = {
 }
 
 const IGNORED_FOLDER = /all mail/i
+
+const SPECIAL_ALIASES: Record<string, string> = {
+  '\\Inbox': 'INBOX',
+  '\\Important': '[Gmail]/Important',
+  '\\Sent': '[Gmail]/Sent Mail',
+  '\\Drafts': '[Gmail]/Drafts',
+  '\\Junk': '[Gmail]/Spam',
+  '\\Trash': '[Gmail]/Trash',
+}
+
+function storageFolder(folder: MailFolder): string {
+  return (folder.specialUse && SPECIAL_ALIASES[folder.specialUse]) || folder.path
+}
 export const UNREAD_WINDOW_DAYS = 30
 
 export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceMeta('mail', 'imap')): Source {
@@ -73,8 +86,9 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
       )
 
       for (const folder of folders) {
+        const dbPath = storageFolder(folder)
         try {
-          const row = findFolder.get(connectionId, folder.path) as
+          const row = findFolder.get(connectionId, dbPath) as
             | { uid_validity: string; last_uid: number }
             | undefined
           const fromUid = row?.last_uid ?? 0
@@ -84,7 +98,7 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
             // The server renumbered the folder; cached UIDs are meaningless.
             db.prepare('DELETE FROM mail_messages WHERE connection_id = ? AND folder = ?').run(
               connectionId,
-              folder.path,
+              dbPath,
             )
             result = await api.syncFolder(folder.path, 0)
           }
@@ -93,7 +107,7 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
           for (const message of messages) {
             insertMessage.run(
               connectionId,
-              message.folder,
+              dbPath,
               message.uid,
               message.messageId,
               message.sender,
@@ -112,15 +126,15 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
               flag.seen ? 1 : 0,
               flag.starred ? 1 : 0,
               connectionId,
-              folder.path,
+              dbPath,
               flag.uid,
             )
           }
-          const highest = (maxUid.get(connectionId, folder.path) as { uid: number }).uid
-          upsertFolder.run(connectionId, folder.path, uidValidity, highest, now.toISOString())
+          const highest = (maxUid.get(connectionId, dbPath) as { uid: number }).uid
+          upsertFolder.run(connectionId, dbPath, uidValidity, highest, now.toISOString())
         } catch (error) {
           // One broken folder must not stop the rest of the mailbox.
-          console.error(`[mail] folder ${folder.path} failed:`, error)
+          console.error(`[mail] folder ${dbPath} failed:`, error)
         }
         progress?.(++index, folders.length)
       }

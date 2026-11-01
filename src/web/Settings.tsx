@@ -93,6 +93,16 @@ Excluded domains are listed under Preferences.`,
       },
     ],
   },
+  {
+    service: 'deepseek',
+    name: 'DeepSeek API',
+    description: 'Powers the daily briefing.',
+    hint: `1. platform.deepseek.com → sign in.
+2. Open "API keys" → Create new API key.
+3. Copy the sk-... value (shown once) and paste it here.
+4. Top up the balance under Billing, otherwise requests return 402.`,
+    fields: [{ key: 'key', label: 'API key', secret: true, placeholder: 'sk-...' }],
+  },
 ]
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -147,6 +157,13 @@ export function SettingsPanel({
   }
 
   async function disconnect(connection: Connection) {
+    if (
+      !window.confirm(
+        `Disconnect “${connection.label}”? Its local data will be removed from the dashboard.`,
+      )
+    ) {
+      return
+    }
     await api.deleteConnection(connection.id)
     await loadConnections()
     setNotice(`Removed ${connection.label}.`)
@@ -189,7 +206,7 @@ export function SettingsPanel({
       <section className="card">
         <h2>Connections</h2>
         <p className="sub">
-          DeepSeek key: {settings.hasDeepSeekKey ? 'configured in .env' : 'missing in .env'}
+          DeepSeek key: {settings.hasDeepSeekKey ? 'configured' : 'not set — add it under DeepSeek API'}
         </p>
         {SERVICES.map((definition) => {
           const rows = connections.filter((row) => row.service === definition.service)
@@ -374,6 +391,8 @@ function detailOf(connection: Connection): string {
       return connection.secretsSet.includes('tokens') ? 'connected' : 'not connected'
     case 'github':
       return connection.secretsSet.includes('token') ? 'token set' : 'no token'
+    case 'deepseek':
+      return connection.secretsSet.includes('key') ? 'key saved' : 'no key'
     default:
       return ''
   }
@@ -391,14 +410,23 @@ function ConnectionForm({
   onSaved: (saved: Connection) => void | Promise<void>
 }) {
   const [label, setLabel] = useState(connection?.label ?? definition.name)
+  const [enabled, setEnabled] = useState(connection?.enabled ?? true)
   const [config, setConfig] = useState<Record<string, string>>(connection?.config ?? {})
   const [secret, setSecret] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     setError(null)
-    const input: ConnectionInput = { service: definition.service, label, config, secret }
+    const input: ConnectionInput = { service: definition.service, label, config, secret, enabled }
     try {
       const saved = connection
         ? await api.updateConnection(connection.id, input)
@@ -413,13 +441,19 @@ function ConnectionForm({
     <div className="modal-backdrop" onClick={onClose}>
       <form
         className="modal card"
+        role="dialog"
+        aria-modal="true"
         onClick={(event) => event.stopPropagation()}
         onSubmit={(event) => void submit(event)}
       >
         <h2>{connection ? 'Edit connection' : `Connect ${definition.name}`}</h2>
         <label>
           Label
-          <input value={label} onChange={(event) => setLabel(event.target.value)} />
+          <input
+            autoFocus
+            value={label}
+            onChange={(event) => setLabel(event.target.value)}
+          />
         </label>
         {definition.fields.map((field) => (
           <label key={field.key}>
@@ -444,6 +478,16 @@ function ConnectionForm({
             )}
           </label>
         ))}
+        {connection && (
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(event) => setEnabled(event.target.checked)}
+            />
+            Enabled
+          </label>
+        )}
         {error && <p className="note">{error}</p>}
         <div className="row">
           <button type="submit">{connection ? 'Save changes' : 'Add connection'}</button>

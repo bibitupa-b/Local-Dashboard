@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import type { Config } from './config.js'
 import type { SecretBox } from './secrets.js'
 import { listConnections, saveConnection, type Connection } from './connections.js'
-import { sourceMeta, type Source, type SourceKind } from './sources/types.js'
+import { sourceMeta, type Source, type SourceKind, type SourceService } from './sources/types.js'
 import { createVaultSource } from './sources/vault/index.js'
 import { createBrowserSource } from './sources/browser.js'
 import { createChromiumBrowserReader } from './sources/browser-chromium.js'
@@ -51,7 +51,7 @@ export function buildSources(deps: RegistryDeps): Source[] {
   for (const connection of listConnections(deps.db, deps.box)) {
     if (!connection.enabled) continue
     const meta = (kind: SourceKind) =>
-      sourceMeta(kind, connection.service, connection.id, connection.label)
+      sourceMeta(kind, connection.service as SourceService, connection.id, connection.label)
 
     switch (connection.service) {
       case 'vault':
@@ -83,6 +83,8 @@ export function buildSources(deps: RegistryDeps): Source[] {
             meta('mail'),
           ),
         )
+        break
+      case 'deepseek':
         break
       case 'google': {
         const creds = googleCreds(connection, deps)

@@ -10,6 +10,7 @@ import {
   getConnection,
   importConnectionsFromEnv,
   listConnections,
+  resolveDeepseekKey,
   saveConnection,
 } from '../src/server/connections.js'
 
@@ -59,6 +60,34 @@ test('connections are stored encrypted and can be updated or removed', () => {
 
     deleteConnection(db, created.id)
     expect(getConnection(db, box, created.id)).toBeNull()
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('deepseek key prefers the connection over the environment', () => {
+  const dir = tempDir()
+  try {
+    const box = createSecretBox(dir)
+    const db = openDb(':memory:')
+    expect(resolveDeepseekKey(db, box, 'env-key')).toBe('env-key')
+
+    const connection = saveConnection(db, box, {
+      service: 'deepseek',
+      label: 'DeepSeek',
+      config: {},
+      secret: { key: 'db-key' },
+    })
+    expect(resolveDeepseekKey(db, box, 'env-key')).toBe('db-key')
+
+    saveConnection(db, box, {
+      id: connection.id,
+      service: 'deepseek',
+      label: 'DeepSeek',
+      config: {},
+      enabled: false,
+    })
+    expect(resolveDeepseekKey(db, box, 'env-key')).toBe('env-key')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

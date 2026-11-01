@@ -71,7 +71,7 @@ export function createImapMailApi(creds: {
       return list
         .filter((folder) => folder.specialUse !== '\\All' && !folder.flags?.has('\\Noselect'))
         .filter((folder) => !/all mail/i.test(folder.path))
-        .map((folder) => ({ path: folder.path }))
+        .map((folder) => ({ path: folder.path, specialUse: folder.specialUse }))
     },
 
     async syncFolder(folder, fromUid) {

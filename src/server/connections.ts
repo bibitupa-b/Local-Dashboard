@@ -6,8 +6,8 @@ import { getSetting, setSetting } from './db/index.js'
 import type { Config } from './config.js'
 import type { SecretBox } from './secrets.js'
 
-export type Service = 'vault' | 'google' | 'imap' | 'github' | 'browser'
-export const SERVICES: Service[] = ['vault', 'google', 'imap', 'github', 'browser']
+export type Service = 'vault' | 'google' | 'imap' | 'github' | 'browser' | 'deepseek'
+export const SERVICES: Service[] = ['vault', 'google', 'imap', 'github', 'browser', 'deepseek']
 
 export type Connection = {
   id: string
@@ -82,7 +82,11 @@ export function saveConnection(
   const config = Object.fromEntries(
     Object.entries(input.config).map(([key, value]) => [key, String(value ?? '').trim()]),
   )
-  const secret = input.secret && Object.keys(input.secret).length > 0 ? input.secret : null
+  const cleanedSecret = input.secret
+    ? Object.fromEntries(Object.entries(input.secret).filter(([, value]) => String(value).trim() !== ''))
+    : null
+  const secret =
+    cleanedSecret && Object.keys(cleanedSecret).length > 0 ? cleanedSecret : null
 
   if (input.id) {
     const existing = getConnection(db, box, input.id)
@@ -163,8 +167,38 @@ export function assignLegacyConnections(db: DatabaseSync): void {
   setSetting(db, 'data_scoped', new Date().toISOString())
 }
 
-export function purgeConnectionData(db: DatabaseSync, connectionId: string): void {
-  for (const table of [
+/** Database key wins; the .env value is the fallback when no DeepSeek connection exists. */
+export function resolveDeepseekKey(
+  db: DatabaseSync,
+  box: SecretBox,
+  fallback: string | null,
+): string | null {
+  const row = db
+    .prepare("SELECT id FROM connections WHERE service = 'deepseek' AND enabled = 1 ORDER BY created_at LIMIT 1")
+    .get() as { id: string } | undefined
+  if (!row) return fallback
+  return getConnection(db, box, row.id)?.secret?.key ?? fallback
+}
+
+export function normalizeMailFolders(db: DatabaseSync): void {
+  const aliases: Array<[string, string]> = [
+    ['%Помеченные%', '[Gmail]/Important'],
+    ['%Важное%', '[Gmail]/Important'],
+    ['%Отправленные%', '[Gmail]/Sent Mail'],
+    ['%Черновики%', '[Gmail]/Drafts'],
+    ['%Спам%', '[Gmail]/Spam'],
+    ['%Корзина%', '[Gmail]/Trash'],
+  ]
+  for (const [pattern, alias] of aliases) {
+    db.prepare(`UPDATE OR IGNORE mail_folders SET path = ? WHERE path LIKE ?`).run(alias, pattern)
+    db.prepare(`UPDATE OR IGNORE mail_messages SET folder = ? WHERE folder LIKE ?`).run(
+      alias,
+      pattern,
+    )
+  }
+}
+
+export function purgeConnectionData(db: DatabaseSync, connectionId: string): void {  for (const table of [
     'vault_files',
     'vault_changes',
     'tasks',
@@ -219,6 +253,10 @@ export function importConnectionsFromEnv(
 
   if (config.githubToken) {
     create('github', 'GitHub', {}, { token: config.githubToken })
+  }
+
+  if (config.deepseekKey) {
+    create('deepseek', 'DeepSeek', {}, { key: config.deepseekKey })
   }
 
   setSetting(db, 'connections_initialized', new Date().toISOString())
