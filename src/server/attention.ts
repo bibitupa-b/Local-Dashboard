@@ -17,6 +17,9 @@ export type AttentionItem = {
   detail: string
   count?: number
   path?: string
+  messageId?: string
+  url?: string
+  fileId?: string
 }
 
 const TEMPLATES = 'Templates/%'
@@ -124,15 +127,17 @@ export function buildAttention(
   const github = db
     .prepare(
       `SELECT COUNT(*) AS total, COALESCE(SUM(kind = 'review'), 0) AS reviews,
-              COUNT(DISTINCT repo) AS repos FROM github_items`,
+              COUNT(DISTINCT repo) AS repos,
+              (SELECT url FROM github_items ORDER BY updated_at DESC LIMIT 1) AS url FROM github_items`,
     )
-    .get() as { total: number; reviews: number; repos: number }
+    .get() as { total: number; reviews: number; repos: number; url: string | null }
   if (github.total > 0) {
     items.push({
       kind: 'github',
       label: `GitHub: ${github.total} items`,
       detail: `${github.reviews} review requests · ${github.repos} repos`,
       count: github.total,
+      ...(github.url ? { url: github.url } : {}),
     })
   }
 
@@ -146,28 +151,36 @@ export function buildAttention(
     items.push({
       kind: 'calendar',
       label: nextEvent.summary,
-      detail: `Next at ${new Date(nextEvent.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+      detail: `Next at ${new Date(nextEvent.start).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`,
     })
   }
 
   const mailWindow = new Date(now.getTime() - 30 * 86_400_000).toISOString()
   const mailRows = db
     .prepare(
-      `SELECT sender, starred, COALESCE(message_id, folder || ':' || uid) AS key
+      `SELECT sender, starred, message_id, COALESCE(message_id, folder || ':' || uid) AS key
        FROM mail_messages
-       WHERE folder IN ('INBOX', '[Gmail]/Important') AND seen = 0 AND bulk = 0 AND date >= ?`,
+       WHERE folder IN ('INBOX', '[Gmail]/Important') AND seen = 0 AND bulk = 0 AND date >= ?
+       ORDER BY date DESC`,
     )
-    .all(mailWindow) as Array<{ sender: string; starred: number; key: string }>
+    .all(mailWindow) as Array<{
+    sender: string
+    starred: number
+    message_id: string | null
+    key: string
+  }>
 
   const seenKeys = new Set<string>()
   const senders = new Map<string, number>()
   let unread = 0
   let starred = 0
+  let messageId: string | null = null
   for (const row of mailRows) {
     if (seenKeys.has(row.key)) continue
     seenKeys.add(row.key)
     if (isExcludedSender(db, row.sender)) continue
     unread++
+    if (!messageId && row.message_id) messageId = row.message_id
     senders.set(row.sender, (senders.get(row.sender) ?? 0) + 1)
     if (row.starred === 1) starred++
   }
@@ -179,6 +192,7 @@ export function buildAttention(
       label: `Mail: ${unread} unread`,
       detail: [starred > 0 ? `${starred} starred` : '', top.join(', ')].filter(Boolean).join(' · '),
       count: unread,
+      ...(messageId ? { messageId } : {}),
     })
   }
 
@@ -218,13 +232,22 @@ export function buildAttention(
 
   const drive = db
     .prepare(
-      `SELECT c.kind, COALESCE(f.name, c.file_id) AS name FROM drive_changes c
+      `SELECT c.kind, c.file_id AS fileId, COALESCE(f.name, c.file_id) AS name FROM drive_changes c
        LEFT JOIN drive_files f ON f.connection_id = c.connection_id AND f.id = c.file_id
        WHERE c.detected_at >= ? ORDER BY c.detected_at DESC LIMIT 10`,
     )
-    .all(new Date(now.getTime() - 7 * 86_400_000).toISOString()) as Array<{ kind: string; name: string }>
+    .all(new Date(now.getTime() - 7 * 86_400_000).toISOString()) as Array<{
+    kind: string
+    fileId: string
+    name: string
+  }>
   for (const change of drive) {
-    items.push({ kind: 'drive', label: change.name, detail: `Drive: ${change.kind}` })
+    items.push({
+      kind: 'drive',
+      label: change.name,
+      detail: `Drive: ${change.kind}`,
+      fileId: change.fileId,
+    })
   }
 
   const order = {

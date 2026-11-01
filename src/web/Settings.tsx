@@ -6,6 +6,7 @@ import {
   type Service,
   type Settings,
 } from './api.js'
+import { friendlyError } from './errors.js'
 
 type FieldDef = {
   key: string
@@ -145,25 +146,46 @@ export function SettingsPanel({
   }
 
   useEffect(() => {
-    void loadConnections()
+    void loadConnections().catch((error: unknown) =>
+      setNotice({
+        text: friendlyError(error instanceof Error ? error.message : String(error)),
+        tone: 'error',
+      }),
+    )
   }, [])
 
   async function test(connection: Connection) {
     setTests((current) => ({ ...current, [connection.id]: 'testing…' }))
-    const result = await api.testConnection(connection.id)
-    setTests((current) => ({
-      ...current,
-      [connection.id]: result.ok ? 'works' : (result.error ?? 'failed'),
-    }))
+    try {
+      const result = await api.testConnection(connection.id)
+      setTests((current) => ({
+        ...current,
+        [connection.id]: result.ok
+          ? 'works'
+          : friendlyError(result.error ?? 'Connection test failed'),
+      }))
+    } catch (error) {
+      setTests((current) => ({
+        ...current,
+        [connection.id]: friendlyError(error instanceof Error ? error.message : String(error)),
+      }))
+    }
   }
 
   async function confirmDisconnect() {
     if (!confirming) return
     const target = confirming
     setConfirming(null)
-    await api.deleteConnection(target.id)
-    await loadConnections()
-    setNotice({ text: `Removed ${target.label}.`, tone: 'success' })
+    try {
+      await api.deleteConnection(target.id)
+      await loadConnections()
+      setNotice({ text: `Removed ${target.label}.`, tone: 'success' })
+    } catch (error) {
+      setNotice({
+        text: friendlyError(error instanceof Error ? error.message : String(error)),
+        tone: 'error',
+      })
+    }
   }
 
   async function savePreferences(event: React.FormEvent) {
@@ -177,16 +199,23 @@ export function SettingsPanel({
       excludedBrowserDomains: lines(browserDomains),
       enabledSources: enabled,
     }
-    await api.saveSettings({
-      briefingHour,
-      digestWindowHours: windowHours,
-      excludedSenders: next.excludedSenders,
-      excludedVaultPrefixes: next.excludedVaultPrefixes,
-      excludedBrowserDomains: next.excludedBrowserDomains,
-      enabledSources: enabled,
-    })
-    onSaved(next)
-    setNotice({ text: 'Preferences saved.', tone: 'success' })
+    try {
+      await api.saveSettings({
+        briefingHour,
+        digestWindowHours: windowHours,
+        excludedSenders: next.excludedSenders,
+        excludedVaultPrefixes: next.excludedVaultPrefixes,
+        excludedBrowserDomains: next.excludedBrowserDomains,
+        enabledSources: enabled,
+      })
+      onSaved(next)
+      setNotice({ text: 'Preferences saved.', tone: 'success' })
+    } catch (error) {
+      setNotice({
+        text: friendlyError(error instanceof Error ? error.message : String(error)),
+        tone: 'error',
+      })
+    }
   }
 
   return (
@@ -336,6 +365,7 @@ export function SettingsPanel({
               <input
                 type="checkbox"
                 checked={enabled.includes(source)}
+                disabled={enabled.length === 1 && enabled.includes(source)}
                 onChange={(event) =>
                   setEnabled((current) =>
                     event.target.checked
@@ -348,6 +378,7 @@ export function SettingsPanel({
             </label>
           ))}
         </fieldset>
+        <p className="sub">At least one source stays in the briefing.</p>
         <div className="row">
           <button type="submit" className="primary">
             Save preferences

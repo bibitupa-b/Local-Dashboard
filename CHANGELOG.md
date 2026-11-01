@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.5
+
+- Search shows the matching line instead of the first characters of the note.
+- Attention items link to the note, mail, GitHub item or Drive file they describe.
+- Source and briefing errors are translated into a next step (balance, reconnect, app password, network) instead of raw provider codes.
+- Failed Sync, Search, Test and diff requests now report an error instead of hanging or failing silently.
+- Dates and times always use `en-GB`, so the English interface no longer mixes in the system locale.
+- The Today strip is always visible: “No events today” or “Calendar not connected”.
+- Browsing history is pruned after 90 days.
+- At least one briefing source stays enabled.
+- Fixed a corrupted console message and a malformed function in the desktop shell.
+- Keyboard: `/` focuses search, `b` generates a briefing, `Esc` clears search results.
+
 ## 0.9.4
 
 - Quit no longer waits for the first sync: scheduler, watcher and server stop immediately, with a 3-second hard exit fallback. The port is released right away.

@@ -135,6 +135,20 @@ test('search covers notes, mail and drive names', async () => {
   await app.close()
 })
 
+test('note search snippet shows the matching line, not the note opening', async () => {
+  const { app, db } = harness()
+  const text = `${'filler line\n'.repeat(30)}the zen garden is here\nmore text`
+  db.prepare(
+    `INSERT INTO vault_files (path, hash, mtime, size, previous_text) VALUES ('Long.md', 'h', '2026-10-31T10:00:00.000Z', ?, ?)`,
+  ).run(text.length, text)
+
+  const res = await app.inject({ method: 'GET', url: '/api/search?q=zen' })
+  const snippet = res.json().notes[0].snippet as string
+  expect(snippet).toContain('zen garden is here')
+  expect(snippet.startsWith('…')).toBe(true)
+  await app.close()
+})
+
 test('vault change diff is returned by id', async () => {
   const { app, db } = harness()
   const { lastInsertRowid } = db

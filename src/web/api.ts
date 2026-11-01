@@ -30,11 +30,23 @@ export type FeedItem = {
 }
 export type FeedDay = { date: string; items: FeedItem[] }
 export type AttentionItem = {
-  kind: 'task' | 'mail' | 'calendar' | 'stale-project' | 'inbox' | 'drive'
+  kind:
+    | 'task'
+    | 'mail'
+    | 'reply'
+    | 'browser'
+    | 'github'
+    | 'calendar'
+    | 'stale-project'
+    | 'inbox'
+    | 'drive'
   label: string
   detail: string
   count?: number
   path?: string
+  messageId?: string
+  url?: string
+  fileId?: string
 }
 export type Briefing = { id: number; created_at: string; trigger: string; markdown: string }
 export type CalendarEvent = {
@@ -113,7 +125,8 @@ export const api = {
   vaultChange: (id: number) =>
     get<{ path: string; diff: string; detected_at: string }>(`/api/vault/changes/${id}`),
   sync: async (): Promise<void> => {
-    await fetch('/api/sync', { method: 'POST' })
+    const res = await fetch('/api/sync', { method: 'POST' })
+    if (!res.ok) throw new Error(`Sync failed (${res.status})`)
   },
   generate: async (): Promise<{ markdown: string } | { error: string }> => {
     const res = await fetch('/api/briefings/generate', { method: 'POST' })
@@ -131,6 +144,8 @@ export const api = {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
+    }).then((res) => {
+      if (!res.ok) throw new Error(`Saving preferences failed (${res.status})`)
     })
   },
   connections: () => get<{ items: Connection[] }>('/api/connections'),

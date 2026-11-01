@@ -13,7 +13,7 @@ const responses: Record<string, unknown> = {
   '/api/feed?days=7': { days: [] },
   '/api/attention': [],
   '/api/briefings?limit=10': { items: [] },
-  '/api/today': { events: [] },
+  '/api/today': { events: [], free: [], conflicts: [] },
   '/api/settings': {
     vaultPath: 'C:/notes',
     briefingHour: 8,

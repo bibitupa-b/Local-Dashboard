@@ -11,6 +11,7 @@ import {
   type Today,
 } from './api.js'
 import { SettingsPanel } from './Settings.js'
+import { friendlyError } from './errors.js'
 import { driveUrl, mailUrl, obsidianUrl, sourceUrl } from './links.js'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -33,7 +34,7 @@ function dayLabel(iso: string): string {
 }
 
 function time(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
 
 export function App() {
@@ -59,6 +60,7 @@ export function App() {
   const [activeSuggestion, setActiveSuggestion] = useState(0)
   const [openDiff, setOpenDiff] = useState<{ id: number; path: string; diff: string } | null>(null)
   const [expandedDays, setExpandedDays] = useState<string[]>([])
+  const searchRef = useRef<HTMLInputElement>(null)
 
   async function load() {
     try {
@@ -151,6 +153,35 @@ export function App() {
     return undefined
   }, [status])
 
+  useEffect(() => {
+    if (showSettings) return
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const typing =
+        !!target &&
+        (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)
+      if (event.key === '/' && !typing) {
+        event.preventDefault()
+        searchRef.current?.focus()
+      } else if (event.key === 'Escape' && !typing) {
+        setSuggestions(null)
+        setResults(null)
+        setResultsQuery('')
+      } else if (
+        (event.key === 'b' || event.key === 'B') &&
+        !typing &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey
+      ) {
+        event.preventDefault()
+        void generate()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showSettings])
+
   function withViewTransition(update: () => void): void {
     const doc = document as Document & {
       startViewTransition?: (callback: () => void) => unknown
@@ -183,7 +214,7 @@ export function App() {
           text:
             result.error === 'no-key'
               ? 'Add a DeepSeek key in Settings -> Connections.'
-              : `Briefing failed: ${result.error}`,
+              : `Briefing failed: ${friendlyError(result.error)}`,
           tone: 'error',
         })
       } else {
@@ -196,7 +227,9 @@ export function App() {
       }
     } catch (error) {
       setNote({
-        text: error instanceof Error ? `Briefing failed: ${error.message}` : 'Briefing failed',
+        text: `Briefing failed: ${friendlyError(
+          error instanceof Error ? error.message : String(error),
+        )}`,
         tone: 'error',
       })
     } finally {
@@ -212,9 +245,17 @@ export function App() {
       setResultsQuery('')
       return
     }
-    setResults(await api.search(term))
-    setResultsQuery(term)
-    setSuggestions(null)
+    try {
+      const found = await api.search(term)
+      setResults(found)
+      setResultsQuery(term)
+      setSuggestions(null)
+    } catch (error) {
+      setNote({
+        text: friendlyError(error instanceof Error ? error.message : String(error)),
+        tone: 'error',
+      })
+    }
   }
 
   type Suggestion = { kind: 'note' | 'mail' | 'drive'; label: string; detail?: string; url: string }
@@ -246,6 +287,13 @@ export function App() {
     else window.open(url, '_blank', 'noopener,noreferrer')
   }
 
+  function attentionHref(item: AttentionItem): string | null {
+    if (item.path) return obsidianUrl(vaultPath, item.path)
+    if (item.messageId) return mailUrl(item.messageId, item.label)
+    if (item.fileId) return driveUrl(item.fileId)
+    return item.url ?? null
+  }
+
   function choose(item?: Suggestion) {
     const target = item ?? items[activeSuggestion]
     if (!target) return
@@ -274,7 +322,14 @@ export function App() {
       setOpenDiff(null)
       return
     }
-    setOpenDiff({ id, ...(await api.vaultChange(id)) })
+    try {
+      setOpenDiff({ id, ...(await api.vaultChange(id)) })
+    } catch (error) {
+      setNote({
+        text: friendlyError(error instanceof Error ? error.message : String(error)),
+        tone: 'error',
+      })
+    }
   }
 
   const isElectron = navigator.userAgent.includes('Electron')
@@ -352,7 +407,7 @@ export function App() {
           <div>
             <h1>Local Dashboard</h1>
             <p className="sub">
-              {new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
+              {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
           </div>
         </div>
@@ -361,7 +416,7 @@ export function App() {
             {statusGroups.map((group) => {
               const url = sourceUrl(group.service, vaultPath)
               const className = `pill ${group.configured > 0 ? 'ok' : 'off'}${group.error ? ' bad' : ''}`
-              const title = group.error ?? `${group.configured}/${group.total} connected`
+              const title = group.error ? friendlyError(group.error) : `${group.configured}/${group.total} connected`
               const name = SERVICE_LABELS[group.service] ?? group.service
               const label = (
                 <>
@@ -396,7 +451,17 @@ export function App() {
             <button
               className="ghost"
               onClick={() => {
-                void api.sync().then(load)
+                void api
+                  .sync()
+                  .then(load)
+                  .catch((error: unknown) =>
+                    setNote({
+                      text: friendlyError(
+                        error instanceof Error ? error.message : String(error),
+                      ),
+                      tone: 'error',
+                    }),
+                  )
               }}
             >
               Sync
@@ -460,9 +525,14 @@ export function App() {
         </p>
       )}
 
-      {today && today.events.length > 0 && (
+      {today && settings && (
         <section className="today enter-item" style={{ '--i': 1 } as React.CSSProperties}>
           <span className="today-label">Today</span>
+          {today.events.length === 0 && (
+            <span className="event free">
+              {settings.calendarConnected ? 'No events today' : 'Calendar not connected'}
+            </span>
+          )}
           {today.events.map((event) => (
             <span key={event.id} className="event">
               <b>
@@ -485,6 +555,7 @@ export function App() {
       <form className="search enter-item" style={{ '--i': 2 } as React.CSSProperties} onSubmit={(event) => void search(event)}>
         <div className="search-wrap">
           <input
+            ref={searchRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={onSearchKey}
@@ -601,7 +672,7 @@ export function App() {
         ) : latest ? (
           <>
             <p className="sub">
-              {new Date(latest.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+              {new Date(latest.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
             </p>
             <div className="markdown">
               {latest.markdown.split('\n').map((line, index) => (
@@ -619,14 +690,14 @@ export function App() {
           <p className="empty">No briefing yet. Generate one whenever you are ready.</p>
         )}
         {latest && status && !status.briefingToday && (
-          <p className="empty">No briefing for today yet.</p>
+          <p className="empty">No briefing for today yet — showing the last one.</p>
         )}
         {briefings.length > 1 && (
           <details className="earlier">
             <summary>Earlier briefings</summary>
             {briefings.slice(1).map((briefing) => (
               <article key={briefing.id}>
-                <h3>{new Date(briefing.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</h3>
+                <h3>{new Date(briefing.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</h3>
                 <div className="markdown">{briefing.markdown}</div>
               </article>
             ))}
@@ -698,14 +769,28 @@ export function App() {
           <h2>Needs attention</h2>
           {attention.length === 0 && <p className="empty">Nothing needs attention.</p>}
           <ul className="attention">
-            {attention.map((item, index) => (
-              <li key={`${item.kind}-${index}`}>
-                <span className={`kind ${item.kind}`}>{item.kind.replace('-', ' ')}</span>
-                <span className="label">{item.label}</span>
-                {item.count && item.count > 1 && <span className="count">×{item.count}</span>}
-                <span className="detail">{item.detail}</span>
-              </li>
-            ))}
+            {attention.map((item, index) => {
+              const href = attentionHref(item)
+              return (
+                <li key={`${item.kind}-${index}`}>
+                  <span className={`kind ${item.kind}`}>{item.kind.replace('-', ' ')}</span>
+                  {href ? (
+                    <a
+                      className="label"
+                      href={href}
+                      target={href.startsWith('obsidian://') ? undefined : '_blank'}
+                      rel={href.startsWith('obsidian://') ? undefined : 'noreferrer'}
+                    >
+                      {item.label}
+                    </a>
+                  ) : (
+                    <span className="label">{item.label}</span>
+                  )}
+                  {item.count && item.count > 1 && <span className="count">×{item.count}</span>}
+                  <span className="detail">{item.detail}</span>
+                </li>
+              )
+            })}
           </ul>
         </section>
       </div>

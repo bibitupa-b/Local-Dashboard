@@ -45,6 +45,10 @@ export function createBrowserSource(reader: BrowserReader | null, meta: SourceMe
         insert.run(connectionId, visit.url, visit.domain, visit.title, visit.visitedAt)
       }
       if (newest) setSetting(db, cursorKey, newest)
+      // Browsing history is an event log, not an archive: 90 days keeps the DB small.
+      db.prepare('DELETE FROM browser_visits WHERE visited_at < ?').run(
+        new Date(now.getTime() - 90 * 86_400_000).toISOString(),
+      )
       setSetting(db, syncKey, now.toISOString())
     },
     lastSync: (db) => getSetting(db, syncKey),

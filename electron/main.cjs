@@ -226,7 +226,8 @@ function quitApp() {
 
 ipcMain.on('app:quit', quitApp)
 
-async function probeDashboard(url) {  try {
+async function probeDashboard(url) {
+  try {
     const response = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1500) })
     if (!response.ok) return false
     const body = await response.json()

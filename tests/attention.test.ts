@@ -128,6 +128,29 @@ test('excluded vault folders disappear from the attention queue', async () => {
   expect(items.some((item) => item.label === 'keep me')).toBe(true)
 })
 
+test('attention items carry enough to open the source', () => {
+  const db = openDb(':memory:')
+  const fresh = new Date(NOW.getTime() - 3_600_000).toISOString()
+  db.prepare(
+    `INSERT INTO mail_messages (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
+     VALUES ('INBOX', 1, '<m1@x.com>', 'Alice <a@x.com>', 'Plan', ?, 0, 0, '', NULL, '[]', 0)`,
+  ).run(fresh)
+  db.prepare(
+    `INSERT INTO github_items (id, kind, repo, title, url, updated_at) VALUES ('n1', 'review', 'o/r', 'Fix', 'https://github.com/o/r/pull/1', ?)`,
+  ).run(fresh)
+  db.prepare(`INSERT INTO drive_changes (file_id, kind, detected_at) VALUES ('f1', 'modified', ?)`).run(
+    fresh,
+  )
+  db.prepare(
+    `INSERT INTO drive_files (id, name, mime_type, modified_time, parents) VALUES ('f1', 'Doc', 'doc', ?, '[]')`,
+  ).run(fresh)
+
+  const items = buildAttention(db, NOW, { staleDays: 14, inboxDays: 3 })
+  expect(items.find((item) => item.kind === 'mail')?.messageId).toBe('<m1@x.com>')
+  expect(items.find((item) => item.kind === 'github')?.url).toBe('https://github.com/o/r/pull/1')
+  expect(items.find((item) => item.kind === 'drive')?.fileId).toBe('f1')
+})
+
 test('untagged tasks appear once and the first item is the loudest group', () => {
   const db = openDb(':memory:')
   task(db, 'Inbox/Idea.md', 'single task', null)

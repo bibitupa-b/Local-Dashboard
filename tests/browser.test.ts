@@ -47,6 +47,20 @@ test('indexes visits and skips excluded domains', async () => {
   expect(db.prepare('SELECT COUNT(*) AS n FROM browser_visits').get()).toEqual({ n: 1 })
 })
 
+test('visits older than the retention window are pruned on sync', async () => {
+  const db = openDb(':memory:')
+  const old = new Date(Date.now() - 120 * 86_400_000).toISOString()
+  db.prepare('INSERT INTO browser_visits (url, domain, title, visited_at) VALUES (?, ?, ?, ?)').run(
+    'https://old.example/a',
+    'old.example',
+    'Old',
+    old,
+  )
+  const reader: BrowserReader = { path: 'fake', visitsSince: async () => [] }
+  await createBrowserSource(reader).sync(db)
+  expect(db.prepare('SELECT COUNT(*) AS n FROM browser_visits').get()).toEqual({ n: 0 })
+})
+
 test('chromium reader starts from the newest visits and then goes forward', async () => {
   const { mkdtempSync, rmSync } = await import('node:fs')
   const { tmpdir } = await import('node:os')

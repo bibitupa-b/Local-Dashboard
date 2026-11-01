@@ -61,6 +61,15 @@ type FeedItem = {
   removed?: number
 }
 
+function snippet(text: string, term: string): string {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  const at = flat.toLowerCase().indexOf(term.toLowerCase())
+  if (at < 0) return flat.slice(0, 160)
+  const start = Math.max(0, at - 60)
+  const end = Math.min(flat.length, at + term.length + 100)
+  return `${start > 0 ? '…' : ''}${flat.slice(start, end)}${end < flat.length ? '…' : ''}`
+}
+
 function feed(db: DatabaseSync, days: number): Array<{ date: string; items: FeedItem[] }> {
   const since = new Date(Date.now() - days * 86_400_000).toISOString()
   const vault = (
@@ -200,13 +209,15 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     if (term.length < 2) return { notes: [], mail: [], drive: [] }
     const like = `%${term.replace(/[\\%_]/g, '\\$&')}%`
 
-    const notes = db
-      .prepare(
-        `SELECT path, substr(previous_text, 1, 160) AS snippet FROM vault_files
-         WHERE path LIKE ? ESCAPE '\\' OR previous_text LIKE ? ESCAPE '\\'
-         ORDER BY mtime DESC LIMIT 10`,
-      )
-      .all(like, like)
+    const notes = (
+      db
+        .prepare(
+          `SELECT path, previous_text AS text FROM vault_files
+           WHERE path LIKE ? ESCAPE '\\' OR previous_text LIKE ? ESCAPE '\\'
+           ORDER BY mtime DESC LIMIT 10`,
+        )
+        .all(like, like) as Array<{ path: string; text: string }>
+    ).map((row) => ({ path: row.path, snippet: snippet(row.text, term) }))
 
     const mail = db
       .prepare(
