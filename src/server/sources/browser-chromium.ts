@@ -7,17 +7,18 @@ const CHROME_EPOCH_OFFSET_MS = 11_644_473_600_000
 const MAX_VISITS = 5000
 
 export function chromiumMicrosToIso(micros: number | bigint): string {
-  return new Date(Number(micros) / 1000 - CHROME_EPOCH_OFFSET_MS).toISOString()
+  return new Date(Number(BigInt(micros) / 1000n) - CHROME_EPOCH_OFFSET_MS).toISOString()
 }
 
-export function isoToChromiumMicros(iso: string): number {
-  return (Date.parse(iso) + CHROME_EPOCH_OFFSET_MS) * 1000
+export function isoToChromiumMicros(iso: string): bigint {
+  return BigInt(Date.parse(iso) + CHROME_EPOCH_OFFSET_MS) * 1000n
 }
 
 function defaultProfile(): string | null {
   const local = process.env.LOCALAPPDATA
   if (!local) return null
   const candidates = [
+    join(local, 'imput', 'Helium', 'User Data', 'Default', 'History'),
     join(local, 'Google', 'Chrome', 'User Data', 'Default', 'History'),
     join(local, 'Microsoft', 'Edge', 'User Data', 'Default', 'History'),
   ]
@@ -42,19 +43,23 @@ export function createChromiumBrowserReader(
 
       const db = new DatabaseSync(copy, { readOnly: true })
       try {
-        const rows = db
-          .prepare(
-            `SELECT url, title, last_visit_time AS visited
-             FROM urls WHERE last_visit_time > ? ORDER BY last_visit_time ASC LIMIT ?`,
-          )
-          .all(iso ? isoToChromiumMicros(iso) : 0, limit) as Array<{
+        const cursor = iso ? isoToChromiumMicros(iso) : null
+        const select = `SELECT url, title, last_visit_time AS visited FROM urls`
+        const query =
+          cursor === null
+            ? // First run starts from the newest visits; older history is deliberately skipped.
+              db.prepare(`${select} ORDER BY last_visit_time DESC LIMIT ?`)
+            : db.prepare(`${select} WHERE last_visit_time > ? ORDER BY last_visit_time ASC LIMIT ?`)
+        // Chromium timestamps exceed Number.MAX_SAFE_INTEGER; read them as BigInt.
+        query.setReadBigInts(true)
+        const rows = (cursor === null ? query.all(limit) : query.all(cursor, limit)) as Array<{
           url: string
           title: string | null
-          visited: number
+          visited: number | bigint
         }>
 
         const visits: BrowserVisit[] = []
-        for (const row of rows) {
+        for (const row of cursor === null ? [...rows].reverse() : rows) {
           const domain = domainOf(row.url)
           if (!domain) continue
           visits.push({

@@ -49,7 +49,7 @@ Fill in `.env`:
 | `GMAIL_USER` | Gmail address. |
 | `GMAIL_APP_PASSWORD` | App password: Google Account → Security → 2-Step Verification → App passwords. |
 | `GITHUB_TOKEN` | Classic token with the `notifications` scope. |
-| `BROWSER_HISTORY_PATH` | Optional path to a Chromium `History` file; Chrome then Edge are auto-detected when empty. |
+| `BROWSER_HISTORY_PATH` | Optional path to a Chromium `History` file; Helium, Chrome then Edge are auto-detected when empty. |
 
 Google Drive and Calendar are connected once from the settings page: the app opens the consent screen and stores the refresh token in `data/google-token.json` (gitignored). Google authorizes both services from one consent.
 
