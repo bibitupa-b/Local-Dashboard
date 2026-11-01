@@ -4,7 +4,7 @@ A single-user dashboard that runs on your own machine and shows one quiet screen
 
 Everything stays local. The only outbound request is the digest sent to the DeepSeek API when a briefing is generated.
 
-> Status: phase 1 is implemented — vault indexing, Drive sync, attention queue, briefing, autostart.
+> Status: 0.7 — desktop app with universal connections, ready for daily use; 1.0 follows after stabilisation.
 
 ## What it does
 
@@ -34,36 +34,34 @@ Explicit non-goals: writing to your services, cloud storage of your data, mobile
 git clone git@github.com:bibitupa-b/Local-Dashboard.git
 cd Local-Dashboard
 npm install
-Copy-Item .env.example .env
 ```
 
-Fill in `.env`:
+For the desktop app, install `release\Local Dashboard Setup <version>.exe`. For running from source, `npm run electron:dev`.
+
+`.env` is optional. It is imported once on first start and stays useful for CLI runs:
 
 | Variable | Purpose |
 | --- | --- |
-| `DEEPSEEK_API_KEY` | Key from platform.deepseek.com. Without it the briefing card shows setup instructions; the rest of the dashboard works. |
-| `GOOGLE_CLIENT_ID` | From your Google Cloud OAuth client. |
-| `GOOGLE_CLIENT_SECRET` | Same client. |
-| `VAULT_PATH` | Path to the vault. Defaults to `%USERPROFILE%\Documents\Main Obsidian Vault`. |
 | `PORT` | Local port. Defaults to `4317`. |
-| `GMAIL_USER` | Gmail address. |
-| `GMAIL_APP_PASSWORD` | App password: Google Account → Security → 2-Step Verification → App passwords. |
-| `GITHUB_TOKEN` | Classic token with the `notifications` scope. |
-| `BROWSER_HISTORY_PATH` | Optional path to a Chromium `History` file; Helium, Chrome then Edge are auto-detected when empty. |
+| `DEEPSEEK_API_KEY` | Optional fallback; the key can be entered in Settings instead. |
+| `VAULT_PATH` | Optional default vault path; add vaults in Settings. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional import for a Google connection. |
+| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Optional import for a Gmail connection. |
+| `GITHUB_TOKEN` | Optional import for a GitHub connection. |
+| `BROWSER_HISTORY_PATH` | Optional import for browser history. |
 
-Google Drive and Calendar are connected once from the settings page: the app opens the consent screen and stores the refresh token in `data/google-token.json` (gitignored). Google authorizes both services from one consent.
-
-Use a **Desktop app** OAuth client with the redirect URI `http://127.0.0.1:4317/api/oauth/google/callback` (change the port if you set `PORT`). Set the app's publishing status to **Production** — while it stays in *Testing*, Google expires refresh tokens after 7 days and you would have to sign in again every week.
+Google Drive and Calendar are connected from **Settings → Connections**. Use a **Desktop app** OAuth client with the redirect URI `http://127.0.0.1:4317/api/oauth/google/callback` (change the port if you set `PORT`). Set the app's publishing status to **Production** — while it stays in *Testing*, Google expires refresh tokens after 7 days.
 
 ## Connections
 
-Everything except the DeepSeek key is configured in **Settings → Connections** and stored in the local database; secrets are encrypted with a key file in `data/`. The `.env` file is imported automatically on first start and remains supported for CLI runs.
+Everything is configured in **Settings → Connections** and stored in the local database; secrets are encrypted with a key file in `data/`.
 
 - **Obsidian vault** — one or more folders, read-only.
 - **Google Drive & Calendar** — Client ID/secret plus one OAuth consent; the token is stored per connection.
 - **Gmail (IMAP)** — address and app password.
 - **GitHub** — personal access token with the `notifications` scope.
 - **Browser history** — Helium/Chrome/Edge auto-detected, or a custom Chromium profile path.
+- **DeepSeek API** — key for the daily briefing.
 
 Each group has a **?** hint with the exact steps to obtain access. After the first account is connected, **+ Add account** adds another one of the same service.
 
@@ -78,10 +76,10 @@ npm run dist           # Windows installer and portable exe in release/
 
 In the packaged app:
 
-- data lives in `%APPDATA%\Local Dashboard\data` (database, Google token, logs, backups);
-- copy your `.env` there as `%APPDATA%\Local Dashboard\data\.env` — secrets are never bundled;
+- data lives in `%APPDATA%\Local Dashboard\data` (database, logs, backups);
 - closing the window keeps the app in the tray; **Quit** in the tray stops the server;
-- **Start with Windows** is enabled on first launch and can be toggled from the tray.
+- **Start with Windows** is enabled on first launch and can be toggled from the tray;
+- if the port is already served by another copy or a dev server, the window attaches to it instead of failing.
 
 ## Running without the desktop shell
 
@@ -93,11 +91,15 @@ npm start      # single process serving the built UI
 
 Open http://localhost:4317.
 
-### Start with Windows
+The server writes its SQLite database and logs to `data/`, which is gitignored. A copy of the database is taken daily into `data/backups/`, keeping the last seven days. Logs go to `data/server.log` (rotated at 5 MB).
 
-`scripts/start-hidden.vbs` starts the server without a console window. Create a shortcut to it and put the shortcut in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup` (`Win+R` → `shell:startup`). Then bookmark http://localhost:4317.
+## Security
 
-The server writes its SQLite database and the Google token to `data/`, which is gitignored. A copy of the database is taken daily into `data/backups/`, keeping the last seven days. Logs go to `data/server.log` (rotated at 5 MB).
+- The server binds to `127.0.0.1` only, rejects foreign `Host` headers and cross-origin write requests, and sends CSP, `nosniff`, `X-Frame-Options` and `Referrer-Policy` headers.
+- Connection secrets are encrypted with AES-256-GCM using `data/secret.key`. The key stays on the machine; without it the encrypted values cannot be recovered. Backups copy the database but not the key — keep a copy of `secret.key` if you plan to restore elsewhere.
+- The app is read-only toward services: it never writes notes, mail, calendar or Drive.
+- The build is not code-signed, so Windows SmartScreen may warn on first launch.
+
 
 ## How the briefing works
 

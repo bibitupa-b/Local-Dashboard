@@ -29,6 +29,40 @@ export type Deps = {
 
 export function buildApp(deps: Deps): FastifyInstance {
   const app = Fastify({ logger: false })
+
+  const localHosts = new Set(['127.0.0.1', 'localhost', '[::1]'])
+
+  app.addHook('onRequest', async (request, reply) => {
+    const host = (request.headers.host ?? '').split(':')[0]
+    if (host && !localHosts.has(host.toLowerCase())) {
+      return reply.code(403).send({ error: 'forbidden host' })
+    }
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+      const origin = request.headers.origin
+      if (origin) {
+        try {
+          const parsed = new URL(origin)
+          if (!localHosts.has(parsed.hostname.toLowerCase())) {
+            return reply.code(403).send({ error: 'forbidden origin' })
+          }
+        } catch {
+          return reply.code(403).send({ error: 'forbidden origin' })
+        }
+      }
+    }
+    return undefined
+  })
+
+  app.addHook('onSend', async (_request, reply, payload) => {
+    reply.header('X-Content-Type-Options', 'nosniff')
+    reply.header('X-Frame-Options', 'DENY')
+    reply.header('Referrer-Policy', 'no-referrer')
+    reply.header(
+      'Content-Security-Policy',
+      "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'",
+    )
+    return payload
+  })
   const sources = deps.getSources?.() ?? deps.sources ?? []
 
   registerRoutes(app, {

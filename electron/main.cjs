@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, dialog } = require('electron')
+const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, dialog, shell } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 
@@ -53,6 +53,15 @@ function createWindow() {
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   })
   win.once('ready-to-show', () => win.show())
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^(https?|obsidian|mailto):/i.test(url)) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url.startsWith(baseUrl)) return
+    event.preventDefault()
+    if (/^(https?|obsidian|mailto):/i.test(url)) void shell.openExternal(url)
+  })
   win.on('close', (event) => {
     if (quitting) return
     event.preventDefault()

@@ -1,0 +1,46 @@
+# Changelog
+
+## 0.7.0
+
+Security and release preparation.
+
+- Reject foreign `Host` headers and cross-origin write requests (`Origin` guard) to stop CSRF and DNS rebinding against the local API.
+- Send CSP, `X-Content-Type-Options`, `X-Frame-Options` and `Referrer-Policy` headers.
+- Electron blocks in-app navigation and opens external links through the system browser (http, https, obsidian, mailto only).
+- `npm audit` is clean: `glob` and `minimatch` pinned to patched versions via overrides.
+- Removed the obsolete `.vbs` autostart script and old installers; logs, backups and temp copies documented.
+- README, SECURITY and package metadata prepared for 1.0.
+
+## 0.6.4
+
+- The desktop app reuses a dashboard already running on the port instead of quitting silently; other startup failures show a dialog.
+
+## 0.6.3
+
+- Services without connections show a Connect button.
+
+## 0.6.2
+
+- Localized Gmail folders no longer leave duplicate rows after normalization.
+
+## 0.6.1
+
+- DeepSeek API key can be added in Settings and overrides `.env`.
+- Gmail special folders (Important, Sent, Drafts, Spam, Trash) are mapped by special-use, so Russian labels work.
+- Empty secret fields no longer overwrite saved values; IMAP test has a timeout; disconnect asks for confirmation.
+
+## 0.6.0
+
+- Universal connections: multiple accounts per service, encrypted secrets, settings rework with hints, per-connection OAuth and data.
+
+## 0.5.0
+
+- Electron desktop app with tray, native notifications, autostart, installer and portable build.
+
+## 0.4.x
+
+- Browser history, GitHub, Google Docs content, interactive search, per-source sync progress, deep links.
+
+## 0.1.0 - 0.3.0
+
+- Vault indexing and diffs, Drive sync, daily DeepSeek briefing, Gmail IMAP, Google Calendar, attention queue, notifications, search, backups and sync health.

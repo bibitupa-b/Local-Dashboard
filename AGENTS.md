@@ -70,7 +70,7 @@ These were agreed with the user; do not re-litigate them without asking.
 - Briefing target: 5–7 bullets covering what moved, what is stuck, one suggestion. Stored in SQLite, previous ones kept.
 - Scheduled 08:00 by default; generate on startup if today's briefing is missing.
 - Attention queue rules: open tasks grouped by tag (recurring tags such as `#vitamins` collapse into one row with a count), notes with frontmatter `status: Undone` untouched for 14+ days, notes sitting in `Inbox` for 3+ days, unread mail from the last 30 days and the next calendar event.
-- Autostart via a `.vbs` shortcut in `shell:startup` that runs the server hidden.
+- Autostart is managed by Electron (`app.setLoginItemSettings`), toggled from the tray.
 
 ## Data model
 
@@ -133,7 +133,8 @@ Each item: test → code → green run → commit; release bumps the version, ta
 
 ## Rules
 
-- **Secrets** live only in `.env` and `data/`. Both are gitignored; never log tokens, never commit `data/`, `dist/`, or `node_modules/`.
+- **Secrets** live only in `.env` and `data/` (connection secrets encrypted with `data/secret.key`). Both are gitignored; never log tokens, never commit `data/`, `dist/`, or `node_modules/`.
+- **Local-only surface.** The server binds `127.0.0.1`, rejects foreign `Host` headers and cross-origin writes, and sets CSP and security headers. Keep those hooks when adding routes.
 - **No raw vault content to the API.** Budget roughly a few thousand tokens per briefing; truncate long notes to a couple of sentences.
 - **Windows is the primary target.** Use `path.join`, handle non-ASCII paths (the vault uses Cyrillic and emoji folder names), read and write UTF-8.
 - **Minimal dependencies.** Standard library and existing packages first; no ORM, no state manager, no UI framework — the interface is plain React and one CSS file.

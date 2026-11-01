@@ -233,6 +233,42 @@ test('connections API saves, tests and reloads sources', async () => {
   await app.close()
 })
 
+test('rejects foreign origins and hosts', async () => {
+  const { app } = harness()
+
+  const foreignOrigin = await app.inject({
+    method: 'POST',
+    url: '/api/sync',
+    headers: { origin: 'https://evil.example' },
+  })
+  expect(foreignOrigin.statusCode).toBe(403)
+
+  const foreignHost = await app.inject({
+    method: 'GET',
+    url: '/api/health',
+    headers: { host: 'evil.example' },
+  })
+  expect(foreignHost.statusCode).toBe(403)
+
+  const local = await app.inject({
+    method: 'POST',
+    url: '/api/sync',
+    headers: { origin: 'http://127.0.0.1:4317' },
+  })
+  expect(local.statusCode).toBe(200)
+  await app.close()
+})
+
+test('sets security headers on responses', async () => {
+  const { app } = harness()
+  const res = await app.inject({ method: 'GET', url: '/api/health' })
+  expect(res.headers['content-security-policy']).toContain("default-src 'self'")
+  expect(res.headers['x-content-type-options']).toBe('nosniff')
+  expect(res.headers['x-frame-options']).toBe('DENY')
+  expect(res.headers['referrer-policy']).toBe('no-referrer')
+  await app.close()
+})
+
 test('unknown api route returns json 404', async () => {
   const { app } = harness()
   const res = await app.inject({ method: 'GET', url: '/api/nope' })

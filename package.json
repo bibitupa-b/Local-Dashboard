@@ -1,6 +1,11 @@
 {
   "name": "local-dashboard",
-  "version": "0.6.4",
+  "version": "0.7.0",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=26"
+  },
   "description": "A single-user dashboard that runs on your own machine and shows one quiet screen: what changed in your notes and cloud drive, what is waiting for your attention, and a short daily briefing written by DeepSeek.",
   "main": "electron/main.cjs",
   "scripts": {
@@ -76,5 +81,9 @@
     "vite": "^8.3.5",
     "vitest": "^5.0.5"
   },
-  "author": "bibitupa-b"
+  "author": "bibitupa-b",
+  "overrides": {
+    "minimatch": "^11.0.3",
+    "glob": "^14.0.3"
+  }
 }
