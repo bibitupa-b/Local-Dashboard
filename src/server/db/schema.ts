@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS vault_files (
+export const SCHEMA = `CREATE TABLE IF NOT EXISTS vault_files (
   path TEXT PRIMARY KEY,
   hash TEXT NOT NULL,
   mtime TEXT NOT NULL,
@@ -126,3 +126,4 @@ CREATE TABLE IF NOT EXISTS drive_doc_text (
   text TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL
 );
+`

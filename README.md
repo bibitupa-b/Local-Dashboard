@@ -55,7 +55,23 @@ Google Drive and Calendar are connected once from the settings page: the app ope
 
 Use a **Desktop app** OAuth client with the redirect URI `http://127.0.0.1:4317/api/oauth/google/callback` (change the port if you set `PORT`). Set the app's publishing status to **Production** — while it stays in *Testing*, Google expires refresh tokens after 7 days and you would have to sign in again every week.
 
-## Running
+## Desktop app
+
+The dashboard ships as an Electron app: the same Fastify server runs inside the desktop process, the window points at the local port, and the tray keeps it one click away.
+
+```powershell
+npm run electron:dev   # build UI + server bundle, open the desktop window
+npm run dist           # Windows installer and portable exe in release/
+```
+
+In the packaged app:
+
+- data lives in `%APPDATA%\Local Dashboard\data` (database, Google token, logs, backups);
+- copy your `.env` there as `%APPDATA%\Local Dashboard\data\.env` — secrets are never bundled;
+- closing the window keeps the app in the tray; **Quit** in the tray stops the server;
+- **Start with Windows** is enabled on first launch and can be toggled from the tray.
+
+## Running without the desktop shell
 
 ```powershell
 npm run dev    # server + Vite with hot reload

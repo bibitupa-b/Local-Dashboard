@@ -11,6 +11,7 @@ One screen that answers two questions about the user's own working context: **wh
 One Node process:
 
 - **API** — Fastify, served on `127.0.0.1:4317` (configurable via `PORT`).
+- **Desktop shell** — Electron (`electron/main.cjs`) starts `startServer()` from `src/server/server.ts`, opens a window on the local port and owns the tray, native notifications and Windows autostart. `dist/server/server.cjs` is the bundled server.
 - **UI** — React + Vite with plain CSS, built to static assets and served by the same process. In dev, Vite proxies to the API.
 - **Storage** — SQLite through the built-in `node:sqlite`. No ORM, no native dependencies.
 - **Vault source** — `chokidar` watches `<VAULT_PATH>`, hashes changed notes, stores a snapshot plus a line diff.
@@ -26,7 +27,7 @@ One Node process:
 src/
   server/
     index.ts            entry: config, Fastify, scheduler, watcher
-    db/schema.sql       tables + migrations
+    db/schema.ts        DDL as a TS module (bundles cleanly)
     db/index.ts         open DB, typed query helpers
     sources/vault.ts    scan, watch, diff, task extraction
     sources/drive.ts    OAuth, sync, change detection
@@ -44,10 +45,13 @@ docs/                   design docs and plans
 ### Commands
 
 ```powershell
-npm run dev      # API + Vite, hot reload
-npm run build    # typecheck + build UI
-npm start        # production
-npm test         # vitest
+npm run dev            # API + Vite, hot reload in the browser
+npm run build          # typecheck + build UI
+npm run build:server   # bundle the server for Electron (dist/server/server.cjs)
+npm run electron:dev   # build everything and open the desktop window
+npm run dist           # Windows installer + portable exe in release/
+npm start              # server only, no desktop shell
+npm test               # vitest
 ```
 
 ## Approved decisions
@@ -55,6 +59,7 @@ npm test         # vitest
 These were agreed with the user; do not re-litigate them without asking.
 
 - Local web app first; a Tauri shell is optional later.
+- Desktop shell is Electron: it embeds the existing Node server rather than requiring a system Node install. Packaged data lives in `%APPDATA%\Local Dashboard\data`; `.env` is copied there by the user, never bundled.
 - Read-only everywhere. Never write to notes, the vault, or Drive.
 - Two dashboard halves: **history** (diff-backed activity log) and **attention queue**.
 - Sources for phase 1: the Obsidian vault, Google Drive, Gmail (read-only IMAP) and Google Calendar.
@@ -97,6 +102,8 @@ The scheduler and digest builder iterate over registered sources, so a new sourc
 ## Roadmap
 
 Core mechanics (done): sync health and logging, mail filters and reply detection, calendar free windows, notifications, search, diffs, backups.
+
+Desktop (done in 0.5.0): Electron shell with tray, native notifications, Windows autostart, NSIS installer and portable build; server bundled with esbuild.
 
 ### v0.4.0 — New signals
 - Browser history: read a copy of the Chromium History DB (Chrome, then Edge), store domain/title/visited time, skip excluded domains. Digest gets aggregates only, never page URLs.
