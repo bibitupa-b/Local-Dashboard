@@ -337,8 +337,7 @@ button,
   transition-duration: 160ms;
 }
 
-.tilt-target::before,
-.tilt-target::after {
+.tilt-target::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -346,47 +345,17 @@ button,
   pointer-events: none;
   opacity: 0;
   transition: opacity var(--dur-hover) var(--ease);
-}
-
-/* specular sheen following the pointer */
-.tilt-target::before {
   z-index: 3;
-  background:
-    radial-gradient(
-      340px circle at var(--mx) var(--my),
-      rgba(233, 231, 224, 0.2),
-      rgba(155, 175, 158, 0.12) 36%,
-      transparent 66%
-    ),
-    radial-gradient(
-      220px circle at var(--mx) var(--my),
-      rgba(189, 162, 122, 0.18),
-      transparent 70%
-    );
-}
-
-/* depth-of-field bands: the middle stays sharp, edges blur */
-.tilt-target::after {
-  z-index: 2;
-  backdrop-filter: blur(3.5px);
-  -webkit-backdrop-filter: blur(3.5px);
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    #000 0%,
-    transparent 32%,
-    transparent 68%,
-    #000 100%
+  background: radial-gradient(
+    260px circle at var(--mx) var(--my),
+    rgba(233, 231, 224, 0.12),
+    rgba(155, 175, 158, 0.07) 40%,
+    transparent 70%
   );
-  mask-image: linear-gradient(to bottom, #000 0%, transparent 32%, transparent 68%, #000 100%);
-}
-
-.tilt-target.tilting::before,
-.tilt-target.tilting::after {
-  opacity: 0.9;
 }
 
 .tilt-target.tilting::before {
-  opacity: 0.7;
+  opacity: 0.55;
 }
 
 button:disabled,
@@ -1838,8 +1807,7 @@ body.motion-paused *::after {
     transition: none;
   }
 
-  .tilt-target::before,
-  .tilt-target::after {
+  .tilt-target::before {
     display: none;
   }
 

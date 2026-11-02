@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Tilt-shift now applies to cards and the Today strip only. Buttons, links, fields, pills and
+  connection action rows keep a plain hover state and never move the page.
+- Tilt starts only after the pointer rests for 150 ms, so quick passes across the window do nothing.
+- Removed the `backdrop-filter` layer that produced a vertical band inside the briefing card and
+  blurred card content; one subtle pointer sheen remains.
+
 ## 1.0.0
 
 First stable release. The daily loop — history, attention, briefing — plus the desktop shell is
