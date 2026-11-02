@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.1
 
 - Tilt-shift now applies to cards and the Today strip only. Buttons, links, fields, pills and
   connection action rows keep a plain hover state and never move the page.
