@@ -1174,6 +1174,80 @@ a.station:hover .at {
   overflow-wrap: anywhere;
 }
 
+/* The card's own status: what the server holds, not what this page wished for. */
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.save-state {
+  font: 400 12px/1.4 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  text-align: right;
+}
+
+.save-state.bad {
+  color: var(--danger);
+}
+
+/* A field and its receipt share one line until the receipt needs the width. */
+.prefs {
+  max-width: 720px;
+}
+
+.pref {
+  margin-bottom: 14px;
+}
+
+.pref-head,
+.pref-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.pref-head label,
+.pref-foot .sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.field-note {
+  font: 400 12px/1.45 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  text-align: right;
+  max-width: 60ch;
+  animation: fade-in var(--dur-reveal) var(--ease) both;
+}
+
+/* A save is worth one breath of sage, then it returns to metadata. */
+.field-note.ok {
+  animation: receipt-settle 2400ms var(--ease) both;
+}
+
+.field-note.bad {
+  color: var(--danger);
+}
+
+/* A word, not a control: it sits inside the line it belongs to. */
+.field-note button {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .conn-group {
   border-top: 1px solid var(--line-soft);
   padding: 14px 0;
@@ -1572,6 +1646,15 @@ input:-webkit-autofill {
   }
 }
 
+@keyframes receipt-settle {
+  from {
+    color: var(--accent);
+  }
+  to {
+    color: var(--muted);
+  }
+}
+
 @keyframes dialog-in {
   from {
     opacity: 0;
@@ -1696,6 +1779,17 @@ body.motion-paused *::after {
 
   .card {
     padding: 16px;
+  }
+
+  /* At a phone width the receipt drops under its label instead of squeezing it. */
+  .pref-head,
+  .pref-foot {
+    flex-wrap: wrap;
+    gap: 4px 16px;
+  }
+
+  .field-note {
+    text-align: left;
   }
 
   .search {

@@ -548,10 +548,7 @@ export function App() {
           <SettingsPanel
             settings={settings}
             onClose={closeSettings}
-            onSaved={(next) => {
-              setSettings(next)
-              setNote({ text: 'Preferences saved.', tone: 'success' })
-            }}
+            onSaved={setSettings}
           />
         </main>
       </div>

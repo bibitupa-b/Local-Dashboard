@@ -275,7 +275,9 @@ body {
 
 ### 6.3 Settings route
 
-Same `.page` shell, no sidebar. The route opens on a title step, not a section label: `Settings` in the masthead tier (20px Unbounded, Porcelain), one 13px mono line under it — `Stored on this machine. Only the briefing digest leaves it.` — and the ghost `Back to dashboard` aligned to the title's first line, with 32px to the first card. Card headings stay 12px mono uppercase, one tier below; the title is the route's only `<h1>`. Then cards: Connections (group per service, divider between groups, hint beside each group name, rows for saved accounts), Application (data directory, `Copy diagnostics`, `Check for updates`), Preferences (numeric fields, textareas, source checkboxes, `Save preferences`). Connection modal 460px, confirm dialog 380px.
+Same `.page` shell, no sidebar. The route opens on a title step, not a section label: `Settings` in the masthead tier (20px Unbounded, Porcelain), one 13px mono line under it — `Stored on this machine. Only the briefing digest leaves it.` — and the ghost `Back to dashboard` aligned to the title's first line, with 32px to the first card. Card headings stay 12px mono uppercase, one tier below; the title is the route's only `<h1>`. Then cards: Connections (group per service, divider between groups, hint beside each group name, rows for saved accounts), Application (data directory, `Copy diagnostics`, `Check for updates`), Preferences (numeric fields, textareas, source checkboxes — all live, see §7.10). Connection modal 460px, confirm dialog 380px.
+
+The Preferences card holds its fields in a 720px column so each receipt sits within a glance of its label; the card's status line stays at the card's right edge. No `Save` button: the card head carries the route's only save state — `Changes save as you edit`, `Saving…`, `All changes saved 09:14`, or `N changes not saved` — and every field carries its own receipt in the same mono micro tier.
 
 The settings route keeps cards; the dashboard keeps none. That difference is the hierarchy: reading surface vs configuration surface, not an inconsistency to smooth over.
 
@@ -366,7 +368,18 @@ Full width, padding 10px 12px, radius 10px, 13px Porcelain text, 1px border: inf
 
 ### 7.10 Forms and dialogs (settings route)
 
-Unchanged from the incumbent system: fields with persistent 12px Mist labels, `--sunken` controls with radius 6px, 2px sage focus ring offset 2, Mist placeholders at 60%, native checkboxes with `accent-color`, autofill override, modal 460px on `--raised` with `--shadow-lg`, confirm dialog 380px, focus trapped and returned, Escape and backdrop click close.
+Fields keep persistent 12px Mist labels, `--sunken` controls with radius 6px, 2px sage focus ring offset 2, Mist placeholders at 60%, native checkboxes with `accent-color`, autofill override, modal 460px on `--raised` with `--shadow-lg`, confirm dialog 380px, focus trapped and returned, Escape and backdrop click close.
+
+**Preferences save themselves.** There is no `Save` button and no page-level confirmation: an edit is written 500 ms after the last keystroke, and the field reports the truth in 12px mono at the end of its label line.
+
+| State | Receipt | Meaning |
+|---|---|---|
+| Saving | `Saving…` in Mist | The write is in flight |
+| Saved | `Saved 09:14` — Sage, settling to Mist over 2.4s | The server holds this value |
+| Invalid | the field's range, e.g. `0–23`, in Mist | Nothing is sent; the field is unsaved |
+| Failed | the cause in Clay plus a `Retry` link | The typed value stays on screen, unsaved |
+
+Rules: a typed value is never discarded by a failed write; leaving the route flushes the last valid edit; a field that returns to the value the server already holds drops its receipt; the card head aggregates them (`Saving…` wins over `All changes saved`, any failure wins over both) and is the page's only live region for saves.
 
 ### 7.11 Empty, loading, error
 
@@ -421,6 +434,7 @@ Unchanged from the incumbent system: fields with persistent 12px Mist labels, `-
 | 15 | Hint tooltip | Hover / focus | Fade | 120ms | Instant |
 | 16 | Connection test | Click `Test` | 14px spinner rotates; result colour fades in | 900ms linear; 240ms | Static `testing…` |
 | 17 | Banner | Appears | Fade + 4px rise; exit 120ms | 200ms | Fade only |
+| 18 | Preference receipt | Field saves / fails | The line fades in; `Saved` enters Sage and settles to Mist | 180ms in; 2.4s settle | Instant, Mist |
 
 Rules that apply to every row:
 
@@ -524,6 +538,7 @@ If a future feature needs a new component, it reuses these tokens; a new colour 
 - [x] No cards on the dashboard; settings keeps `--surface` cards.
 - [x] One sage primary per view (`Briefing now`).
 - [x] Clay never on Slate.
+- [x] Preferences save on edit; every field names its state and a failed write keeps the text.
 - [x] `--line-strong` on inputs; persistent labels; sage focus ring.
 - [x] The services line is a labelled region; the rail is the sync progressbar, labelled only while running.
 - [x] Every dialog shares one pattern: focus moves in, Tab stays inside, Escape closes, focus returns.

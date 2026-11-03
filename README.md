@@ -28,6 +28,8 @@ briefing is generated.
 - **Browser history** — Chrome, Edge or Helium domains; only aggregate counts reach the briefing.
 - **GitHub** — unread notifications and review requests.
 - **Desktop shell** — Electron window, tray, native notifications and optional autostart.
+- **Settings** — connections with a hint per service. Preferences save as you edit; each field shows
+  its own `Saving…` / `Saved 09:14` receipt, and a failed write keeps your text with `Retry`.
 
 ## Install
 

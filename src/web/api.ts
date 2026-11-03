@@ -146,7 +146,7 @@ export const api = {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     }).then((res) => {
-      if (!res.ok) throw new Error(`Saving preferences failed (${res.status})`)
+      if (!res.ok) throw new Error(`Saving preferences failed: ${res.status}`)
     })
   },
   connections: () => get<{ items: Connection[] }>('/api/connections'),

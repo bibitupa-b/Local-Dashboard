@@ -19,6 +19,13 @@
   printing the browser's `Failed to fetch`.
 - Search results keep the query's own case, and a wrapped path keeps its source dot on the first
   line.
+- Preferences save as you edit: the `Save preferences` button is gone. Each field shows its own
+  `Saving…` / `Saved 09:14` receipt, the card head counts what is unsaved, and a failed write keeps
+  your text with a `Retry` link instead of discarding it.
+- A hidden window no longer polls the server; status is fetched every three seconds only while a
+  sync is running, and nothing at all at rest.
+- One failing endpoint no longer blanks the page: the rest of the dashboard renders and the banner
+  names what is missing, with `Try again`.
 
 ## 1.1.0
 

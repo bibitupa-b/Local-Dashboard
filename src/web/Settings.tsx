@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   api,
@@ -119,6 +119,124 @@ const SOURCE_LABELS: Record<string, string> = {
 
 type Notice = { text: string; tone: 'info' | 'success' | 'error' }
 
+type Receipt = { state: 'saving' | 'saved' | 'error' | 'invalid'; at: number; reason?: string }
+
+function clock(at: number): string {
+  const date = new Date(at)
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/**
+ * One field that saves itself. The value stays on screen while it is written, and the receipt
+ * says what the server actually holds: a failed save never silently keeps an unsaved value.
+ */
+function useLiveSave<T>(
+  initial: T,
+  commit: (value: T) => Promise<void>,
+  options: { accept?: (value: T) => boolean; hint?: string; delay?: number } = {},
+) {
+  const [draft, setDraft] = useState(initial)
+  const [receipt, setReceipt] = useState<Receipt | null>(null)
+  const latest = useRef(initial)
+  const stored = useRef(initial)
+  const valid = useRef(true)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sending = useRef(false)
+  const repeat = useRef(false)
+  const alive = useRef(true)
+  const commitRef = useRef(commit)
+  const optionsRef = useRef(options)
+
+  useEffect(() => {
+    commitRef.current = commit
+    optionsRef.current = options
+  })
+
+  async function send(): Promise<void> {
+    if (sending.current) {
+      repeat.current = true
+      return
+    }
+    if (latest.current === stored.current) return
+    sending.current = true
+    const value = latest.current
+    if (alive.current) setReceipt({ state: 'saving', at: Date.now() })
+    try {
+      await commitRef.current(value)
+      stored.current = value
+      if (alive.current) setReceipt({ state: 'saved', at: Date.now() })
+    } catch (error) {
+      if (alive.current) {
+        setReceipt({
+          state: 'error',
+          at: Date.now(),
+          reason: friendlyError(error instanceof Error ? error.message : String(error)),
+        })
+      }
+    } finally {
+      sending.current = false
+    }
+    if (repeat.current) {
+      repeat.current = false
+      void send()
+    }
+  }
+
+  function edit(next: T): void {
+    latest.current = next
+    setDraft(next)
+    if (timer.current) clearTimeout(timer.current)
+    const { accept, hint } = optionsRef.current
+    valid.current = !accept || accept(next)
+    if (!valid.current) {
+      setReceipt({ state: 'invalid', at: Date.now(), reason: hint })
+      return
+    }
+    // Back on the value the server already holds: there is nothing left to report.
+    if (next === stored.current) {
+      setReceipt(null)
+      return
+    }
+    timer.current = setTimeout(() => void send(), optionsRef.current.delay ?? 500)
+  }
+
+  // Leaving the route mid-edit must still write the last valid value.
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+      if (timer.current) clearTimeout(timer.current)
+      if (!valid.current || latest.current === stored.current) return
+      if (sending.current) repeat.current = true
+      else void commitRef.current(latest.current)
+    }
+  }, [])
+
+  return { draft, receipt, edit, retry: () => void send() }
+}
+
+function FieldNote({ receipt, onRetry }: { receipt: Receipt | null; onRetry: () => void }) {
+  if (!receipt) return null
+  if (receipt.state === 'saving') return <span className="field-note">Saving…</span>
+  if (receipt.state === 'saved')
+    return (
+      <span key={receipt.at} className="field-note ok">
+        Saved {clock(receipt.at)}
+      </span>
+    )
+  if (receipt.state === 'invalid')
+    return <span className="field-note">{receipt.reason ?? 'Not a valid value'}</span>
+  return (
+    <span className="field-note bad">
+      {receipt.reason ?? 'Not saved'}{' '}
+      <button type="button" onClick={onRetry}>
+        Retry
+      </button>
+    </span>
+  )
+}
+
 export function SettingsPanel({
   settings,
   onSaved,
@@ -133,14 +251,74 @@ export function SettingsPanel({
   const [confirming, setConfirming] = useState<Connection | null>(null)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [tests, setTests] = useState<Record<string, string>>({})
-  const [briefingHour, setBriefingHour] = useState(settings.briefingHour)
-  const [windowHours, setWindowHours] = useState(settings.digestWindowHours)
-  const [senders, setSenders] = useState(settings.excludedSenders.join('\n'))
-  const [vaultPrefixes, setVaultPrefixes] = useState(settings.excludedVaultPrefixes.join('\n'))
-  const [browserDomains, setBrowserDomains] = useState(settings.excludedBrowserDomains.join('\n'))
-  const [enabled, setEnabled] = useState<string[]>(
-    settings.enabledSources.length > 0 ? settings.enabledSources : Object.keys(SOURCE_LABELS),
+
+  // Autosave is the affordance: every field writes itself and carries its own receipt.
+  const latestSettings = useRef(settings)
+
+  function remember(patch: Partial<Settings>): void {
+    latestSettings.current = { ...latestSettings.current, ...patch }
+    onSaved(latestSettings.current)
+  }
+
+  const hour = useLiveSave(
+    String(settings.briefingHour),
+    async (raw) => {
+      await api.saveSettings({ briefingHour: Number(raw) })
+      remember({ briefingHour: Number(raw) })
+    },
+    { accept: (raw) => /^\d{1,2}$/.test(raw) && Number(raw) <= 23, hint: '0–23' },
   )
+
+  const windowHours = useLiveSave(
+    String(settings.digestWindowHours),
+    async (raw) => {
+      await api.saveSettings({ digestWindowHours: Number(raw) })
+      remember({ digestWindowHours: Number(raw) })
+    },
+    { accept: (raw) => /^\d+$/.test(raw) && Number(raw) >= 1, hint: '1 or more' },
+  )
+
+  const senders = useLiveSave(settings.excludedSenders.join('\n'), async (raw) => {
+    const list = lines(raw)
+    await api.saveSettings({ excludedSenders: list })
+    remember({ excludedSenders: list })
+  })
+
+  const vaultPrefixes = useLiveSave(settings.excludedVaultPrefixes.join('\n'), async (raw) => {
+    const list = lines(raw)
+    await api.saveSettings({ excludedVaultPrefixes: list })
+    remember({ excludedVaultPrefixes: list })
+  })
+
+  const browserDomains = useLiveSave(settings.excludedBrowserDomains.join('\n'), async (raw) => {
+    const list = lines(raw)
+    await api.saveSettings({ excludedBrowserDomains: list })
+    remember({ excludedBrowserDomains: list })
+  })
+
+  const sources = useLiveSave(
+    settings.enabledSources.length > 0 ? settings.enabledSources : Object.keys(SOURCE_LABELS),
+    async (list) => {
+      await api.saveSettings({ enabledSources: list })
+      remember({ enabledSources: list })
+    },
+  )
+
+  const fields = [hour, windowHours, senders, vaultPrefixes, browserDomains, sources]
+  const receipts = fields.map((field) => field.receipt)
+  const unsaved = receipts.filter((receipt) => receipt?.state === 'error').length
+  const saving = receipts.some((receipt) => receipt?.state === 'saving')
+  const lastSaved = receipts.reduce(
+    (last, receipt) => (receipt?.state === 'saved' ? Math.max(last, receipt.at) : last),
+    0,
+  )
+  const saveState = unsaved
+    ? `${unsaved} change${unsaved === 1 ? '' : 's'} not saved`
+    : saving
+      ? 'Saving…'
+      : lastSaved
+        ? `All changes saved ${clock(lastSaved)}`
+        : 'Changes save as you edit'
 
   async function loadConnections() {
     const { items } = await api.connections()
@@ -189,36 +367,6 @@ export function SettingsPanel({
       await api.deleteConnection(target.id)
       await loadConnections()
       setNotice({ text: `Removed ${target.label}.`, tone: 'success' })
-    } catch (error) {
-      setNotice({
-        text: friendlyError(error instanceof Error ? error.message : String(error)),
-        tone: 'error',
-      })
-    }
-  }
-
-  async function savePreferences(event: React.FormEvent) {
-    event.preventDefault()
-    const next = {
-      ...settings,
-      briefingHour,
-      digestWindowHours: windowHours,
-      excludedSenders: lines(senders),
-      excludedVaultPrefixes: lines(vaultPrefixes),
-      excludedBrowserDomains: lines(browserDomains),
-      enabledSources: enabled,
-    }
-    try {
-      await api.saveSettings({
-        briefingHour,
-        digestWindowHours: windowHours,
-        excludedSenders: next.excludedSenders,
-        excludedVaultPrefixes: next.excludedVaultPrefixes,
-        excludedBrowserDomains: next.excludedBrowserDomains,
-        enabledSources: enabled,
-      })
-      onSaved(next)
-      setNotice({ text: 'Preferences saved.', tone: 'success' })
     } catch (error) {
       setNotice({
         text: friendlyError(error instanceof Error ? error.message : String(error)),
@@ -385,74 +533,111 @@ export function SettingsPanel({
         )}
       </section>
 
-      <form className="card settings" onSubmit={(event) => void savePreferences(event)}>
-        <h2>Preferences</h2>
-        <label>
-          Briefing hour (0–23)
-          <input
-            type="number"
-            min={0}
-            max={23}
-            value={briefingHour}
-            onChange={(event) => setBriefingHour(Number(event.target.value))}
-          />
-        </label>
-        <label>
-          Digest window, hours
-          <input
-            type="number"
-            min={1}
-            value={windowHours}
-            onChange={(event) => setWindowHours(Number(event.target.value))}
-          />
-        </label>
-        <label>
-          Never mention these mail senders (one per line)
-          <textarea rows={3} value={senders} onChange={(event) => setSenders(event.target.value)} />
-        </label>
-        <label>
-          Hide vault folders from the start line and briefing (prefixes, one per line)
-          <textarea
-            rows={2}
-            value={vaultPrefixes}
-            onChange={(event) => setVaultPrefixes(event.target.value)}
-          />
-        </label>
-        <label>
-          Ignore these browser domains (one per line)
-          <textarea
-            rows={2}
-            value={browserDomains}
-            onChange={(event) => setBrowserDomains(event.target.value)}
-          />
-        </label>
-        <fieldset className="sources">
-          <legend>Sources in the briefing</legend>
-          {Object.entries(SOURCE_LABELS).map(([source, label]) => (
-            <label key={source} className="check">
-              <input
-                type="checkbox"
-                checked={enabled.includes(source)}
-                disabled={enabled.length === 1 && enabled.includes(source)}
-                onChange={(event) =>
-                  setEnabled((current) =>
-                    event.target.checked
-                      ? [...current, source]
-                      : current.filter((item) => item !== source),
-                  )
-                }
-              />
-              {label}
-            </label>
-          ))}
-        </fieldset>
-        <p className="sub">At least one source stays in the briefing.</p>
-        <div className="row">
-          <button type="submit" className="primary">
-            Save preferences
-          </button>
+      <section className="card settings" aria-labelledby="preferences">
+        <div className="card-head">
+          <h2 id="preferences">Preferences</h2>
+          <span className={`save-state${unsaved > 0 ? ' bad' : ''}`} role="status" aria-live="polite">
+            {saveState}
+          </span>
         </div>
-      </form>
+
+        <div className="prefs">
+          <div className="pref">
+            <div className="pref-head">
+              <label htmlFor="pref-briefing-hour">Briefing hour (0–23)</label>
+              <FieldNote receipt={hour.receipt} onRetry={hour.retry} />
+            </div>
+            <input
+              id="pref-briefing-hour"
+              type="number"
+              min={0}
+              max={23}
+              value={hour.draft}
+              onChange={(event) => hour.edit(event.target.value)}
+            />
+          </div>
+
+          <div className="pref">
+            <div className="pref-head">
+              <label htmlFor="pref-window">Digest window, hours</label>
+              <FieldNote receipt={windowHours.receipt} onRetry={windowHours.retry} />
+            </div>
+            <input
+              id="pref-window"
+              type="number"
+              min={1}
+              value={windowHours.draft}
+              onChange={(event) => windowHours.edit(event.target.value)}
+            />
+          </div>
+
+          <div className="pref">
+            <div className="pref-head">
+              <label htmlFor="pref-senders">Never mention these mail senders (one per line)</label>
+              <FieldNote receipt={senders.receipt} onRetry={senders.retry} />
+            </div>
+            <textarea
+              id="pref-senders"
+              rows={3}
+              value={senders.draft}
+              onChange={(event) => senders.edit(event.target.value)}
+            />
+          </div>
+
+          <div className="pref">
+            <div className="pref-head">
+              <label htmlFor="pref-vault">
+                Hide vault folders from the start line and briefing (prefixes, one per line)
+              </label>
+              <FieldNote receipt={vaultPrefixes.receipt} onRetry={vaultPrefixes.retry} />
+            </div>
+            <textarea
+              id="pref-vault"
+              rows={2}
+              value={vaultPrefixes.draft}
+              onChange={(event) => vaultPrefixes.edit(event.target.value)}
+            />
+          </div>
+
+          <div className="pref">
+            <div className="pref-head">
+              <label htmlFor="pref-domains">Ignore these browser domains (one per line)</label>
+              <FieldNote receipt={browserDomains.receipt} onRetry={browserDomains.retry} />
+            </div>
+            <textarea
+              id="pref-domains"
+              rows={2}
+              value={browserDomains.draft}
+              onChange={(event) => browserDomains.edit(event.target.value)}
+            />
+          </div>
+
+          <fieldset className="sources">
+            <legend>Sources in the briefing</legend>
+            {Object.entries(SOURCE_LABELS).map(([source, label]) => (
+              <label key={source} className="check">
+                <input
+                  type="checkbox"
+                  checked={sources.draft.includes(source)}
+                  disabled={sources.draft.length === 1 && sources.draft.includes(source)}
+                  onChange={(event) =>
+                    sources.edit(
+                      event.target.checked
+                        ? [...sources.draft, source]
+                        : sources.draft.filter((item) => item !== source),
+                    )
+                  }
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+          <div className="pref-foot">
+            <p className="sub">At least one source stays in the briefing.</p>
+            <FieldNote receipt={sources.receipt} onRetry={sources.retry} />
+          </div>
+        </div>
+      </section>
 
       {/* A dialog is not page content: it leaves the Settings landmark, so `<main>` holds only the route. */}
       {editing &&

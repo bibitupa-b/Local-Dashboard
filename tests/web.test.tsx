@@ -910,6 +910,115 @@ test('polling sleeps while the window is hidden and only runs fast while a sync 
   unmount()
 })
 
+test('preferences save themselves, and a number out of range never leaves the field', async () => {
+  const bodies: unknown[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/settings' && init?.method === 'PUT') {
+        bodies.push(JSON.parse(String(init.body)))
+        return { ok: true, json: async () => ({ ok: true }) }
+      }
+      return {
+        ok: true,
+        json: async () => (url === '/api/connections' ? { items: [] } : responses[url] ?? {}),
+      }
+    }),
+  )
+  const flush = async () => {
+    await act(async () => {
+      for (let tick = 0; tick < 50; tick++) await Promise.resolve()
+    })
+  }
+
+  vi.useFakeTimers()
+  const { unmount } = render(
+    <SettingsPanel
+      settings={responses['/api/settings'] as never}
+      onSaved={() => {}}
+      onClose={() => {}}
+    />,
+  )
+  await flush()
+
+  const hour = screen.getByLabelText('Briefing hour (0–23)')
+  fireEvent.change(hour, { target: { value: '9' } })
+  expect(bodies).toHaveLength(0)
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500)
+  })
+  await flush()
+  expect(bodies).toEqual([{ briefingHour: 9 }])
+  expect(screen.getByText(/^Saved \d{2}:\d{2}$/)).toBeTruthy()
+
+  // A cleared or out-of-range field is a hint, not a write.
+  fireEvent.change(hour, { target: { value: '' } })
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(600)
+  })
+  await flush()
+  expect(bodies).toHaveLength(1)
+  expect(screen.getByText('0–23')).toBeTruthy()
+  unmount()
+})
+
+test('a preference that did not save keeps the text and can be retried', async () => {
+  let down = true
+  const bodies: unknown[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/settings' && init?.method === 'PUT') {
+        bodies.push(JSON.parse(String(init.body)))
+        return down
+          ? { ok: false, status: 500, json: async () => ({}) }
+          : { ok: true, json: async () => ({ ok: true }) }
+      }
+      return {
+        ok: true,
+        json: async () => (url === '/api/connections' ? { items: [] } : responses[url] ?? {}),
+      }
+    }),
+  )
+  const flush = async () => {
+    await act(async () => {
+      for (let tick = 0; tick < 50; tick++) await Promise.resolve()
+    })
+  }
+
+  vi.useFakeTimers()
+  const { unmount } = render(
+    <SettingsPanel
+      settings={responses['/api/settings'] as never}
+      onSaved={() => {}}
+      onClose={() => {}}
+    />,
+  )
+  await flush()
+
+  const senders = screen.getByLabelText('Never mention these mail senders (one per line)')
+  fireEvent.change(senders, { target: { value: 'spam@example.com' } })
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500)
+  })
+  await flush()
+
+  expect(screen.getByText(/The local server hit an error/)).toBeTruthy()
+  expect(screen.getByText('1 change not saved')).toBeTruthy()
+  expect((senders as HTMLTextAreaElement).value).toBe('spam@example.com')
+
+  down = false
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+  await flush()
+  expect(bodies).toEqual([
+    { excludedSenders: ['spam@example.com'] },
+    { excludedSenders: ['spam@example.com'] },
+  ])
+  expect(screen.getByText(/^Saved \d{2}:\d{2}$/)).toBeTruthy()
+  expect(screen.queryByText('1 change not saved')).toBeNull()
+  unmount()
+})
+
 test('an empty briefing says so instead of leaving a blank column', async () => {
   localStorage.setItem('dashboard.welcomed', '1')
   const briefings = {
