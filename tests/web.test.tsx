@@ -64,6 +64,7 @@ test('renders the three blocks and their empty states', async () => {
   expect(screen.getByText('Briefing')).toBeTruthy()
   expect(screen.getByText('Activity')).toBeTruthy()
   expect(screen.getByText('Needs attention')).toBeTruthy()
+  expect(screen.getByRole('main')).toBeTruthy()
 
   await waitFor(() => {
     expect(screen.getByText('No changes yet.')).toBeTruthy()
@@ -142,6 +143,36 @@ test('every empty service offers a connect button', async () => {
     expect(screen.getAllByText('Connect').length).toBeGreaterThanOrEqual(6)
   })
   expect(screen.getByText('DeepSeek API')).toBeTruthy()
+  unmount()
+})
+
+test('calendar event times use the same 24-hour clock as the rest of the screen', async () => {
+  const today = {
+    events: [
+      {
+        id: 'e1',
+        calendarId: 'primary',
+        summary: 'Standup',
+        start: '2026-11-03T15:45:00',
+        end: '2026-11-03T16:15:00',
+        location: null,
+        status: 'confirmed',
+      },
+    ],
+    free: [],
+    conflicts: [],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => (url === '/api/today' ? today : responses[url] ?? {}),
+    })),
+  )
+  const { unmount } = render(<App />)
+  await waitFor(() => expect(screen.getByText('Standup')).toBeTruthy())
+  expect(screen.getByText('15:45')).toBeTruthy()
+  expect(screen.queryByText('03:45 PM')).toBeNull()
   unmount()
 })
 

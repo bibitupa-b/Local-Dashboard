@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2
+
+- Attention links use the palette (Porcelain, Sage on hover) instead of the browser-default blue.
+- Calendar event times use the same 24-hour clock as the rest of the screen.
+- `npm run dev` works again: the Vite proxy forwards `/api/` only, so `/api.ts` loads as a module.
+- The dashboard content sits in a `main` landmark for screen readers.
+
 ## 1.0.1
 
 - Tilt-shift now applies to cards and the Today strip only. Buttons, links, fields, pills and

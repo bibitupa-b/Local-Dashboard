@@ -499,6 +499,7 @@ export function App() {
         </div>
       </header>
 
+      <main>
       {(status?.sync.running || syncOutcome) && status && (
         <div
           className={`syncbar${syncOutcome ? ` done ${syncOutcome}` : ''}`}
@@ -583,7 +584,7 @@ export function App() {
           {today.events.map((event) => (
             <span key={event.id} className="event">
               <b>
-                {new Date(event.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {new Date(event.start).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
               </b>{' '}
               {event.summary}
             </span>
@@ -854,6 +855,7 @@ export function App() {
           </ul>
         </section>
       </div>
+      </main>
 
       {welcome && (
         <div className="modal-backdrop" onClick={dismissWelcome}>

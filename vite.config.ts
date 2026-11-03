@@ -8,6 +8,6 @@ export default defineConfig({
   build: { outDir: '../../dist/web', emptyOutDir: true },
   server: {
     port: 5173,
-    proxy: { '/api': `http://127.0.0.1:${process.env.PORT || 4317}` },
+    proxy: { '/api/': `http://127.0.0.1:${process.env.PORT || 4317}` },
   },
 })
