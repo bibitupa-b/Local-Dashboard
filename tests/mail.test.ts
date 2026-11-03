@@ -142,7 +142,9 @@ test('digest lists unread subjects and counts', async () => {
   insert.run('INBOX', 2, 'Bob <b@x.com>', 'Already read', new Date().toISOString(), 1, '')
   insert.run('[Gmail]/Spam', 3, 'Spam <s@x.com>', 'Win money', new Date().toISOString(), 0, 'spam')
 
-  const lines = createMailSource({ folders: async () => [], syncFolder: async () => ({ messages: [], uidValidity: '1', flags: [] }) }).digest(db, new Date())
+  // A `since` taken after the insert would sit past the messages and drop them all.
+  const since = new Date(Date.now() - 60_000)
+  const lines = createMailSource({ folders: async () => [], syncFolder: async () => ({ messages: [], uidValidity: '1', flags: [] }) }).digest(db, since)
   const text = lines.join('\n')
   expect(text).toContain('Unread mail: 1')
   expect(text).toContain('Quarterly plan')
@@ -192,7 +194,9 @@ test('the same message in INBOX and Important counts once', () => {
   insert.run('INBOX', 1, fresh)
   insert.run('[Gmail]/Important', 7, fresh)
 
-  const lines = createMailSource({ folders: async () => [], syncFolder: async () => ({ messages: [], uidValidity: '1', flags: [] }) }).digest(db, new Date())
+  // A `since` taken after the insert would sit past the messages and drop them all.
+  const since = new Date(Date.now() - 60_000)
+  const lines = createMailSource({ folders: async () => [], syncFolder: async () => ({ messages: [], uidValidity: '1', flags: [] }) }).digest(db, since)
   expect(lines.join('\n')).toContain('Unread mail: 1')
 })
 

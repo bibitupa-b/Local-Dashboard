@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   api,
   type Connection,
@@ -7,6 +8,7 @@ import {
   type Settings,
 } from './api.js'
 import { friendlyError } from './errors.js'
+import { useDialog, useLeaving } from './useDialog.js'
 
 type FieldDef = {
   key: string
@@ -154,6 +156,13 @@ export function SettingsPanel({
     )
   }, [])
 
+  // A success message is a receipt, not a state: it should not sit on the page forever.
+  useEffect(() => {
+    if (!notice || notice.tone === 'error') return
+    const timer = setTimeout(() => setNotice(null), 6000)
+    return () => clearTimeout(timer)
+  }, [notice])
+
   async function test(connection: Connection) {
     setTests((current) => ({ ...current, [connection.id]: 'testing…' }))
     try {
@@ -236,12 +245,15 @@ export function SettingsPanel({
 
   return (
     <div className="settings-page">
-      <div className="settings-head">
-        <h2>Settings</h2>
+      <header className="settings-head">
+        <div>
+          <h1>Settings</h1>
+          <p className="sub">Stored on this machine. Only the briefing digest leaves it.</p>
+        </div>
         <button className="ghost" type="button" onClick={onClose}>
           Back to dashboard
         </button>
-      </div>
+      </header>
 
       {notice && (
         <p className={`note ${notice.tone}`} role="status" aria-live="polite">
@@ -442,34 +454,39 @@ export function SettingsPanel({
         </div>
       </form>
 
-      {editing && (
-        <ConnectionForm
-          definition={SERVICES.find((entry) => entry.service === editing.service)!}
-          connection={editing.connection}
-          onClose={() => setEditing(null)}
-          onSaved={async (saved) => {
-            setEditing(null)
-            await loadConnections()
-            setNotice({
-              text:
-                saved.service === 'google' && !saved.secretsSet.includes('tokens')
-                  ? 'Saved. Press Connect next to the Google account to grant access.'
-                  : `Saved ${saved.label}.`,
-              tone: 'success',
-            })
-          }}
-        />
-      )}
+      {/* A dialog is not page content: it leaves the Settings landmark, so `<main>` holds only the route. */}
+      {editing &&
+        createPortal(
+          <ConnectionForm
+            definition={SERVICES.find((entry) => entry.service === editing.service)!}
+            connection={editing.connection}
+            onClose={() => setEditing(null)}
+            onSaved={async (saved) => {
+              setEditing(null)
+              await loadConnections()
+              setNotice({
+                text:
+                  saved.service === 'google' && !saved.secretsSet.includes('tokens')
+                    ? 'Saved. Press Connect next to the Google account to grant access.'
+                    : `Saved ${saved.label}.`,
+                tone: 'success',
+              })
+            }}
+          />,
+          document.body,
+        )}
 
-      {confirming && (
-        <ConfirmDialog
-          title="Disconnect account"
-          message={`Disconnect “${confirming.label}”? Its local data will be removed from the dashboard.`}
-          confirmLabel="Disconnect"
-          onConfirm={() => void confirmDisconnect()}
-          onCancel={() => setConfirming(null)}
-        />
-      )}
+      {confirming &&
+        createPortal(
+          <ConfirmDialog
+            title="Disconnect account"
+            message={`Disconnect “${confirming.label}”? Its local data will be removed from the dashboard.`}
+            confirmLabel="Disconnect"
+            onConfirm={() => void confirmDisconnect()}
+            onCancel={() => setConfirming(null)}
+          />,
+          document.body,
+        )}
     </div>
   )
 }
@@ -557,39 +574,8 @@ function ConnectionForm({
   const [config, setConfig] = useState<Record<string, string>>(connection?.config ?? {})
   const [secret, setSecret] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
-  const dialogRef = useRef<HTMLFormElement>(null)
-
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        onClose()
-        return
-      }
-      if (event.key !== 'Tab') return
-      const nodes = dialogRef.current?.querySelectorAll<HTMLElement>(
-        'input, textarea, button, a[href]',
-      )
-      if (!nodes || nodes.length === 0) return
-      const list = [...nodes].filter((node) => !node.hasAttribute('disabled'))
-      const first = list[0]
-      const last = list[list.length - 1]
-      if (!first || !last) return
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      previous?.focus()
-    }
-  }, [onClose])
+  const { leaving, close } = useLeaving()
+  const dialogRef = useDialog<HTMLFormElement>(true, () => close(onClose))
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -599,14 +585,14 @@ function ConnectionForm({
       const saved = connection
         ? await api.updateConnection(connection.id, input)
         : await api.addConnection(input)
-      await onSaved(saved)
+      close(() => void onSaved(saved))
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure))
     }
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className={`modal-backdrop${leaving ? ' leaving' : ''}`} onClick={() => close(onClose)}>
       <form
         ref={dialogRef}
         className="modal card"
@@ -619,7 +605,7 @@ function ConnectionForm({
         <h2>{connection ? 'Edit connection' : `Connect ${definition.name}`}</h2>
         <label>
           Label
-          <input autoFocus value={label} onChange={(event) => setLabel(event.target.value)} />
+          <input value={label} onChange={(event) => setLabel(event.target.value)} />
         </label>
         {definition.fields.map((field) => (
           <label key={field.key}>
@@ -659,7 +645,7 @@ function ConnectionForm({
           <button type="submit" className="primary">
             {connection ? 'Save changes' : 'Add connection'}
           </button>
-          <button type="button" className="ghost" onClick={onClose}>
+          <button type="button" className="ghost" onClick={() => close(onClose)}>
             Cancel
           </button>
         </div>
@@ -681,45 +667,31 @@ function ConfirmDialog({
   onConfirm: () => void
   onCancel: () => void
 }) {
-  const dialogRef = useRef<HTMLFormElement>(null)
-
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        onCancel()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    const timer = setTimeout(() => {
-      dialogRef.current?.querySelector<HTMLElement>('button')?.focus()
-    }, 0)
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      clearTimeout(timer)
-      previous?.focus()
-    }
-  }, [onCancel])
+  const { leaving, close } = useLeaving()
+  const cancel = () => close(onCancel)
+  const dialogRef = useDialog<HTMLFormElement>(true, cancel)
+  // The consequence is the message, not the title: it has to reach the dialog's announcement.
+  const messageId = useId()
 
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
+    <div className={`modal-backdrop${leaving ? ' leaving' : ''}`} onClick={cancel}>
       <form
         ref={dialogRef}
         className="modal card confirm"
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        aria-describedby={messageId}
         onClick={(event) => event.stopPropagation()}
         onSubmit={(event) => {
           event.preventDefault()
-          onConfirm()
+          close(onConfirm)
         }}
       >
         <h2>{title}</h2>
-        <p>{message}</p>
+        <p id={messageId}>{message}</p>
         <div className="row">
-          <button type="button" className="ghost" onClick={onCancel}>
+          <button type="button" className="ghost" onClick={cancel}>
             Cancel
           </button>
           <button type="submit" className="danger">

@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- The browser launch overlay is gone: the desktop shell already shows its own splash, so the page
+  now appears at once instead of after a 1.5-second emblem animation.
+- Earlier briefings read like today's: one list without stray `-` markers, and a closing line that
+  keeps its `Suggestion` label whichever way the model formatted it.
+- Pointer tilt is gone from the dashboard and the settings cards: surfaces stay still under the
+  pointer, and the reading tick is the only motion while reading.
+- The warm accent now carries attention: the start figure, `TODAY`, the briefing ticks and a
+  missing-briefing stamp are Sand (the tick brightens at the line under the eye), and `GET STARTED`
+  is Sage.
+- A held `b` no longer starts a second paid briefing request while one is already running.
+- Every service station is named for a screen reader — service, account count, last sync or the
+  cause of the error, and where the link goes; the browser station, which has no destination, is
+  read as a named row rather than an unlabeled one.
+- When the local server dies mid-session the banner says so and offers `Try again`, instead of
+  printing the browser's `Failed to fetch`.
+- Search results keep the query's own case, and a wrapped path keeps its source dot on the first
+  line.
+
 ## 1.1.0
 
 The dashboard becomes one page: the briefing owns it, with a single **Start here** count, the

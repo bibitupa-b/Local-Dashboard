@@ -28,7 +28,7 @@ Three reference ideas carry over: the palette specimen, the low-light desk photo
 ## 2. Principles
 
 1. **The briefing is the page.** No competing list shares its measure or its first viewport.
-2. **Light is the signal.** Warm marks time, the suggestion, and the line being read. Sage marks action and health. Nothing else glows.
+2. **Light is the signal.** Warm marks attention: the start figure, time, the suggestion, and the line being read. Sage marks action and health. Nothing else glows.
 3. **Borders, not shadows.** Rules and one step of surface lightness separate things; shadow belongs only to layers that float above the page.
 4. **One accent per meaning.** Sage = action/success, haze = information, sand = warm/time/attention, clay = error. A screen never shows more than two semantic colours at once.
 5. **Mono for metadata, sans for reading.** Paths, times, counts, labels, station names are mono and small; sentences are sans.
@@ -55,7 +55,7 @@ Three reference ideas carry over: the palette specimen, the low-light desk photo
 | 09 | Sand | `#BDA27A` | Warm highlight, time, the reading rule |
 | 10 | Clay | `#B67F76` | Warnings, errors, destructive |
 
-Two derived colours are allowed and no others: **Lichen** `#7F8F88` (browser station and dot only, never text) and **Void** `#0C0F10` (modal backdrop, recessed inputs).
+Derived colours, and no others: **Lichen** `#7F8F88` (browser station and dot only, never text), **Void** `#0C0F10` (modal backdrop, recessed inputs), and the primary button's two steps of Sage — `--accent-hover` `#A9BCAC` and `--accent-press` `#8FA592`.
 
 ### 3.2 Tokens
 
@@ -68,15 +68,19 @@ Two derived colours are allowed and no others: **Lichen** `#7F8F88` (browser sta
   --raised: #2b3334;
   --sunken: #101415;
   --void: #0c0f10;
+  --backdrop: rgba(12, 15, 16, 0.72);
 
   --line: #394243;
   --line-strong: #6e7b7b;
   --line-soft: rgba(57, 66, 67, 0.55);
+  --line-faint: rgba(57, 66, 67, 0.3);
 
   --ink: #e9e7e0;
   --muted: #a6ada7;
 
   --accent: #9baf9e;
+  --accent-hover: #a9bcac;
+  --accent-press: #8fa592;
   --info: #879cb7;
   --warm: #bda27a;
   --danger: #b67f76;
@@ -84,6 +88,16 @@ Two derived colours are allowed and no others: **Lichen** `#7F8F88` (browser sta
   --info-wash: rgba(135, 156, 183, 0.1);
   --warm-wash: rgba(189, 162, 122, 0.1);
   --danger-wash: rgba(182, 127, 118, 0.12);
+  --warm-glow: rgba(189, 162, 122, 0.05);
+
+  --accent-edge: rgba(155, 175, 158, 0.28);
+  --accent-line: rgba(155, 175, 158, 0.35);
+  --accent-pulse: rgba(155, 175, 158, 0.45);
+  --accent-glow: rgba(155, 175, 158, 0.55);
+  --accent-node: rgba(155, 175, 158, 0.6);
+  --info-line: rgba(135, 156, 183, 0.35);
+  --danger-line: rgba(182, 127, 118, 0.35);
+  --danger-line-strong: rgba(182, 127, 118, 0.45);
 
   --focus: #9baf9e;
   --selection: rgba(155, 175, 158, 0.25);
@@ -91,7 +105,6 @@ Two derived colours are allowed and no others: **Lichen** `#7F8F88` (browser sta
   --source-vault: #9baf9e;
   --source-drive: #879cb7;
   --source-mail: #bda27a;
-  --source-calendar: #a6ada7;
   --source-browser: #7f8f88;
   --source-github: #e9e7e0;
 
@@ -111,11 +124,15 @@ Two derived colours are allowed and no others: **Lichen** `#7F8F88` (browser sta
   --dur-hover: 120ms;
   --dur-reveal: 180ms;
   --dur-panel: 240ms;
-  --dur-large: 320ms;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out: cubic-bezier(0.4, 0, 1, 1);
 }
 ```
+
+Every alpha is a token. No `rgba()` literal appears outside `:root`: the washes sit at 10–12%,
+the accent's edges and glows step `--accent-edge` 28% → `--accent-line` 35% → `--accent-pulse` 45%
+→ `--accent-glow` 55% → `--accent-node` 60%, clay's borders are `--danger-line` 35% and
+`--danger-line-strong` 45%, and `--warm-glow` at 5% is the page's only ambient light.
 
 ### 3.3 Measured contrast
 
@@ -145,6 +162,7 @@ Non-text: Iron on Obsidian 1.72 — decorative only. `--line-strong` on Graphite
 - No large sage fills. Sage fill is reserved for the primary button and small success marks.
 - Semantic washes replace coloured fills for banners and the suggestion block.
 - Never convey state by hue alone: a station has its name and last sync; a status has words.
+- Warm is spent on attention and in-progress reading only: one warm figure at the top, one warm suggestion at the bottom, and the tick under the eye. Do not tint a second sentence, a rule or a station name with it.
 - User content (paths, subjects, note names) is never tinted, never uppercased. Only dots, station marks and metadata carry source colour.
 
 ### 3.5 Source colour
@@ -154,7 +172,6 @@ Non-text: Iron on Obsidian 1.72 — decorative only. `--line-strong` on Graphite
 | Vault | `--source-vault` | `#9BAF9E` | Station mark, result dot |
 | Drive | `--source-drive` | `#879CB7` | Station mark, result dot |
 | Mail | `--source-mail` | `#BDA27A` | Station mark, result dot |
-| Calendar | `--source-calendar` | `#A6ADA7` | Dots only (calendar has no station; it feeds the Today column) |
 | Browser | `--source-browser` | `#7F8F88` | Station mark, result dot |
 | GitHub | `--source-github` | `#E9E7E0` | Station mark, result dot |
 
@@ -164,10 +181,10 @@ Station marks are 10px round, `flex: none`, sitting on the rail with a 4px `--bg
 
 | State | Colour | Treatment |
 |---|---|---|
-| Connected / success | Sage | Rail fill, sync outcome glow, primary button |
+| Connected / success | Sage | Rail fill, sync outcome glow, primary button, `GET STARTED` label, done ticks, free windows |
 | Syncing / in progress | Sage | The rail fills; the active station pulses |
 | Information / neutral accent | Haze | Banners, links to external services |
-| Time / today / warm | Sand | Event times, the suggestion rule, the reading tick |
+| Time / today / attention | Sand | The start figure, the `TODAY` label, event times, the suggestion, a missing-briefing stamp, the reading ticks |
 | Warning / not connected | Mist | Hollow station, `—` in place of the time |
 | Error / conflict | Clay | Station mark, conflict line, banner border |
 
@@ -221,9 +238,10 @@ Rules:
 | Settings card | `--surface` | 1px `--line` | none |
 | Popover, tooltip, suggestions | `--raised` | 1px `--line` | `--shadow-sm` |
 | Modal | `--raised` | 1px `--line` | `--shadow-lg` |
-| Backdrop | `--void` at 72% + `blur(10px)` | none | none |
+| Backdrop | `--backdrop` (`--void` at 72%) + `blur(10px)` | none | none |
 
-The only ambient light: one static warm radial on the body (`1100px 520px at 12% -8%`, `--warm` at 5%). No second glow, no glow on cards.
+The only ambient light: one static warm radial on the body (`1100px 520px at 12% -8%`, `--warm-glow`)
+at 5% of `--warm`. No second glow, no glow on cards.
 
 ---
 
@@ -239,7 +257,7 @@ The only ambient light: one static warm radial on the body (`1100px 520px at 12%
 }
 body {
   background:
-    radial-gradient(1100px 520px at 12% -8%, rgba(189, 162, 122, 0.05), transparent 62%),
+    radial-gradient(1100px 520px at 12% -8%, var(--warm-glow), transparent 62%),
     var(--bg);
 }
 ```
@@ -257,7 +275,7 @@ body {
 
 ### 6.3 Settings route
 
-Same `.page` shell, no sidebar. Header: `Settings` + ghost `Back to dashboard`. Then cards: Connections (group per service, divider between groups, hint beside each group name, rows for saved accounts), Application (data directory, `Copy diagnostics`, `Check for updates`), Preferences (numeric fields, textareas, source checkboxes, `Save preferences`). Connection modal 460px, confirm dialog 380px.
+Same `.page` shell, no sidebar. The route opens on a title step, not a section label: `Settings` in the masthead tier (20px Unbounded, Porcelain), one 13px mono line under it — `Stored on this machine. Only the briefing digest leaves it.` — and the ghost `Back to dashboard` aligned to the title's first line, with 32px to the first card. Card headings stay 12px mono uppercase, one tier below; the title is the route's only `<h1>`. Then cards: Connections (group per service, divider between groups, hint beside each group name, rows for saved accounts), Application (data directory, `Copy diagnostics`, `Check for updates`), Preferences (numeric fields, textareas, source checkboxes, `Save preferences`). Connection modal 460px, confirm dialog 380px.
 
 The settings route keeps cards; the dashboard keeps none. That difference is the hierarchy: reading surface vs configuration surface, not an inconsistency to smooth over.
 
@@ -268,9 +286,12 @@ The settings route keeps cards; the dashboard keeps none. That difference is the
 | > 1100 | Full 1180px layout, 176px margin column |
 | 900–1100 | Page padding 24px, margin column 152px, briefing gap 32px |
 | 700–900 | One column everywhere: panel stacks (start above today), briefing margin becomes one row above the measure, masthead may wrap |
-| < 700 | Page padding 16px, start sentence 18px / figure 36px, search button on its own row, masthead actions on their own row |
+| < 700 | Page padding 16px, start sentence 18px / figure 36px, search button on its own row, masthead actions on their own row, the hint opens as a sheet pinned 16px from the window edges |
+| < 360 | The briefing margin stacks (label, stamp, button): the primary button never wraps its label |
 
-No layout depends on a fixed pixel height for text. At 200% zoom the page must reflow without horizontal scrolling.
+No layout depends on a fixed pixel height for text. At 200% zoom the page must reflow without horizontal scrolling. The hint is the one element that leaves the flow on narrow windows: a 320px tooltip anchored to the `?` would widen the page at 320–620px, so below 700px it pins to the bottom of the window instead.
+
+**Input, not just width.** A coarse pointer gets 44px primary and ghost buttons, 40px mini, a 48px search field, 44px inputs and list rows, and station hit areas grown 6px per side with their drawing unchanged. The composition stays the same; only the reach grows. A mouse or trackpad sees none of it.
 
 ---
 
@@ -282,19 +303,21 @@ No layout depends on a fixed pixel height for text. At 200% zoom the page must r
 
 ### 7.2 Start
 
-`Start here:` in Mist at 21px, the count in Unbounded 44px Porcelain, the clause in Porcelain at 21px, then a 13px mono detail line (Mist, links Mist → Sage with a 3px underline offset). No card, no label above, no supporting stats block — one sentence and one number.
+`Start here:` in Mist at 21px, the count in Unbounded 44px Sand — the only warm figure on the route — the clause in Porcelain at 21px, then a 13px mono detail line (Mist, links Mist → Sage with a 3px underline offset). No card, no label above, no supporting stats block — one sentence and one number.
 
 When nothing needs attention: `Nothing needs attention.` in Mist at the sentence size, nothing else.
 
 ### 7.3 Services line
 
-Full-width flex, stations evenly spaced, `space-between`. The rail is a 2px `--line` track at 28px from the top, rounded, with an `i` fill in `--accent` whose width is the sync progress (350ms linear). Stations: three rows of 17px / 12px / 17px with 6px gaps — name (12px mono Mist), 10px mark, time (12px mono Mist, tabular). First station aligns its children left, the last right, so the rail runs edge to edge.
+Full-width flex, stations evenly spaced, `space-between`. The rail is a 2px `--line` track at the vertical centre of the station marks, rounded, with an `i` fill in `--accent` whose width is the sync progress (350ms linear). Stations: three rows of at least 17px / 12px / 17px with 6px gaps — name (12px mono Mist), 10px mark, time (12px mono Mist, tabular). The rows grow with the text size, so the rail is centred (`50%`) rather than pinned to a pixel. First station aligns its children left, the last right, so the rail runs edge to edge.
 
-States: `ok` mark in its source colour, `off` hollow, `bad` clay, `active` pulses 1.2s while running. Sync outcome flashes the rail's fill (sage glow on success, clay on error) for 1.6s. Never connected and never synced shows `—` rather than a time.
+States: `ok` mark in its source colour, `off` hollow, `bad` clay, `active` pulses 1.2s while running. Sync outcome flashes the rail's fill (sage glow on success, clay on error) for 1.6s. Never connected and never synced shows `—` rather than a time. A failed station prints `error` in Clay where its time would be; the cause lives in the tooltip and in the station's accessible name, so state is never hue alone. Every station is named `service, state, where it goes` — `drive, 2 accounts, Last synced 10:17, opens in Google Drive` — and the drawn time is hidden from assistive tech so it is not read twice. A station with no destination (browser) is a named row, never a nameless link.
 
 ### 7.4 Today
 
-A small stacked column, not chips: `TODAY` section label, then one line per event with the time in 13px mono Sand and the summary in 14px Porcelain; free windows in 13px Sage; conflicts in 13px Clay. `No events` or `Calendar not connected` in Mist when empty.
+A small stacked column, not chips: `TODAY` section label in Sand, then one line per event with the time in 13px mono Sand and the summary in 14px Porcelain; free windows in 13px Sage; conflicts in 13px Clay. `No events` or `Calendar not connected` in Mist when empty.
+
+Edge cases: an all-day event reads `All day` where the time would be, never `00:00`; an unreadable start reads `—`. A day with more than six events shows the first six and one Mist line, `+N more today`, which opens the calendar — the count is never a dead end.
 
 ### 7.5 Search and suggestions
 
@@ -316,9 +339,9 @@ Results: a ruled list (no card) under a `RESULTS FOR “…”` label; rows 14px
 }
 ```
 
-Margin: `BRIEFING` section label in Porcelain, the stamp in 12px mono Mist, then the single primary button. When today has no briefing yet, a second stamp reads `none for today yet`.
+Margin: `BRIEFING` section label in Porcelain, the stamp in 12px mono Mist, then the single primary button. When today has no briefing yet, a second stamp reads `none for today yet` in Sand — a state, not a timestamp.
 
-Reading column: 17px/1.75 Onest, `text-wrap: pretty`, 15px between entries. Every entry (bullet or paragraph) carries a 1px tick in the margin at `left: 2px`, `--line-strong` at 55%; the tick at the middle of the viewport turns Sand and grows to the line's full height (180ms). That tick is the page's signature motion: it reports where the eye is, and it is the only thing that moves while reading.
+Reading column: 17px/1.75 Onest, `text-wrap: pretty`, 15px between entries. Every entry (bullet or paragraph) carries a 1px Sand tick in the margin at `left: 2px`, held at 30% opacity; the tick at the middle of the viewport brightens to full Sand and grows to the line's full height (180ms). That tick is the page's signature motion: it reports where the eye is, and it is the only thing that moves while reading.
 
 The closing entry is always the suggestion: `--warm-wash`, a 1px Sand left rule, 16px 18px padding, radius 0 6 6 0, and a `Suggestion` micro-label in Sand.
 
@@ -328,15 +351,15 @@ Generating: the button reads `Thinking…` and three skeleton lines (12px, 100/9
 
 ### 7.7 Get started
 
-One inline row: `GET STARTED` label, then the steps with 6px dot marks (filled Sage when done, hollow `--line-strong` when not), then a mini ghost `Open settings`. No card, no list borders. Disappears entirely once all three steps are done.
+One inline row: `GET STARTED` label in Sage (the route's only action prompt), then the steps with 6px dot marks (filled Sage when done, hollow `--line-strong` when not), then a mini ghost `Open settings`. No card, no list borders. Disappears entirely once all three steps are done.
 
 ### 7.8 Note banner
 
-Full width, padding 10px 12px, radius 10px, 13px Porcelain text, 1px border: info = haze wash/border, success = sage, error = clay. Inline in the flow above the panel, never a floating toast; `role="status"` / `aria-live="polite"`.
+Full width, padding 10px 12px, radius 10px, 13px Porcelain text, 1px border: info = haze wash/border, success = sage, error = clay. Inline in the flow above the panel, never a floating toast; `role="status"` / `aria-live="polite"`. A load failure names the parts that did not arrive and ends with a mini `Try again`; a successful retry, or the next poll, clears it. Success notes dismiss themselves after six seconds.
 
 ### 7.9 Buttons
 
-- **Primary:** Sage fill, Obsidian text, radius 10px, height 36px, padding 0 16px. Hover `#A9BCAC`, active `#8FA592` and 1px down. One primary per view (`Briefing now`).
+- **Primary:** Sage fill, Obsidian text, radius 10px, height 36px, padding 0 16px. Hover `--accent-hover`, active `--accent-press` and 1px down. One primary per view (`Briefing now`).
 - **Ghost:** transparent, 1px `--line`, Porcelain. Hover `--raised` + `--line-strong`. Used for `Sync`, `Settings`, `Search`, `Clear`, `Back to dashboard`, `Cancel`.
 - **Mini:** 28px, 13px text, ghost styling. Connection actions and `Open settings`.
 - **Danger ghost:** ghost with Clay text and a 35% clay border; no solid red; destructive actions sit second and require the confirm dialog.
@@ -349,8 +372,9 @@ Unchanged from the incumbent system: fields with persistent 12px Mist labels, `-
 
 - Empty: one calm sentence in Mist; never an icon or an illustration.
 - Loading: nothing renders before the first payload arrives — no false empty states, no placeholder lists. The briefing shows its skeleton only while generating.
+- Partial payload: one failed endpoint must not blank the page. What arrived renders, the banner names what is missing, and a pile that never arrived shows nothing rather than a false `Nothing needs attention.`
 - Error: banner with the cause and the next step; test results inline in sage or clay.
-- Disabled: 40% opacity, no motion, `cursor: default`.
+- Disabled: 40% opacity, no motion, `cursor: default`. `Sync` is disabled while a sync runs; `Settings` is disabled until its payload arrives, with the reason in its tooltip.
 
 ---
 
@@ -372,7 +396,6 @@ Unchanged from the incumbent system: fields with persistent 12px Mist labels, `-
 | `--dur-hover` | 120ms | Hover/colour feedback |
 | `--dur-reveal` | 180ms | Rows, tick, small popovers |
 | `--dur-panel` | 240ms | Modal, entrance |
-| `--dur-large` | 320ms | Rare large surfaces |
 | `--ease` | `cubic-bezier(.22,1,.36,1)` | Standard/enter |
 | `--ease-out` | `cubic-bezier(.4,0,1,1)` | Exit |
 | progress | `linear` | Rail fill, spinners |
@@ -386,7 +409,7 @@ Unchanged from the incumbent system: fields with persistent 12px Mist labels, `-
 | 3 | Buttons | Hover / press | Colour 120ms; active 1px down | 120 / 80ms | Colour only |
 | 4 | Rail fill | Sync running | Width 350ms linear to the real progress; outcome segment glows 1.6s | 350ms / 1.6s | Fills instantly |
 | 5 | Active station | Sync running | Scale 1→1.35 and 12px sage glow, opacity breathing | 1.2s `ease-in-out` loop | Static |
-| 6 | Reading tick | Scroll | The tick of the entry at mid-viewport turns Sand and spans the entry | 180ms `--ease` | Colour only, instant |
+| 6 | Reading tick | Scroll | The tick of the entry at mid-viewport brightens to full Sand and spans the entry | 180ms `--ease` | Opacity only, instant |
 | 7 | Briefing generating | Click `Briefing now` | Label → `Thinking…`; 3 skeletons pulse; on arrival the top rule warms 900ms and the body fades in | 1.6s loop; 900ms / 240ms once | Skeletons static, no warm rule |
 | 8 | Suggestion panel | Typing ≥2 chars | Fade + 2px rise | 120ms | Fade only |
 | 9 | Active suggestion | Arrow keys / hover | Background 80ms; 2px sage bar appears instantly | 80ms | Instant |
@@ -408,7 +431,7 @@ Rules that apply to every row:
 - No motion may block input or delay a response to a click.
 - Infinite motion is capped at two elements per screen.
 - Loops pause when `document.hidden` (`body.motion-paused`); resume on visibility.
-- No bounce, spring, parallax, particles, neon pulsing, scroll-triggered reveals, or counting numbers.
+- No bounce, spring, parallax, particles, neon pulsing, scroll-triggered reveals, counting numbers, or pointer-tracked tilt and lighting on any surface, including the reading column and settings cards.
 
 ### 8.4 Reduced motion
 
@@ -432,6 +455,9 @@ With reduced motion: transforms are removed (no rise, no press, no ring drift), 
 - No animation library; CSS transitions and keyframes only.
 - Blur only on the modal backdrop, ≤10px, one layer.
 - A sync plus a 60-second refresh must cause no layout shift in the briefing.
+- Polling sleeps while the window is hidden: the minute refresh and the 3-second sync status both
+  skip, and the page loads once when the window comes back. Status is polled at all only while a
+  sync runs.
 
 ---
 
@@ -439,11 +465,11 @@ With reduced motion: transforms are removed (no rise, no press, no ring drift), 
 
 - Text meets 4.5:1 (3:1 for ≥18.66px bold or ≥24px); see §3.3. Clay is never used on Slate.
 - Focus: 2px `--focus` ring, 2px offset, `:focus-visible` only.
-- Landmarks: one `<main>`; the services line is a labelled region; the rail is a `progressbar` with an accessible name only while syncing.
-- Keyboard: Tab follows visual order; modals trap and return focus; Escape closes modal, suggestions and results; search keeps ArrowUp/Down/Enter/Escape; `/` focuses search, `b` generates, `<details>` stays native.
-- Targets ≥32px for primary/ghost buttons, ≥24px for mini; 6px between adjacent targets.
+- Landmarks: exactly one `<main>` per route (dashboard and settings); the services line is a labelled region; the rail — not the row — is the `progressbar`, with an accessible name only while syncing.
+- Keyboard: Tab follows visual order; every modal uses one dialog pattern (focus moves in, Tab stays inside, Escape closes, focus returns); a route change moves focus into the new route and back to `Settings` when it closes; Escape also closes suggestions and results; search keeps ArrowUp/Down/Enter/Escape; `/` focuses search, `b` generates, `<details>` stays native, and shortcuts are inert while a dialog is open.
+- Targets ≥32px for primary/ghost buttons, ≥24px for mini, and ≥40–44px for both on a coarse pointer; 6px between adjacent targets.
 - State is never colour-only: stations have names and times, errors have text, the suggestion has a label.
-- Live regions: banner, test result, briefing completion. The 60-second poll is never announced.
+- Live regions: banner, test result, briefing completion, search result and sync outcome. The 60-second poll is never announced.
 - Inputs keep persistent labels (the search field uses `aria-label`); placeholders are hints.
 - 200% zoom: no horizontal scroll, no clipped controls. Verified at 390px and 1294px.
 - Scrollbars thin and dark; selection `--selection`; Cyrillic and emoji paths render untransformed with `overflow-wrap: anywhere`.
@@ -480,7 +506,7 @@ With reduced motion: transforms are removed (no rise, no press, no ring drift), 
 ## 12. Non-goals and accepted losses
 
 - Light theme, theme toggle, per-user themes.
-- Photographic backgrounds, textures, grain, external font CDNs, 3D scenes, glass cards, neon, particles, parallax.
+- Photographic backgrounds, textures, grain, external font CDNs, 3D scenes, glass cards, neon, particles, parallax, and pointer-tracked tilt or lighting on any surface (see §8.3): on the reading column it moves the text under the eye and breaks drag-to-select; on settings cards it harms aim at fields and promises a depth the controls do not have.
 - A command palette, a navigation sidebar, or a second route on the dashboard.
 - An activity feed, an attention queue, or any unbounded list on the dashboard. Accepted loss: the vault diff is no longer reachable from the UI, and the backlog beyond the single start item is only visible in mail, GitHub or the vault itself. If diffs return, they return inside the briefing's evidence, capped, never as a feed.
 - Mobile-specific layouts below 700px beyond the single-column reflow.
@@ -493,20 +519,22 @@ If a future feature needs a new component, it reuses these tokens; a new colour 
 ## 13. Implementation checklist
 
 - [x] Tokens in `:root`; `color-scheme: dark`.
-- [x] Ten palette colours in their roles; no unlisted hex in the dashboard CSS.
+- [x] Ten palette colours in their roles; no unlisted hex in the dashboard CSS, no `rgba()` literal outside `:root`.
 - [x] Source colours on station marks and result dots; calendar has no station.
 - [x] No cards on the dashboard; settings keeps `--surface` cards.
 - [x] One sage primary per view (`Briefing now`).
 - [x] Clay never on Slate.
 - [x] `--line-strong` on inputs; persistent labels; sage focus ring.
-- [x] The services line is the sync progressbar, labelled only while running.
+- [x] The services line is a labelled region; the rail is the sync progressbar, labelled only while running.
+- [x] Every dialog shares one pattern: focus moves in, Tab stays inside, Escape closes, focus returns.
 - [x] Briefing skeleton only while generating; no entrance on the 60s refresh.
 - [x] Reading tick is 1px, Sand, the only motion while reading; ≤2 infinite loops.
 - [x] Reduced-motion block present; loops paused when hidden.
 - [x] Thin dark scrollbars, dark selection, autofill override.
 - [x] Cyrillic/emoji paths render; user content never uppercased.
-- [x] 390px and 1294px without clipping or horizontal scroll; 200% zoom reflows.
+- [x] 320px, 390px and 1294px without clipping or horizontal scroll; 200% zoom reflows; touch targets grow on a coarse pointer.
 - [x] Empty/loading/error/disabled states defined for every component.
+- [x] The warm attention colour carries the start figure, `TODAY`, the reading ticks, a missing-briefing stamp and the suggestion; Sage marks only action and health.
 - [x] `npm run build`, `tsc --noEmit` and `npm test` pass; Lighthouse accessibility 1.0.
 
 ---

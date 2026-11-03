@@ -106,15 +106,19 @@
   --raised: #2b3334;
   --sunken: #101415;
   --void: #0c0f10;
+  --backdrop: rgba(12, 15, 16, 0.72);
 
   --line: #394243;
   --line-strong: #6e7b7b;
   --line-soft: rgba(57, 66, 67, 0.55);
+  --line-faint: rgba(57, 66, 67, 0.3);
 
   --ink: #e9e7e0;
   --muted: #a6ada7;
 
   --accent: #9baf9e;
+  --accent-hover: #a9bcac;
+  --accent-press: #8fa592;
   --info: #879cb7;
   --warm: #bda27a;
   --danger: #b67f76;
@@ -122,6 +126,16 @@
   --info-wash: rgba(135, 156, 183, 0.1);
   --warm-wash: rgba(189, 162, 122, 0.1);
   --danger-wash: rgba(182, 127, 118, 0.12);
+  --warm-glow: rgba(189, 162, 122, 0.05);
+
+  --accent-edge: rgba(155, 175, 158, 0.28);
+  --accent-line: rgba(155, 175, 158, 0.35);
+  --accent-pulse: rgba(155, 175, 158, 0.45);
+  --accent-glow: rgba(155, 175, 158, 0.55);
+  --accent-node: rgba(155, 175, 158, 0.6);
+  --info-line: rgba(135, 156, 183, 0.35);
+  --danger-line: rgba(182, 127, 118, 0.35);
+  --danger-line-strong: rgba(182, 127, 118, 0.45);
 
   --focus: #9baf9e;
   --selection: rgba(155, 175, 158, 0.25);
@@ -129,7 +143,6 @@
   --source-vault: #9baf9e;
   --source-drive: #879cb7;
   --source-mail: #bda27a;
-  --source-calendar: #a6ada7;
   --source-browser: #7f8f88;
   --source-github: #e9e7e0;
 
@@ -149,7 +162,6 @@
   --dur-hover: 120ms;
   --dur-reveal: 180ms;
   --dur-panel: 240ms;
-  --dur-large: 320ms;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out: cubic-bezier(0.4, 0, 1, 1);
 }
@@ -168,7 +180,7 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(1100px 520px at 12% -8%, rgba(189, 162, 122, 0.05), transparent 62%),
+    radial-gradient(1100px 520px at 12% -8%, var(--warm-glow), transparent 62%),
     var(--bg);
   color: var(--ink);
   font: 400 16px/1.6 var(--font-sans);
@@ -220,7 +232,7 @@ p {
 }
 
 h1 {
-  font: 600 24px/1.3 var(--font-display);
+  font: 500 20px/1.25 var(--font-display);
   letter-spacing: -0.01em;
   white-space: nowrap;
 }
@@ -258,18 +270,9 @@ h3 {
   text-overflow: ellipsis;
 }
 
-.added {
-  color: var(--accent);
-}
-
-.removed {
-  color: var(--danger);
-}
-
 /* ---------- buttons ---------- */
 
 button,
-.btn,
 .ghost,
 .primary,
 .danger {
@@ -310,57 +313,21 @@ button,
 }
 
 .primary:hover {
-  background: #a9bcac;
-  border-color: #a9bcac;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .primary:active {
-  background: #8fa592;
-  border-color: #8fa592;
+  background: var(--accent-press);
+  border-color: var(--accent-press);
 }
 
-/* Global tilt-shift: the surface leans toward the pointer, edges lose focus. */
-.tilt-target {
-  position: relative;
-  --mx: -100%;
-  --my: -100%;
-  will-change: transform;
-  transition:
-    transform 280ms var(--ease),
-    background var(--dur-hover) var(--ease),
-    border-color var(--dur-hover) var(--ease),
-    color var(--dur-hover) var(--ease);
+button:active,
+.ghost:active {
+  transform: translateY(1px);
 }
 
-.tilt-target.tilting {
-  transform: perspective(900px) rotateX(var(--tilt-x, 0deg))
-    rotateY(var(--tilt-y, 0deg)) scale(var(--tilt-scale, 1));
-  transition-duration: 160ms;
-}
-
-.tilt-target::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--dur-hover) var(--ease);
-  z-index: 3;
-  background: radial-gradient(
-    260px circle at var(--mx) var(--my),
-    rgba(233, 231, 224, 0.12),
-    rgba(155, 175, 158, 0.07) 40%,
-    transparent 70%
-  );
-}
-
-.tilt-target.tilting::before {
-  opacity: 0.55;
-}
-
-button:disabled,
-.btn:disabled {
+button:disabled {
   opacity: 0.4;
   cursor: default;
   transform: none;
@@ -383,7 +350,7 @@ button:disabled,
 
 .danger {
   color: var(--danger);
-  border-color: rgba(182, 127, 118, 0.35);
+  border-color: var(--danger-line);
 }
 
 .danger:hover {
@@ -434,7 +401,7 @@ button:disabled,
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 1px solid rgba(155, 175, 158, 0.28);
+  border: 1px solid var(--accent-edge);
   animation: spin 9s linear infinite;
   pointer-events: none;
 }
@@ -448,7 +415,7 @@ button:disabled,
   height: 4px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 8px rgba(155, 175, 158, 0.6);
+  box-shadow: 0 0 8px var(--accent-node);
 }
 
 .head-actions {
@@ -478,17 +445,19 @@ button:disabled,
   font: 400 21px/1.45 var(--font-sans);
   color: var(--ink);
   text-wrap: pretty;
+  overflow-wrap: anywhere;
 }
 
 .start-line .cue {
   color: var(--muted);
 }
 
+/* The one number the page exists to give: the only warm figure on the route. */
 .start-line b {
   font: 500 44px/1 var(--font-display);
   letter-spacing: -0.02em;
   margin: 0 3px;
-  color: var(--ink);
+  color: var(--warm);
 }
 
 .start-meta {
@@ -496,16 +465,19 @@ button:disabled,
   font: 400 13px/1.5 var(--font-mono);
   color: var(--muted);
   max-width: 70ch;
+  overflow-wrap: anywhere;
 }
 
-.start-meta a {
+.start-meta a,
+.today a {
   color: var(--muted);
   text-decoration: underline;
   text-decoration-color: var(--line-strong);
   text-underline-offset: 3px;
 }
 
-.start-meta a:hover {
+.start-meta a:hover,
+.today a:hover {
   color: var(--accent);
   text-decoration-color: currentColor;
 }
@@ -522,10 +494,13 @@ button:disabled,
   gap: 6px;
   font-size: 14px;
   color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .today .section-label {
   margin-bottom: 2px;
+  color: var(--warm);
 }
 
 .today .event b {
@@ -560,7 +535,7 @@ button:disabled,
   position: absolute;
   left: 0;
   right: 0;
-  top: 28px;
+  top: calc(50% - 1px);
   height: 2px;
   border-radius: var(--radius-pill);
   background: var(--line);
@@ -582,7 +557,7 @@ button:disabled,
 .station {
   position: relative;
   display: grid;
-  grid-template-rows: 17px 12px 17px;
+  grid-template-rows: minmax(17px, auto) minmax(12px, auto) minmax(17px, auto);
   gap: 6px;
   justify-items: center;
   min-width: 0;
@@ -643,6 +618,12 @@ button:disabled,
   font-variant-numeric: tabular-nums;
 }
 
+/* Hue is never the only cue: a failed station says so in its own row. */
+.station .at.bad {
+  color: var(--danger);
+  letter-spacing: 0.06em;
+}
+
 .station.bad .mark {
   background: var(--danger);
 }
@@ -664,7 +645,7 @@ a.station:hover .at {
 }
 
 .network.outcome-ok .rail i {
-  box-shadow: 0 0 10px rgba(155, 175, 158, 0.55);
+  box-shadow: 0 0 10px var(--accent-glow);
 }
 
 .network.outcome-error .rail i {
@@ -681,7 +662,7 @@ a.station:hover .at {
     transform: scale(1.35);
     box-shadow:
       0 0 0 4px var(--bg),
-      0 0 12px 2px rgba(155, 175, 158, 0.45);
+      0 0 12px 2px var(--accent-pulse);
   }
 }
 
@@ -694,26 +675,50 @@ a.station:hover .at {
   color: var(--muted);
 }
 
+/* Announced, never shown: the live region that reports what just happened. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ---------- banner ---------- */
 
 .note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
   padding: 10px 12px;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(135, 156, 183, 0.35);
+  border: 1px solid var(--info-line);
   background: var(--info-wash);
   color: var(--ink);
   font-size: 14px;
   margin-bottom: 16px;
+  overflow-wrap: anywhere;
   animation: fade-rise var(--dur-reveal) var(--ease) both;
 }
 
+.note .mini {
+  margin-left: auto;
+  flex: none;
+  align-self: center;
+}
+
 .note.success {
-  border-color: rgba(155, 175, 158, 0.35);
+  border-color: var(--accent-line);
   background: var(--accent-wash);
 }
 
 .note.error {
-  border-color: rgba(182, 127, 118, 0.35);
+  border-color: var(--danger-line);
   background: var(--danger-wash);
 }
 
@@ -747,7 +752,7 @@ a.station:hover .at {
 
 .search input::placeholder {
   color: var(--muted);
-  opacity: 0.65;
+  opacity: 0.8;
 }
 
 .search input:focus {
@@ -819,6 +824,14 @@ a.station:hover .at {
 .results .section-label {
   display: block;
   margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+
+/* The query is the user's, so it keeps its own case; the label around it stays a label. */
+.results .query {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: var(--ink);
 }
 
 .result {
@@ -846,9 +859,14 @@ a.station:hover .at {
   border-bottom: 0;
 }
 
-.result .label,
-li .label {
+.result .label {
   overflow-wrap: anywhere;
+}
+
+/* A wrapped path keeps its dot on the first line; centring it would point at nothing. */
+.result .dot {
+  align-self: flex-start;
+  margin-top: 0.45em;
 }
 
 .result .detail {
@@ -865,18 +883,6 @@ li .label {
   margin-bottom: 16px;
 }
 
-.card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.card-head h2 {
-  margin: 0;
-}
-
 /* ---------- briefing ---------- */
 
 .briefing {
@@ -891,6 +897,11 @@ li .label {
 
 .briefing.glow {
   border-top-color: var(--warm);
+}
+
+/* A generated briefing arrives, it does not appear. */
+.briefing.glow .briefing-body {
+  animation: fade-in var(--dur-panel) var(--ease) both;
 }
 
 .briefing-margin {
@@ -913,6 +924,11 @@ li .label {
   font-variant-numeric: tabular-nums;
 }
 
+/* A missing briefing is a state, not a timestamp: it takes the warm. */
+.stamp.missing {
+  color: var(--warm);
+}
+
 .briefing-body {
   min-width: 0;
 }
@@ -920,26 +936,30 @@ li .label {
 .markdown {
   font: 400 17px/1.75 var(--font-sans);
   text-wrap: pretty;
+  overflow-wrap: anywhere;
 }
 
 .markdown ul {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 15px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.markdown p + p {
-  margin-top: 15px;
+.markdown.empty {
+  color: var(--muted);
+  font-size: 15px;
 }
 
 .line {
   position: relative;
+  min-width: 0;
   padding-left: 26px;
 }
 
-/* The tick is the reading lamp: dim while unread, warm at the line under the eye. */
+/* The tick is the reading lamp: an ember while unread, lit at the line under the eye. */
 .line::before {
   content: "";
   position: absolute;
@@ -948,8 +968,8 @@ li .label {
   bottom: 0.35em;
   width: 1px;
   border-radius: 1px;
-  background: var(--line-strong);
-  opacity: 0.55;
+  background: var(--warm);
+  opacity: 0.3;
   transition:
     background var(--dur-reveal) var(--ease),
     opacity var(--dur-reveal) var(--ease),
@@ -958,7 +978,6 @@ li .label {
 }
 
 .line.reading::before {
-  background: var(--warm);
   opacity: 1;
   top: 0.1em;
   bottom: 0.1em;
@@ -996,6 +1015,11 @@ li .label {
   cursor: pointer;
   color: var(--muted);
   font-size: 14px;
+  transition: color var(--dur-hover) var(--ease);
+}
+
+.earlier summary:hover {
+  color: var(--ink);
 }
 
 .earlier summary::-webkit-details-marker {
@@ -1063,6 +1087,11 @@ li .label {
   gap: 6px 24px;
 }
 
+/* Setup is the one section on the route that asks for an action, so it is the sage one. */
+.setup .section-label {
+  color: var(--accent);
+}
+
 .setup li {
   display: flex;
   align-items: baseline;
@@ -1103,26 +1132,12 @@ li .label {
   background: var(--source-vault);
 }
 
-.dot.drive,
-.dot.google {
+.dot.drive {
   background: var(--source-drive);
 }
 
-.dot.mail,
-.dot.imap {
+.dot.mail {
   background: var(--source-mail);
-}
-
-.dot.calendar {
-  background: var(--source-calendar);
-}
-
-.dot.browser {
-  background: var(--source-browser);
-}
-
-.dot.github {
-  background: var(--source-github);
 }
 
 .dot.ok {
@@ -1139,12 +1154,24 @@ li .label {
   padding-bottom: 40px;
 }
 
+/* The route's title is a step above the card labels, or nothing on this page is a heading. */
 .settings-head {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
+  align-items: flex-start;
+  gap: 16px 20px;
+  margin-bottom: 32px;
+}
+
+.settings-head h1 {
+  margin-bottom: 8px;
+}
+
+/* A path inside a sentence wraps; the ellipsis variant only works inside a flex row. */
+.settings-page .sub .detail {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .conn-group {
@@ -1363,7 +1390,7 @@ input:-webkit-autofill {
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgba(12, 15, 16, 0.72);
+  background: var(--backdrop);
   backdrop-filter: blur(10px);
   animation: fade-in var(--dur-panel) var(--ease) both;
 }
@@ -1374,7 +1401,7 @@ input:-webkit-autofill {
   position: absolute;
   width: 480px;
   height: 480px;
-  border: 1px solid rgba(57, 66, 67, 0.3);
+  border: 1px solid var(--line-faint);
   border-radius: 50%;
   pointer-events: none;
   animation: drift 24s linear infinite alternate;
@@ -1403,6 +1430,28 @@ input:-webkit-autofill {
   box-shadow: var(--shadow-lg);
   padding: 22px;
   animation: dialog-in var(--dur-panel) var(--ease) both;
+}
+
+/* A fixed overlay can leave without moving the page, so its exit is allowed to play out. */
+.modal-backdrop.leaving {
+  animation: fade-out 140ms var(--ease-out) both;
+}
+
+.modal-backdrop.leaving .modal {
+  animation: dialog-out 140ms var(--ease-out) both;
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes dialog-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
 
 .modal h2 {
@@ -1448,7 +1497,7 @@ input:-webkit-autofill {
 /* Inside raised dialogs clay text fails contrast; express danger with a border. */
 .modal .danger {
   color: var(--ink);
-  border-color: rgba(182, 127, 118, 0.45);
+  border-color: var(--danger-line-strong);
 }
 
 .modal .danger:hover {
@@ -1472,122 +1521,7 @@ input:-webkit-autofill {
   flex: none;
 }
 
-/* ---------- boot splash (browser) ---------- */
-
-.boot {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 18px;
-  background: var(--void);
-  transition:
-    opacity 380ms var(--ease),
-    visibility 380ms;
-}
-
-.boot.leaving {
-  opacity: 0;
-  visibility: hidden;
-}
-
-.boot-emblem {
-  position: relative;
-  width: 148px;
-  height: 148px;
-  display: grid;
-  place-items: center;
-  animation: boot-emblem 700ms var(--ease) both;
-}
-
-.boot-emblem img {
-  width: 132px;
-  height: 132px;
-  border-radius: 26px;
-  filter: drop-shadow(0 10px 28px rgba(189, 162, 122, 0.18));
-}
-
-.boot-ring {
-  position: absolute;
-  inset: -14px;
-  border-radius: 50%;
-  border: 1px solid rgba(155, 175, 158, 0.35);
-  animation: spin 6s linear infinite;
-}
-
-.boot-ring::after {
-  content: "";
-  position: absolute;
-  top: -3px;
-  left: 50%;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 12px rgba(155, 175, 158, 0.6);
-}
-
-.boot-title {
-  font: 500 12px/1 var(--font-display);
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--ink);
-  animation: boot-title 700ms 120ms var(--ease) both;
-}
-
-.boot-bar {
-  width: 180px;
-  height: 2px;
-  border-radius: 99px;
-  background: var(--raised);
-  overflow: hidden;
-}
-
-.boot-bar span {
-  display: block;
-  width: 40%;
-  height: 100%;
-  border-radius: 99px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  animation: boot-sweep 1.4s ease-in-out infinite;
-}
-
-@keyframes boot-emblem {
-  from {
-    opacity: 0;
-    transform: scale(0.92);
-    filter: blur(8px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-    filter: blur(0);
-  }
-}
-
-@keyframes boot-title {
-  from {
-    opacity: 0;
-    letter-spacing: 0.34em;
-    filter: blur(2px);
-  }
-  to {
-    opacity: 1;
-    letter-spacing: 0.24em;
-    filter: blur(0);
-  }
-}
-
-@keyframes boot-sweep {
-  from {
-    transform: translateX(-120%);
-  }
-  to {
-    transform: translateX(320%);
-  }
-}
+/* ---------- view transition ---------- */
 
 ::view-transition-old(root) {
   animation: view-out 140ms var(--ease-out) both;
@@ -1612,11 +1546,6 @@ input:-webkit-autofill {
 }
 
 /* ---------- motion ---------- */
-
-.app-enter h1,
-.app-enter h3 {
-  animation: heading-in 420ms var(--ease) both;
-}
 
 .app-enter .enter-item {
   animation: fade-rise var(--dur-panel) var(--ease) backwards;
@@ -1664,35 +1593,6 @@ input:-webkit-autofill {
   }
 }
 
-@keyframes seg-breathe {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 0.85;
-  }
-}
-
-@keyframes warm-glow {
-  0% {
-    box-shadow: 0 0 0 0 rgba(189, 162, 122, 0);
-  }
-  40% {
-    box-shadow: 0 0 32px 0 rgba(189, 162, 122, 0.18);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(189, 162, 122, 0);
-  }
-}
-
-@keyframes diff-open {
-  to {
-    grid-template-rows: 1fr;
-    opacity: 1;
-  }
-}
-
 @keyframes drift {
   from {
     transform: translate(0, 0) rotate(0deg);
@@ -1705,17 +1605,6 @@ input:-webkit-autofill {
 @keyframes spin {
   to {
     transform: rotate(360deg);
-  }
-}
-
-@keyframes heading-in {
-  from {
-    opacity: 0;
-    filter: blur(3px);
-  }
-  to {
-    opacity: 1;
-    filter: blur(0);
   }
 }
 
@@ -1733,7 +1622,7 @@ body.motion-paused *::after {
   }
 
   .briefing {
-    grid-template-columns: 152px minmax(0, 1fr);
+    grid-template-columns: 152px minmax(0, 64ch);
     column-gap: 32px;
   }
 }
@@ -1749,7 +1638,7 @@ body.motion-paused *::after {
   }
 
   .briefing {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 64ch);
     row-gap: 20px;
   }
 
@@ -1769,6 +1658,24 @@ body.motion-paused *::after {
   h1 {
     font-size: 18px;
     white-space: normal;
+  }
+
+  /* A 320px measure cannot hold the hint at the hint: pin it to the window instead. */
+  .hint .tip {
+    position: fixed;
+    top: auto;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    width: auto;
+    max-width: none;
+    transform: translateY(4px);
+  }
+
+  .hint:hover .tip,
+  .hint:focus-visible .tip,
+  .hint.open .tip {
+    transform: translateY(0);
   }
 
   .page {
@@ -1808,6 +1715,74 @@ body.motion-paused *::after {
   }
 }
 
+/* Below ~350px the label, stamp and button no longer share a row without wrapping the label. */
+@media (max-width: 360px) {
+  .briefing-margin {
+    grid-auto-flow: row;
+    gap: 6px;
+  }
+
+  .briefing-margin .primary {
+    margin-top: 4px;
+  }
+}
+
+/* Touch: the targets grow to a thumb; nothing moves on a mouse. */
+@media (pointer: coarse) {
+  button,
+  .ghost,
+  .primary,
+  .danger {
+    height: 44px;
+    padding: 0 18px;
+  }
+
+  .mini {
+    height: 40px;
+  }
+
+  .search input {
+    height: 48px;
+  }
+
+  .suggest .item {
+    height: 44px;
+  }
+
+  .result {
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .earlier summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .hint {
+    width: 28px;
+    height: 28px;
+  }
+
+  .check,
+  .settings label.check {
+    min-height: 44px;
+  }
+
+  .settings input:not([type="checkbox"]),
+  .modal input:not([type="checkbox"]) {
+    min-height: 44px;
+  }
+
+  /* The mark stays 10px; only its hit area grows. */
+  .station::after {
+    content: "";
+    position: absolute;
+    inset: -8px -6px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1840,11 +1815,6 @@ body.motion-paused *::after {
     border-top-color: var(--muted);
   }
 
-  .app-enter h1,
-  .app-enter h3 {
-    animation: none;
-  }
-
   button:active,
   .ghost:active,
   .primary:active,
@@ -1854,29 +1824,6 @@ body.motion-paused *::after {
     opacity: 1;
   }
 
-  .tilt-target,
-  .tilt-target.tilting {
-    transform: none;
-    transition: none;
-  }
-
-  .tilt-target::before {
-    display: none;
-  }
-
-  .boot-emblem,
-  .boot-title,
-  .boot-ring,
-  .boot-bar span {
-    animation: none !important;
-  }
-
-  .boot-bar span {
-    width: 100%;
-    background: var(--accent);
-  }
-
-  .brand-mark,
   .brand-orbit {
     animation: none;
   }

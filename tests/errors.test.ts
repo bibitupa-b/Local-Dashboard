@@ -19,6 +19,16 @@ test('network failures are explained in plain words', () => {
   expect(friendlyError('fetch failed')).toContain('network')
 })
 
+test('a dead local server is named as such, not blamed on the internet', () => {
+  expect(friendlyError('Failed to fetch')).toContain('local server')
+  expect(friendlyError('Failed to fetch')).not.toContain('internet')
+})
+
+test('an HTTP status from the local server reads as a sentence, not a URL', () => {
+  expect(friendlyError('/api/attention → 500')).toContain('Restart Local Dashboard')
+  expect(friendlyError('/api/settings → 404')).toContain('Reinstall')
+})
+
 test('unknown errors are passed through unchanged', () => {
   expect(friendlyError('something odd happened')).toBe('something odd happened')
 })

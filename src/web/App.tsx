@@ -10,7 +10,9 @@ import {
 } from './api.js'
 import { SettingsPanel } from './Settings.js'
 import { friendlyError } from './errors.js'
+import { briefingLang } from './lang.js'
 import { driveUrl, mailUrl, obsidianUrl, sourceUrl } from './links.js'
+import { dialogOpen, useDialog, useLeaving } from './useDialog.js'
 
 const SERVICE_LABELS: Record<string, string> = {
   vault: 'vault',
@@ -18,6 +20,14 @@ const SERVICE_LABELS: Record<string, string> = {
   imap: 'mail',
   github: 'github',
   browser: 'browser',
+}
+
+// A station link is named by what it opens, not only by its state.
+const OPEN_LABELS: Record<string, string> = {
+  vault: 'opens in Obsidian',
+  google: 'opens in Google Drive',
+  imap: 'opens in Gmail',
+  github: 'opens GitHub notifications',
 }
 
 // Which pile the page points at first. Reply is the only one with a closing action.
@@ -34,8 +44,20 @@ const START_ORDER: AttentionItem['kind'][] = [
 ]
 
 function time(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime())
+    ? '—'
+    : date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
+
+/** An all-day event runs midnight to midnight; printing a clock time would be a lie. */
+function eventTime(event: { start: string; end: string }): string {
+  const start = Date.parse(event.start)
+  if (Number.isNaN(start)) return '—'
+  return Date.parse(event.end) - start >= 23 * 3_600_000 ? 'All day' : time(event.start)
+}
+
+const TODAY_EVENTS = 6
 
 function startPoint(item: AttentionItem): { num?: number; text: string; meta: string } {
   switch (item.kind) {
@@ -63,54 +85,53 @@ function startPoint(item: AttentionItem): { num?: number; text: string; meta: st
 }
 
 function BriefingBody({ markdown }: { markdown: string }) {
-  const lines = markdown
+  // A bullet and a plain line are the same entry; the marker is punctuation, not content.
+  const entries = markdown
     .split('\n')
-    .map((line) => line.trim())
+    .map((line) => line.trim().replace(/^[-*•]\s+/, ''))
     .filter(Boolean)
-  const bullets = lines
-    .map((line) => line.match(/^[-*•]\s+(.*)$/)?.[1])
-    .filter((text): text is string => Boolean(text))
 
-  if (bullets.length === lines.length && bullets.length > 0) {
+  if (entries.length === 0) {
     return (
-      <div className="markdown">
-        <ul>
-          {bullets.map((text, index) => {
-            // The closing line is the suggestion, labelled or not.
-            const suggestion = index === bullets.length - 1
-            const body = suggestion
-              ? text.replace(/^(suggestion|предложение|рекомендация)\s*[:—-]\s*/i, '')
-              : text
-            return (
-              <li
-                key={`${index}-${text.slice(0, 24)}`}
-                className={`line${suggestion ? ' suggestion' : ''}`}
-              >
-                {suggestion && <span className="suggestion-label">Suggestion</span>}
-                {body}
-              </li>
-            )
-          })}
-        </ul>
-      </div>
+      <p className="markdown empty">
+        This briefing came back empty. Generate another one.
+      </p>
     )
   }
 
   return (
-    <div className="markdown">
-      {lines.map((line, index) => (
-        <p className="line" key={`${index}-${line.slice(0, 24)}`}>
-          {line}
-        </p>
-      ))}
+    <div className="markdown" lang={briefingLang(markdown)}>
+      <ul>
+        {entries.map((text, index) => {
+          // The closing entry is the suggestion — but a one-line briefing has no closing entry.
+          const suggestion = index === entries.length - 1 && entries.length > 1
+          const body = suggestion
+            ? text.replace(/^(suggestion|предложение|рекомендация)\s*[:—-]\s*/i, '')
+            : text
+          return (
+            <li
+              key={`${index}-${text.slice(0, 24)}`}
+              className={`line${suggestion ? ' suggestion' : ''}`}
+              dir="auto"
+            >
+              {suggestion && (
+                <span className="suggestion-label" lang="en">
+                  Suggestion
+                </span>
+              )}
+              {body}
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }
 
 /** The sand rule follows the line at the middle of the viewport: reading position, not decoration. */
-function useReadingLine(key: string | number | undefined) {
+function useReadingLine(key: string | number | undefined, visible: boolean) {
   useEffect(() => {
-    if (typeof IntersectionObserver === 'undefined') return undefined
+    if (!visible || typeof IntersectionObserver === 'undefined') return undefined
     const lines = [...document.querySelectorAll<HTMLElement>('.briefing .line')]
     let current: HTMLElement | null = null
     const observer = new IntersectionObserver(
@@ -129,20 +150,23 @@ function useReadingLine(key: string | number | undefined) {
       observer.disconnect()
       current?.classList.remove('reading')
     }
-  }, [key])
+  }, [key, visible])
 }
 
 export function App() {
   const [status, setStatus] = useState<Status | null>(null)
-  const [attention, setAttention] = useState<AttentionItem[]>([])
-  const [briefings, setBriefings] = useState<Briefing[]>([])
+  const [attention, setAttention] = useState<AttentionItem[] | null>(null)
+  const [briefings, setBriefings] = useState<Briefing[] | null>(null)
   const [today, setToday] = useState<Today | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [busy, setBusy] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  // The POST stays open for the whole sync, so this is the only local proof it started.
+  const [syncPending, setSyncPending] = useState(false)
   const [note, setNote] = useState<{
     text: string
     tone: 'info' | 'success' | 'error'
+    retry?: boolean
   } | null>(null)
   const [glow, setGlow] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -161,29 +185,43 @@ export function App() {
   const [suggestions, setSuggestions] = useState<SearchResults | null>(null)
   const [activeSuggestion, setActiveSuggestion] = useState(0)
   const searchRef = useRef<HTMLInputElement>(null)
+  const generating = useRef(false)
+  const settingsButton = useRef<HTMLButtonElement>(null)
+  const wasSettings = useRef(showSettings)
+  const searched = useRef('')
+  const [live, setLive] = useState('')
 
   async function load() {
-    try {
-      const [nextStatus, nextAttention, nextBriefings, nextSettings, nextToday] =
-        await Promise.all([
-          api.status(),
-          api.attention(),
-          api.briefings(),
-          api.settings(),
-          api.today(),
-        ])
-      setStatus(nextStatus)
-      setAttention(nextAttention)
-      setBriefings(nextBriefings.items)
-      setSettings(nextSettings)
-      setToday(nextToday)
-      setLoaded(true)
-    } catch (error) {
-      setNote({
-        text: error instanceof Error ? error.message : 'Backend is not reachable',
-        tone: 'error',
-      })
+    const [statusRes, attentionRes, briefingsRes, settingsRes, todayRes] = await Promise.allSettled(
+      [api.status(), api.attention(), api.briefings(), api.settings(), api.today()] as const,
+    )
+    const missing: string[] = []
+    if (statusRes.status === 'fulfilled') setStatus(statusRes.value)
+    else missing.push('service status')
+    if (attentionRes.status === 'fulfilled') setAttention(attentionRes.value)
+    else missing.push("today's start")
+    if (briefingsRes.status === 'fulfilled') setBriefings(briefingsRes.value.items)
+    else missing.push('the briefing')
+    if (settingsRes.status === 'fulfilled') setSettings(settingsRes.value)
+    else missing.push('settings')
+    if (todayRes.status === 'fulfilled') setToday(todayRes.value)
+    else missing.push("today's calendar")
+
+    // One failed endpoint must not blank the page; the rest still renders.
+    const results = [statusRes, attentionRes, briefingsRes, settingsRes, todayRes]
+    const failed = results.find((result) => result.status === 'rejected')
+    if (results.some((result) => result.status === 'fulfilled')) setLoaded(true)
+    if (!failed) {
+      setNote((current) => (current?.retry ? null : current))
+      return
     }
+    setNote({
+      text: `${friendlyError(
+        failed.reason instanceof Error ? failed.reason.message : String(failed.reason),
+      )} (${missing.join(', ')})`,
+      tone: 'error',
+      retry: true,
+    })
   }
 
   useEffect(() => {
@@ -198,34 +236,67 @@ export function App() {
     }
   }, [])
 
+  const running = syncPending || (status?.sync.running ?? false)
+
+  // A minute is enough at rest; 3 seconds of status is only worth paying for while a sync runs,
+  // and nothing is worth paying for while the window is hidden.
+  // shortcut: a sync started outside this window (tray, startup catch-up) turns the fast poll on at
+  // the next minute's load, upgrade if the rail must move within a second of a tray-triggered sync.
   useEffect(() => {
     void load()
-    const timer = setInterval(() => void load(), 60_000)
-    const statusTimer = setInterval(() => {
-      void api.status().then(setStatus).catch(() => {})
-    }, 3000)
-    return () => {
-      clearInterval(timer)
-      clearInterval(statusTimer)
+    const loadTimer = setInterval(() => {
+      if (!document.hidden) void load()
+    }, 60_000)
+    const statusTimer = running
+      ? setInterval(() => {
+          if (!document.hidden) void api.status().then(setStatus).catch(() => {})
+        }, 3000)
+      : undefined
+    // Coming back to a window that was hidden for a while must not show stale times.
+    const onVisible = () => {
+      if (!document.hidden) void load()
     }
-  }, [])
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(loadTimer)
+      if (statusTimer) clearInterval(statusTimer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [running])
 
   useEffect(() => {
-    if (query.trim().length < 2) {
+    const term = query.trim()
+    searched.current = term
+    if (term.length < 2) {
       setSuggestions(null)
       return
     }
     const handle = setTimeout(() => {
       api
-        .search(query.trim())
+        .search(term)
         .then((found) => {
+          // A slower earlier query must not overwrite the newer one.
+          if (searched.current !== term) return
           setSuggestions(found)
           setActiveSuggestion(0)
         })
-        .catch(() => setSuggestions(null))
+        .catch(() => {
+          if (searched.current === term) setSuggestions(null)
+        })
     }, 250)
     return () => clearTimeout(handle)
   }, [query])
+
+  useEffect(() => {
+    if (!suggestions) return undefined
+    // Clicking anywhere else must dismiss the popup; a mouse user should not have to know Escape.
+    const wrap = document.querySelector('.search-wrap')
+    const dismiss = (event: PointerEvent) => {
+      if (!wrap?.contains(event.target as Node)) setSuggestions(null)
+    }
+    document.addEventListener('pointerdown', dismiss)
+    return () => document.removeEventListener('pointerdown', dismiss)
+  }, [suggestions])
 
   useEffect(() => {
     const update = () => document.body.classList.toggle('motion-paused', document.hidden)
@@ -233,6 +304,13 @@ export function App() {
     document.addEventListener('visibilitychange', update)
     return () => document.removeEventListener('visibilitychange', update)
   }, [])
+
+  // A success message is a receipt, not a state: it should not sit on the page forever.
+  useEffect(() => {
+    if (!note || note.tone === 'error') return
+    const timer = setTimeout(() => setNote(null), 6000)
+    return () => clearTimeout(timer)
+  }, [note])
 
   useEffect(() => {
     if (!glow) return
@@ -243,7 +321,13 @@ export function App() {
   useEffect(() => {
     if (!status) return
     if (wasRunning.current && !status.sync.running) {
-      setSyncOutcome(status.sources.some((source) => source.lastError) ? 'error' : 'ok')
+      const failed = status.sources.some((source) => source.lastError)
+      setSyncOutcome(failed ? 'error' : 'ok')
+      setLive(
+        failed
+          ? `Sync failed at ${time(new Date().toISOString())}, a source reported an error.`
+          : `Sync finished at ${time(new Date().toISOString())}.`,
+      )
       const timer = setTimeout(() => setSyncOutcome(null), 1600)
       wasRunning.current = false
       return () => clearTimeout(timer)
@@ -253,8 +337,9 @@ export function App() {
   }, [status])
 
   useEffect(() => {
-    if (showSettings) return
+    if (showSettings) return undefined
     const onKey = (event: KeyboardEvent) => {
+      if (dialogOpen()) return
       const target = event.target as HTMLElement | null
       const typing =
         !!target &&
@@ -279,6 +364,14 @@ export function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [showSettings])
+
+  // The route swap replaces the whole page; focus must land on the new route, not on <body>.
+  useEffect(() => {
+    if (wasSettings.current === showSettings) return
+    wasSettings.current = showSettings
+    if (showSettings) document.querySelector<HTMLElement>('.settings-head button')?.focus()
+    else settingsButton.current?.focus()
   }, [showSettings])
 
   function withViewTransition(update: () => void): void {
@@ -313,8 +406,12 @@ export function App() {
   }
 
   async function generate() {
+    // One paid call at a time: a held key repeats and must not spend twice.
+    if (generating.current) return
+    generating.current = true
     setBusy(true)
     setNote(null)
+    setLive('Writing the briefing…')
     try {
       const result = await api.generate()
       if ('error' in result) {
@@ -328,10 +425,11 @@ export function App() {
       } else {
         setBriefings((items) => [
           { id: Date.now(), created_at: new Date().toISOString(), trigger: 'manual', markdown: result.markdown },
-          ...items,
+          ...(items ?? []),
         ])
         setStatus((current) => (current ? { ...current, briefingToday: true } : current))
         setGlow(true)
+        setLive(`Briefing ready at ${time(new Date().toISOString())}.`)
       }
     } catch (error) {
       setNote({
@@ -341,6 +439,7 @@ export function App() {
         tone: 'error',
       })
     } finally {
+      generating.current = false
       setBusy(false)
     }
   }
@@ -359,6 +458,14 @@ export function App() {
       setResults(found)
       setResultsQuery(term)
       setSuggestions(null)
+      const count = found.notes.length + found.mail.length + found.drive.length
+      setLive(
+        count === 0
+          ? `Nothing found for ${term}.`
+          : count === 1
+            ? `One result for ${term}.`
+            : `${count} results for ${term}.`,
+      )
     } catch (error) {
       setNote({
         text: friendlyError(error instanceof Error ? error.message : String(error)),
@@ -426,35 +533,27 @@ export function App() {
     }
   }
 
-  const isElectron = navigator.userAgent.includes('Electron')
-  const [splash, setSplash] = useState<'visible' | 'leaving' | 'hidden'>(
-    isElectron ? 'hidden' : 'visible',
+  const latest = briefings?.[0]
+  // The settings route unmounts the briefing, so the observer is rebuilt when it returns.
+  useReadingLine(latest?.id, !showSettings)
+  const welcomeDialog = useLeaving()
+  const welcomeRef = useDialog<HTMLDivElement>(welcome && Boolean(settings), () =>
+    welcomeDialog.close(dismissWelcome),
   )
-
-  useEffect(() => {
-    if (splash === 'hidden') return
-    const leave = setTimeout(() => setSplash('leaving'), 1100)
-    const hide = setTimeout(() => setSplash('hidden'), 1480)
-    return () => {
-      clearTimeout(leave)
-      clearTimeout(hide)
-    }
-  }, [])
-
-  const latest = briefings[0]
-  useReadingLine(latest?.id)
 
   if (showSettings && settings) {
     return (
       <div className="page app-enter">
-        <SettingsPanel
-          settings={settings}
-          onClose={closeSettings}
-          onSaved={(next) => {
-            setSettings(next)
-            setNote({ text: 'Preferences saved.', tone: 'success' })
-          }}
-        />
+        <main>
+          <SettingsPanel
+            settings={settings}
+            onClose={closeSettings}
+            onSaved={(next) => {
+              setSettings(next)
+              setNote({ text: 'Preferences saved.', tone: 'success' })
+            }}
+          />
+        </main>
       </div>
     )
   }
@@ -480,17 +579,26 @@ export function App() {
     return [...map.values()].sort((a, b) => order.indexOf(a.service) - order.indexOf(b.service))
   })()
 
-  const running = status?.sync.running ?? false
   const activeService = status?.sources.find((source) => source.id === status.sync.source)?.service
+  // The rail's accessible name is the station a person reads, never the raw connection id.
+  const syncing = activeService ? (SERVICE_LABELS[activeService] ?? activeService) : null
   const progress = !status
     ? 0
     : syncOutcome
       ? 100
-      : Math.round(
-          ((status.sync.sourceIndex + status.sync.done / Math.max(status.sync.total, 1)) /
-            Math.max(status.sync.sourceTotal, 1)) *
-            100,
+      : Math.min(
+          100,
+          Math.max(
+            0,
+            Math.round(
+              ((status.sync.sourceIndex + status.sync.done / Math.max(status.sync.total, 1)) /
+                Math.max(status.sync.sourceTotal, 1)) *
+                100,
+            ),
+          ),
         )
+  // At rest the rail is a track; only a running sync (or its outcome) fills it.
+  const fill = running || syncOutcome ? progress : 0
 
   const setupSteps = [
     {
@@ -498,30 +606,17 @@ export function App() {
       done: status?.sources.some((source) => source.kind === 'vault' && source.configured) ?? false,
     },
     { label: 'Add a DeepSeek key', done: settings?.hasDeepSeekKey ?? false },
-    { label: 'Generate the first briefing', done: briefings.length > 0 },
+    { label: 'Generate the first briefing', done: (briefings?.length ?? 0) > 0 },
   ]
   const setupDone = setupSteps.every((step) => step.done)
 
-  const first = START_ORDER.map((kind) => attention.find((item) => item.kind === kind)).find(
+  const first = START_ORDER.map((kind) => attention?.find((item) => item.kind === kind)).find(
     (item): item is AttentionItem => Boolean(item),
   )
   const start = first ? { ...startPoint(first), href: attentionHref(first) } : null
 
   return (
     <div className="page app-enter">
-      {splash !== 'hidden' && (
-        <div className={`boot${splash === 'leaving' ? ' leaving' : ''}`} aria-hidden="true">
-          <div className="boot-emblem">
-            <span className="boot-ring" />
-            <img src="/icon-transparent.png" alt="" />
-          </div>
-          <div className="boot-title">Local Dashboard</div>
-          <div className="boot-bar">
-            <span />
-          </div>
-        </div>
-      )}
-
       <header className="masthead enter-item" style={{ '--i': 0 } as React.CSSProperties}>
         <div className="ident">
           <span className="brand-mark">
@@ -542,7 +637,9 @@ export function App() {
         <div className="head-actions">
           <button
             className="ghost"
+            disabled={running}
             onClick={() => {
+              setSyncPending(true)
               void api
                 .sync()
                 .then(load)
@@ -552,50 +649,73 @@ export function App() {
                     tone: 'error',
                   }),
                 )
+                .finally(() => setSyncPending(false))
             }}
           >
             Sync
           </button>
-          <button className="ghost" onClick={toggleSettings}>
+          <button
+            ref={settingsButton}
+            className="ghost"
+            onClick={toggleSettings}
+            disabled={!settings}
+            title={settings ? undefined : 'Settings are available once the local server responds.'}
+          >
             Settings
           </button>
         </div>
       </header>
 
       <main>
+        <p className="sr-only" role="status">
+          {live}
+        </p>
+
         {note && (
           <p className={`note ${note.tone}`} role="status" aria-live="polite">
             {note.text}
+            {note.retry && (
+              <button
+                className="mini"
+                onClick={() => {
+                  setNote(null)
+                  void load()
+                }}
+              >
+                Try again
+              </button>
+            )}
           </p>
         )}
 
         {loaded && (
           <div className="panel enter-item" style={{ '--i': 1 } as React.CSSProperties}>
             <section className="start">
-            {start ? (
-              <>
-                <p className="start-line">
-                  <span className="cue">Start here:</span>{' '}
-                  {start.num !== undefined && <b>{start.num}</b>} {start.text}
-                </p>
-                <p className="start-meta">
-                  {start.href ? (
-                    <a
-                      href={start.href}
-                      target={start.href.startsWith('obsidian://') ? undefined : '_blank'}
-                      rel={start.href.startsWith('obsidian://') ? undefined : 'noreferrer'}
-                    >
-                      {start.meta}
-                    </a>
-                  ) : (
-                    start.meta
-                  )}
-                </p>
-              </>
-            ) : (
-              loaded && <p className="start-line muted">Nothing needs attention.</p>
-            )}
-          </section>
+              {start ? (
+                <>
+                  <p className="start-line">
+                    <span className="cue">Start here:</span>{' '}
+                    {start.num !== undefined && <b>{start.num.toLocaleString('en-GB')}</b>}{' '}
+                    {start.text}
+                  </p>
+                  <p className="start-meta">
+                    {start.href ? (
+                      <a
+                        href={start.href}
+                        target={start.href.startsWith('obsidian://') ? undefined : '_blank'}
+                        rel={start.href.startsWith('obsidian://') ? undefined : 'noreferrer'}
+                      >
+                        {start.meta}
+                      </a>
+                    ) : (
+                      start.meta
+                    )}
+                  </p>
+                </>
+              ) : (
+                attention !== null && <p className="start-line muted">Nothing needs attention.</p>
+              )}
+            </section>
 
           {today && settings && (
             <section className="today">
@@ -605,13 +725,23 @@ export function App() {
                   {settings.calendarConnected ? 'No events' : 'Calendar not connected'}
                 </p>
               )}
-              {today.events.map((event) => (
-                <p key={event.id} className="event">
-                  <b>{time(event.start)}</b> {event.summary}
+              {today.events.slice(0, TODAY_EVENTS).map((event) => (
+                <p key={event.id} className="event" dir="auto">
+                  <b>{eventTime(event)}</b> {event.summary}
                 </p>
               ))}
+              {today.events.length > TODAY_EVENTS && (
+                <p className="muted">
+                  <a href="https://calendar.google.com" target="_blank" rel="noreferrer">
+                    +{today.events.length - TODAY_EVENTS} more today
+                  </a>
+                </p>
+              )}
               {today.conflicts.length > 0 && (
-                <p className="conflict">Conflict: {today.conflicts.join(', ')}</p>
+                <p className="conflict">
+                  Conflict: {today.conflicts.slice(0, 3).join(', ')}
+                  {today.conflicts.length > 3 ? ` +${today.conflicts.length - 3}` : ''}
+                </p>
               )}
               {settings.calendarConnected &&
                 today.free.slice(0, 2).map((window) => (
@@ -629,19 +759,19 @@ export function App() {
             running ? ' running' : ''
           }`}
           style={{ '--i': 2 } as React.CSSProperties}
-          role={running ? 'progressbar' : undefined}
-          aria-label={
-            running
-              ? `Syncing ${status?.sync.source ?? 'sources'}`
-              : 'Connected services and their last sync'
-          }
-          aria-valuemin={running ? 0 : undefined}
-          aria-valuemax={running ? 100 : undefined}
-          aria-valuenow={running ? progress : undefined}
+          aria-label="Connected services and their last sync"
         >
           {stations.length > 0 && (
-            <span className="rail" aria-hidden="true">
-              <i style={{ width: `${progress}%` }} />
+            <span
+              className="rail"
+              aria-hidden={running ? undefined : true}
+              role={running ? 'progressbar' : undefined}
+              aria-label={running ? `Syncing ${syncing ?? 'sources'}` : undefined}
+              aria-valuemin={running ? 0 : undefined}
+              aria-valuemax={running ? 100 : undefined}
+              aria-valuenow={running ? progress : undefined}
+            >
+              <i style={{ width: `${fill}%` }} />
             </span>
           )}
           {stations.length === 0 && status && (
@@ -662,10 +792,22 @@ export function App() {
               <>
                 <span className="name">
                   {name}
-                  {station.total > 1 ? ` · ${station.total}` : ''}
+                  {station.total > 1 && <span aria-hidden="true"> · {station.total}</span>}
+                  {/* The station's accessible name: service, state, and where the link goes. */}
+                  <span className="sr-only">
+                    {`, ${[
+                      station.total > 1 ? `${station.total} accounts` : null,
+                      detail,
+                      url ? (OPEN_LABELS[station.service] ?? 'opens the service') : null,
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}`}
+                  </span>
                 </span>
                 <span className="mark" />
-                <span className="at">{station.lastSync ? time(station.lastSync) : '—'}</span>
+                <span className={`at${station.error ? ' bad' : ''}`} aria-hidden="true">
+                  {station.error ? 'error' : station.lastSync ? time(station.lastSync) : '—'}
+                </span>
               </>
             )
             return url ? (
@@ -723,11 +865,12 @@ export function App() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={onSearchKey}
+              onBlur={() => setSuggestions(null)}
               placeholder="Search notes, mail and Drive…"
               autoComplete="off"
               role="combobox"
               aria-label="Search notes, mail and Drive"
-              aria-controls="search-suggestions"
+              aria-controls={items.length > 0 ? 'search-suggestions' : undefined}
               aria-haspopup="listbox"
               aria-autocomplete="list"
               aria-expanded={items.length > 0}
@@ -740,7 +883,7 @@ export function App() {
                 {items.map((item, index) => (
                   <Fragment key={`${item.kind}-${index}`}>
                     {(index === 0 || items[index - 1]!.kind !== item.kind) && (
-                      <div className="group">
+                      <div className="group" aria-hidden="true">
                         {item.kind === 'note' ? 'Notes' : item.kind === 'mail' ? 'Mail' : 'Drive'}
                       </div>
                     )}
@@ -756,6 +899,9 @@ export function App() {
                       }}
                     >
                       <span className={`dot ${item.kind === 'note' ? 'vault' : item.kind}`} />
+                      <span className="sr-only">
+                        {item.kind === 'note' ? 'Note' : item.kind === 'mail' ? 'Mail' : 'Drive'}:{' '}
+                      </span>
                       <span className="label">{item.label}</span>
                       {item.detail && <span className="detail">{item.detail}</span>}
                     </div>
@@ -785,7 +931,9 @@ export function App() {
 
         {results && resultsQuery && (
           <section className="results enter-item">
-            <p className="section-label">Results for “{resultsQuery}”</p>
+            <p className="section-label">
+            Results for <span className="query">“{resultsQuery}”</span>
+          </p>
             {results.notes.length === 0 && results.mail.length === 0 && results.drive.length === 0 && (
               <p className="empty">Nothing found.</p>
             )}
@@ -835,7 +983,7 @@ export function App() {
           style={{ '--i': 4 } as React.CSSProperties}
         >
           <div className="briefing-margin">
-            <h2>Briefing</h2>
+            <h2 className="section-label">Briefing</h2>
             {latest && (
               <time className="stamp" dateTime={latest.created_at}>
                 {new Date(latest.created_at).toLocaleString('en-GB', {
@@ -850,7 +998,7 @@ export function App() {
               {busy ? 'Thinking…' : 'Briefing now'}
             </button>
             {latest && status && !status.briefingToday && (
-              <span className="stamp">none for today yet</span>
+              <span className="stamp missing">none for today yet</span>
             )}
           </div>
 
@@ -864,6 +1012,7 @@ export function App() {
             ) : latest ? (
               <BriefingBody markdown={latest.markdown} />
             ) : (
+              briefings?.length === 0 &&
               loaded && (
                 <p className="empty">
                   {settings && !settings.hasDeepSeekKey
@@ -873,10 +1022,10 @@ export function App() {
               )
             )}
 
-            {briefings.length > 1 && (
+            {(briefings?.length ?? 0) > 1 && (
               <details className="earlier">
                 <summary>Earlier briefings</summary>
-                {briefings.slice(1).map((briefing) => (
+                {(briefings ?? []).slice(1).map((briefing) => (
                   <article key={briefing.id}>
                     <h3>
                       {new Date(briefing.created_at).toLocaleString('en-GB', {
@@ -893,13 +1042,18 @@ export function App() {
         </article>
       </main>
 
-      {welcome && (
-        <div className="modal-backdrop" onClick={dismissWelcome}>
+      {welcome && settings && (
+        <div
+          className={`modal-backdrop${welcomeDialog.leaving ? ' leaving' : ''}`}
+          onClick={() => welcomeDialog.close(dismissWelcome)}
+        >
           <div
+            ref={welcomeRef}
             className="modal card"
             role="dialog"
             aria-modal="true"
             aria-label="Welcome to Local Dashboard"
+            tabIndex={-1}
             onClick={(event) => event.stopPropagation()}
           >
             <h2>Welcome to Local Dashboard</h2>
@@ -911,14 +1065,16 @@ export function App() {
             <div className="row">
               <button
                 className="primary"
-                onClick={() => {
-                  dismissWelcome()
-                  toggleSettings()
-                }}
+                onClick={() =>
+                  welcomeDialog.close(() => {
+                    dismissWelcome()
+                    toggleSettings()
+                  })
+                }
               >
                 Set up sources
               </button>
-              <button className="ghost" onClick={dismissWelcome}>
+              <button className="ghost" onClick={() => welcomeDialog.close(dismissWelcome)}>
                 Explore first
               </button>
             </div>
