@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { App } from '../src/web/App.js'
 import { SettingsPanel } from '../src/web/Settings.js'
@@ -173,6 +173,73 @@ test('calendar event times use the same 24-hour clock as the rest of the screen'
   await waitFor(() => expect(screen.getByText('Standup')).toBeTruthy())
   expect(screen.getByText('15:45')).toBeTruthy()
   expect(screen.queryByText('03:45 PM')).toBeNull()
+  unmount()
+})
+
+test('attention shows five rows with a show-all control', async () => {
+  const attention = Array.from({ length: 7 }, (_, index) => ({
+    kind: 'task',
+    label: `Task ${index + 1}`,
+    detail: 'Inbox/Plan.md',
+  }))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => (url === '/api/attention' ? attention : responses[url] ?? {}),
+    })),
+  )
+  const { unmount } = render(<App />)
+  await waitFor(() => expect(screen.getByText('Task 1')).toBeTruthy())
+  expect(screen.getAllByText(/^Task \d$/)).toHaveLength(5)
+  fireEvent.click(screen.getByRole('button', { name: 'Show all 7' }))
+  expect(screen.getAllByText(/^Task \d$/)).toHaveLength(7)
+  unmount()
+})
+
+test('briefing bullets render as a list with a marked suggestion', async () => {
+  const briefings = {
+    items: [
+      {
+        id: 1,
+        created_at: '2026-11-01T08:00:00.000Z',
+        trigger: 'manual',
+        markdown: '- First move\n- Second move\n- Suggestion: take a walk',
+      },
+    ],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url === '/api/briefings?limit=10' ? briefings : responses[url] ?? {},
+    })),
+  )
+  const { container, unmount } = render(<App />)
+  await waitFor(() => expect(screen.getByText('First move')).toBeTruthy())
+  expect(container.querySelectorAll('.markdown li')).toHaveLength(3)
+  expect(screen.getByText('Suggestion')).toBeTruthy()
+  expect(screen.getByText('take a walk')).toBeTruthy()
+  unmount()
+})
+
+test('search input exposes the active suggestion to assistive tech', async () => {
+  const search = { notes: [{ path: 'Zen.md', snippet: 'zen' }], mail: [], drive: [] }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => (url.startsWith('/api/search') ? search : responses[url] ?? {}),
+    })),
+  )
+  const { unmount } = render(<App />)
+  const input = screen.getByRole('combobox')
+  fireEvent.change(input, { target: { value: 'zen' } })
+  await waitFor(() => expect(screen.getByText('Zen.md')).toBeTruthy())
+  const option = screen.getByRole('option')
+  expect(option.id).toBe('search-option-0')
+  expect(input.getAttribute('aria-activedescendant')).toBe('search-option-0')
   unmount()
 })
 

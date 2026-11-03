@@ -1,6 +1,6 @@
 # DESIGN — Local Dashboard
 
-**Status:** design target. The current UI is light; this document replaces it. Implemented in `src/web/styles.css` and the existing components — no new features are introduced here.
+**Status:** implemented. Tokens, components and motion live in `src/web/styles.css` and the existing components; this document describes the current dark interface.
 **Scope:** the whole desktop app — dashboard, settings route, connection modal, search and suggestions, diffs, hints, banners.
 **Character:** a quiet instrument in a dark room. One warm light, matte surfaces, precise labels, nothing that moves unless the state changed.
 
@@ -104,7 +104,8 @@ Two derived colors are allowed and no others:
   --radius-pill: 999px;
 
   /* type */
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", "Segoe UI Emoji", system-ui, sans-serif;
+  --font-sans: "Onest", "Segoe UI Variable Text", "Segoe UI", "Segoe UI Emoji", system-ui, sans-serif;
+  --font-display: "Unbounded", "Onest", "Segoe UI Variable Display", "Segoe UI", sans-serif;
   --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
 
   /* elevation */
@@ -180,11 +181,13 @@ Dot: 7px, fully round, `flex: none`, vertically aligned to the first line of tex
 
 ## 4. Typography
 
-No web fonts: the app is local and must render offline and instantly. Windows-first stack; Cyrillic comes from Segoe UI, emoji from Segoe UI Emoji.
+Self-hosted web fonts: Unbounded for display and Onest for body, both under the SIL Open Font
+License in `src/web/fonts`. They load from disk, never a CDN. Cyrillic and emoji coverage is
+required; the fallback stack starts with Segoe UI.
 
 | Token | Size / line | Weight | Case / tracking | Use |
 |---|---|---|---|---|
-| Display | 24 / 1.25 | 600 | sentence, -0.015em | Page title `Local Dashboard` |
+| Display | 24 / 1.25 | 600 | sentence, -0.015em | Page title `Local Dashboard` (Unbounded) |
 | Section | 11 / 1.4 | 500 | UPPERCASE mono, 0.14em | Card headings, `TODAY`, group labels |
 | Card title | 14 / 1.4 | 600 | sentence | Connection group names, `Earlier briefings` |
 | Body | 15 / 1.6 | 400 | sentence | Lists, settings, search results |
@@ -254,7 +257,7 @@ One warm gradient, static, top-left. No second glow, no noise texture.
 1. **Header** — title + weekday/date on the left; status pills, `Sync`, `Settings` on the right. Wraps below 900px; actions stay together.
 2. **Sync bar** — only while `status.sync.running`. Full width, 3px segments, 4px gaps. Disappears when idle.
 3. **Note banner** — inline, full width, when present.
-4. **Today strip** — mono label `TODAY` + event chips. Hidden when there are no events.
+4. **Today strip** — mono label `TODAY` + event chips. Always visible; shows `No events today` or `Calendar not connected` when empty.
 5. **Search** — input + `Search` button; `Clear` appears after a search. Suggestions float below the input.
 6. **Results card** — only after a submitted search; full width.
 7. **Briefing hero** — full width, the visual center. Heading row: section label + `Briefing now` (the only primary button on the screen). Timestamp in micro. Markdown body. `Earlier briefings` as a native disclosure.
@@ -287,7 +290,8 @@ No layout depends on a fixed pixel height for text. At 200% zoom the page must r
 ### 7.1 Card
 
 `background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 20px;`
-No hover state — cards are not clickable. Section heading inside uses the mono `Section` style in Mist.
+Cards are not clickable. A scoped tilt-shift (§8.3 row 20) responds to the pointer over the card
+surface, never over a control. Section heading inside uses the mono `Section` style in Mist.
 
 ### 7.2 Status pill
 
@@ -310,7 +314,7 @@ Height 28px, radius pill, 12px text, Graphite, 1px line. Time in Sand, mono, tab
 
 Input: height 40px, `--sunken` background, 1px `--line`, radius 10px, 15px text, padding 0 12px. Placeholder Mist at 65% opacity. Focus: sage ring, border `--line-strong`. The search row gap is 8px; the input takes the remaining width.
 
-Suggestions: absolute below the input, 4px offset, `--raised`, radius 14px, `--shadow-sm`, max-height 320px, scroll. Group labels mono 10px uppercase Mist, padding 8px 12px 4px. Each row 34px, 13px text, hover/active `--surface` or `--slate`; keyboard-active also gets a 2px Sage inset bar on the left. Source dot at the start, label truncates with ellipsis, detail on the right in 12px Mist. No animation beyond a 120ms fade + 2px rise.
+Suggestions: absolute below the input, 4px offset, `--raised`, radius 14px, `--shadow-sm`, max-height 320px, scroll, capped at 560px and anchored to the input's left edge. Group labels mono 10px uppercase Mist, padding 8px 12px 4px. Each row 34px, 13px text, hover/active `--surface` or `--slate`; keyboard-active also gets a 2px Sage inset bar on the left. Source dot at the start, label truncates with ellipsis, detail on the right in 12px Mist. No animation beyond a 120ms fade + 2px rise.
 
 Results card: rows reuse `.result`; hover `--raised`; source dot, label, 12px Mist detail. Empty result: one line, Mist.
 
@@ -332,7 +336,7 @@ Day headings: 11px mono uppercase Mist, 12px top margin.
 
 The hero card gets `background-image: radial-gradient(420px 260px at 6% 0%, rgba(189,162,122,.07), transparent 70%)` on top of `--surface`.
 
-Header row: section label left, `Briefing now` right. Timestamp 11px mono Mist, tabular. Body 16px/1.7 Porcelain, max 72ch, `white-space: pre-wrap`. Bullets in the markdown keep their own markers — do not restyle markdown into cards.
+Header row: section label left, `Briefing now` right. Timestamp 11px mono Mist, tabular. Body 16px/1.7 Porcelain, max 72ch, `white-space: pre-wrap`. Bullets render as a real list with 10px gaps and hanging markers. The closing suggestion gets a 1px Sand left rule, a `warm-wash` background and a `Suggestion` micro-label.
 
 Empty state: one sentence, Mist, no illustration, no icon. When generating, the button reads `Thinking…` and three skeleton lines replace the body (see §8). `Earlier briefings` uses the native `<details>` with a `summary` in 13px Mist; open state is instant (no height animation), chevron rotates 150ms.
 
@@ -428,6 +432,7 @@ Dot (8px, semantic), label 13px Porcelain, detail 12px Mist, actions right-align
 | 17 | Connection test | Click `Test` | 14px spinner rotates; result color fades in | 900ms linear; 240ms | Static `testing…`, no spinner |
 | 18 | Banner | Appears | Fade + 4px rise; exit 120ms | 200ms | Fade only |
 | 19 | Result rows | Hover | Background 120ms | 120ms | Color only |
+| 20 | Card surface | Pointer rests 150ms | Tilt up to 1.5° and scale 1.002; no shadow, no blur | 160ms | Removed |
 
 Rules that apply to every row:
 
@@ -436,7 +441,7 @@ Rules that apply to every row:
 - Exit is always shorter than enter.
 - Entrance animations run once per mount, never on the 60-second refresh. Track first paint with a ref, not a timer.
 - No motion may block input or delay a response to a click.
-- Infinite motion is capped at two elements per screen (status dot + sync segment, or briefing glow + modal rings — never all four).
+- Infinite motion is capped at two elements per screen (brand orbit + briefing glow, or status dot + sync segment — never all four).
 - Loops pause when `document.hidden`; resume on visibility. CSS `animation-play-state: paused` is enough.
 - No bounce, spring, parallax, particles, neon pulsing, or scroll-triggered effects.
 
@@ -523,7 +528,7 @@ Keep class names where possible (`page`, `card`, `pill`, `today`, `event`, `sugg
 ## 12. Non-goals
 
 - Light theme, theme toggle, per-user themes.
-- Photographic backgrounds, textures, grain overlays, external fonts, 3D or glass cards (blur is modal-only).
+- Photographic backgrounds, textures, grain overlays, external font CDNs (fonts are self-hosted), 3D scenes or glass cards. The only card motion is the scoped tilt in §8.3; blur is modal-only.
 - Neon glow, animated gradients on cards, particles, parallax, scroll-jacking, JS animation libraries.
 - A command palette, new keyboard shortcuts, or a navigation sidebar. Search stays inline; settings stays a route.
 - Changes to information architecture, copy, features or data. This document styles what exists.

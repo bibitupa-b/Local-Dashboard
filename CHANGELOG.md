@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.3
+
+- Needs attention: tasks from one note collapse into a row with a count, and the list shows five
+  rows with **Show all** / **Show less**.
+- Briefing bullets render as a spaced list; a closing suggestion gets a `Suggestion` label and a
+  Sand rule instead of being buried in the last line.
+- Search is a proper combobox (`aria-activedescendant`, labelled input) and its panel is capped at
+  560px, no longer covering the primary action.
+- Activity reveals 50 rows per click instead of the whole backlog, and can collapse again.
+- Today no longer shows free windows when Calendar is not connected.
+- One ambient loop removed: the brand mark no longer breathes; the orbit and briefing glow remain.
+- DESIGN.md now matches the shipped fonts, Today state, card tilt and two-loop motion budget.
+- Search says when a query is shorter than two characters; hint tooltips stay inside the viewport.
+
 ## 1.0.2
 
 - Attention links use the palette (Porcelain, Sage on hover) instead of the browser-default blue.

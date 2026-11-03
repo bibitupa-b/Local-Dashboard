@@ -48,6 +48,7 @@ export function buildAttention(
   ).filter((task) => !isExcludedVaultPath(db, task.path))
 
   const groups = new Map<string, { count: number; paths: Set<string> }>()
+  const byNote = new Map<string, string[]>()
   for (const task of tasks) {
     if (task.tag) {
       const group = groups.get(task.tag) ?? { count: 0, paths: new Set<string>() }
@@ -55,8 +56,19 @@ export function buildAttention(
       group.paths.add(task.path)
       groups.set(task.tag, group)
     } else {
-      items.push({ kind: 'task', label: task.text, detail: task.path, count: 1, path: task.path })
+      const list = byNote.get(task.path) ?? []
+      list.push(task.text)
+      byNote.set(task.path, list)
     }
+  }
+  for (const [path, texts] of byNote) {
+    items.push({
+      kind: 'task',
+      label: texts[0]!,
+      detail: texts.length === 1 ? path : `${texts.length - 1} more in ${path}`,
+      count: texts.length,
+      path,
+    })
   }
   for (const [tag, group] of groups) {
     const path = [...group.paths][0]

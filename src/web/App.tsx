@@ -37,6 +37,52 @@ function time(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
 
+function BriefingBody({ markdown }: { markdown: string }) {
+  const lines = markdown
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const bullets = lines
+    .map((line) => line.match(/^[-*•]\s+(.*)$/)?.[1])
+    .filter((text): text is string => Boolean(text))
+
+  if (bullets.length === lines.length && bullets.length > 0) {
+    return (
+      <div className="markdown">
+        <ul>
+          {bullets.map((text, index) => {
+            const suggestion =
+              index === bullets.length - 1 && /suggestion|предложен|рекоменд/i.test(text)
+            const body = suggestion
+              ? text.replace(/^(suggestion|предложение|рекомендация)\s*[:—-]\s*/i, '')
+              : text
+            return (
+              <li key={`${index}-${text.slice(0, 24)}`} className={suggestion ? 'suggestion' : undefined}>
+                {suggestion && <span className="suggestion-label">Suggestion</span>}
+                {body}
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    )
+  }
+
+  return (
+    <div className="markdown">
+      {lines.map((line, index) => (
+        <p
+          className="md-line"
+          key={`${index}-${line.slice(0, 24)}`}
+          style={{ '--i': Math.min(index, 12) } as React.CSSProperties}
+        >
+          {line}
+        </p>
+      ))}
+    </div>
+  )
+}
+
 export function App() {
   const [status, setStatus] = useState<Status | null>(null)
   const [feed, setFeed] = useState<FeedDay[]>([])
@@ -66,7 +112,8 @@ export function App() {
   const [suggestions, setSuggestions] = useState<SearchResults | null>(null)
   const [activeSuggestion, setActiveSuggestion] = useState(0)
   const [openDiff, setOpenDiff] = useState<{ id: number; path: string; diff: string } | null>(null)
-  const [expandedDays, setExpandedDays] = useState<string[]>([])
+  const [dayLimits, setDayLimits] = useState<Record<string, number>>({})
+  const [attentionExpanded, setAttentionExpanded] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
   async function load() {
@@ -259,6 +306,7 @@ export function App() {
     if (term.length < 2) {
       setResults(null)
       setResultsQuery('')
+      setNote({ text: 'Type at least 2 characters to search.', tone: 'info' })
       return
     }
     try {
@@ -364,6 +412,7 @@ export function App() {
   }, [])
 
   const latest = briefings[0]
+  const visibleAttention = attentionExpanded ? attention : attention.slice(0, 5)
 
   if (showSettings && settings) {
     return (
@@ -592,11 +641,12 @@ export function App() {
           {today.conflicts.length > 0 && (
             <span className="event conflict">Conflict: {today.conflicts.join(', ')}</span>
           )}
-          {today.free.slice(0, 2).map((window) => (
-            <span key={window.from} className="event free">
-              Free {time(window.from)}–{time(window.to)}
-            </span>
-          ))}
+          {settings.calendarConnected &&
+            today.free.slice(0, 2).map((window) => (
+              <span key={window.from} className="event free">
+                Free {time(window.from)}–{time(window.to)}
+              </span>
+            ))}
         </section>
       )}
 
@@ -609,11 +659,18 @@ export function App() {
             onKeyDown={onSearchKey}
             placeholder="Search notes, mail and Drive…"
             autoComplete="off"
+            role="combobox"
+            aria-label="Search notes, mail and Drive"
+            aria-controls="search-suggestions"
+            aria-haspopup="listbox"
             aria-autocomplete="list"
             aria-expanded={items.length > 0}
+            aria-activedescendant={
+              items.length > 0 ? `search-option-${activeSuggestion}` : undefined
+            }
           />
           {items.length > 0 && (
-            <div className="suggest" role="listbox">
+            <div className="suggest" id="search-suggestions" role="listbox">
               {items.map((item, index) => (
                 <Fragment key={`${item.kind}-${index}`}>
                   {(index === 0 || items[index - 1]!.kind !== item.kind) && (
@@ -623,6 +680,7 @@ export function App() {
                   )}
                   <div
                     role="option"
+                    id={`search-option-${index}`}
                     aria-selected={activeSuggestion === index}
                     className={`item${activeSuggestion === index ? ' active' : ''}`}
                     onMouseEnter={() => setActiveSuggestion(index)}
@@ -722,17 +780,7 @@ export function App() {
             <p className="sub">
               {new Date(latest.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
             </p>
-            <div className="markdown">
-              {latest.markdown.split('\n').map((line, index) => (
-                <span
-                  className="md-line"
-                  key={`${latest.id}-${index}`}
-                  style={{ '--i': Math.min(index, 12) } as React.CSSProperties}
-                >
-                  {line || '\u00A0'}
-                </span>
-              ))}
-            </div>
+            <BriefingBody markdown={latest.markdown} />
           </>
         ) : (
           <p className="empty">
@@ -750,7 +798,7 @@ export function App() {
             {briefings.slice(1).map((briefing) => (
               <article key={briefing.id}>
                 <h3>{new Date(briefing.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</h3>
-                <div className="markdown">{briefing.markdown}</div>
+                <BriefingBody markdown={briefing.markdown} />
               </article>
             ))}
           </details>
@@ -771,8 +819,8 @@ export function App() {
             </>
           )}
           {feed.map((day) => {
-            const expanded = expandedDays.includes(day.date)
-            const visible = expanded ? day.items : day.items.slice(0, 6)
+            const limit = dayLimits[day.date] ?? 6
+            const visible = day.items.slice(0, limit)
             const hidden = day.items.length - visible.length
             return (
               <div key={day.date} className="day">
@@ -813,13 +861,31 @@ export function App() {
                   ))}
                 </ul>
                 {hidden > 0 && (
-                  <button
-                    type="button"
-                    className="ghost mini day-more"
-                    onClick={() => setExpandedDays((current) => [...current, day.date])}
-                  >
-                    Show {hidden} more
-                  </button>
+                  <div className="day-more">
+                    <button
+                      type="button"
+                      className="ghost mini"
+                      onClick={() =>
+                        setDayLimits((current) => ({
+                          ...current,
+                          [day.date]: Math.min(limit + 50, day.items.length),
+                        }))
+                      }
+                    >
+                      Show {Math.min(hidden, 50)} more
+                    </button>
+                    {limit > 6 && (
+                      <button
+                        type="button"
+                        className="ghost mini"
+                        onClick={() =>
+                          setDayLimits((current) => ({ ...current, [day.date]: 6 }))
+                        }
+                      >
+                        Show less
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             )
@@ -830,7 +896,7 @@ export function App() {
           <h2>Needs attention</h2>
           {attention.length === 0 && <p className="empty">Nothing needs attention.</p>}
           <ul className="attention">
-            {attention.map((item, index) => {
+            {visibleAttention.map((item, index) => {
               const href = attentionHref(item)
               return (
                 <li key={`${item.kind}-${index}`}>
@@ -853,6 +919,15 @@ export function App() {
               )
             })}
           </ul>
+          {attention.length > 5 && (
+            <button
+              type="button"
+              className="ghost mini attention-toggle"
+              onClick={() => setAttentionExpanded((value) => !value)}
+            >
+              {attentionExpanded ? 'Show less' : `Show all ${attention.length}`}
+            </button>
+          )}
         </section>
       </div>
       </main>

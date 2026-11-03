@@ -365,10 +365,12 @@ export function SettingsPanel({
             </button>
           )}
         </div>
-        <p className="sub">
-          Closing the window keeps the app in the tray. Use Quit above, the tray menu, or Ctrl+Q to
-          stop the server.
-        </p>
+        {window.dashboard && (
+          <p className="sub">
+            Closing the window keeps the app in the tray. Use Quit above, the tray menu, or Ctrl+Q
+            to stop the server.
+          </p>
+        )}
       </section>
 
       <form className="card settings" onSubmit={(event) => void savePreferences(event)}>

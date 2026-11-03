@@ -151,6 +151,20 @@ test('attention items carry enough to open the source', () => {
   expect(items.find((item) => item.kind === 'drive')?.fileId).toBe('f1')
 })
 
+test('tasks from the same note collapse into one row', () => {
+  const db = openDb(':memory:')
+  task(db, 'Inbox/Plan.md', 'first task', null)
+  task(db, 'Inbox/Plan.md', 'second task', null)
+  task(db, 'Inbox/Plan.md', 'third task', null)
+
+  const items = buildAttention(db, NOW, { staleDays: 14, inboxDays: 3 }).filter(
+    (item) => item.kind === 'task',
+  )
+  expect(items).toHaveLength(1)
+  expect(items[0]!.count).toBe(3)
+  expect(items[0]!.detail).toContain('2 more in Inbox/Plan.md')
+})
+
 test('untagged tasks appear once and the first item is the loudest group', () => {
   const db = openDb(':memory:')
   task(db, 'Inbox/Idea.md', 'single task', null)
