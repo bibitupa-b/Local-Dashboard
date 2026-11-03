@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.0
 
 - The browser launch overlay is gone: the desktop shell already shows its own splash, so the page
   now appears at once instead of after a 1.5-second emblem animation.
