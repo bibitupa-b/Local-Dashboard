@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.0
+
+The dashboard becomes one page: the briefing owns it, with a single **Start here** count, the
+connected services as one line that doubles as sync progress, today's calendar and search.
+The activity feed, the attention queue and the inline diff left the screen by the user's decision
+on 2026-11-03; `/api/attention` and `/api/feed` remain as data sources.
+
+- **Start here** picks one pile by a fixed priority and shows its count, sentence and source link.
+- **Services line** shows each service as a station on a rail; the fill is sync progress and the
+  tooltip carries the last sync time or the error.
+- **Briefing** is a 64ch reading column with a Sand reading tick that follows the line under the
+  eye; the closing suggestion keeps its label and warm rule.
+- First paint is gated on the first payload, so no empty state flashes before data arrives.
+- Setup checklist uses drawn dots; user content is no longer uppercased by a global label rule.
+- Lighthouse accessibility 1.0 (was 0.92); axe failures removed.
+- README, screenshots, DESIGN.md, PRODUCT.md and AGENTS.md updated to the one-page model.
+
 ## 1.0.3
 
 - Needs attention: tasks from one note collapse into a row with a count, and the list shows five

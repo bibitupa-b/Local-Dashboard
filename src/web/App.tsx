@@ -3,18 +3,14 @@ import {
   api,
   type AttentionItem,
   type Briefing,
-  type FeedDay,
   type SearchResults,
   type Settings,
   type Status,
-  type SyncState,
   type Today,
 } from './api.js'
 import { SettingsPanel } from './Settings.js'
 import { friendlyError } from './errors.js'
 import { driveUrl, mailUrl, obsidianUrl, sourceUrl } from './links.js'
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const SERVICE_LABELS: Record<string, string> = {
   vault: 'vault',
@@ -24,17 +20,46 @@ const SERVICE_LABELS: Record<string, string> = {
   browser: 'browser',
 }
 
-function dayLabel(iso: string): string {
-  const date = new Date(`${iso}T00:00:00`)
-  const today = new Date()
-  const yesterday = new Date(today.getTime() - 86_400_000)
-  if (date.toDateString() === today.toDateString()) return 'Today'
-  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return `${date.getDate()} ${MONTHS[date.getMonth()]}`
-}
+// Which pile the page points at first. Reply is the only one with a closing action.
+const START_ORDER: AttentionItem['kind'][] = [
+  'reply',
+  'mail',
+  'task',
+  'github',
+  'inbox',
+  'stale-project',
+  'drive',
+  'calendar',
+  'browser',
+]
 
 function time(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+}
+
+function startPoint(item: AttentionItem): { num?: number; text: string; meta: string } {
+  switch (item.kind) {
+    case 'reply':
+      return { num: item.count, text: 'awaiting your reply', meta: item.detail }
+    case 'mail':
+      return { num: item.count, text: 'unread mail', meta: item.detail }
+    case 'github':
+      return { num: item.count, text: 'GitHub items', meta: item.detail }
+    case 'browser':
+      return { num: item.count, text: 'browser visits today', meta: item.detail }
+    case 'task': {
+      if (item.label.startsWith('#') && item.count && item.count > 1) {
+        return {
+          num: item.count,
+          text: `open tasks in ${item.label}`,
+          meta: item.detail.replace(/^\d+ open in /, ''),
+        }
+      }
+      return { text: item.label, meta: item.detail }
+    }
+    default:
+      return { text: item.label, meta: item.detail }
+  }
 }
 
 function BriefingBody({ markdown }: { markdown: string }) {
@@ -51,13 +76,16 @@ function BriefingBody({ markdown }: { markdown: string }) {
       <div className="markdown">
         <ul>
           {bullets.map((text, index) => {
-            const suggestion =
-              index === bullets.length - 1 && /suggestion|предложен|рекоменд/i.test(text)
+            // The closing line is the suggestion, labelled or not.
+            const suggestion = index === bullets.length - 1
             const body = suggestion
               ? text.replace(/^(suggestion|предложение|рекомендация)\s*[:—-]\s*/i, '')
               : text
             return (
-              <li key={`${index}-${text.slice(0, 24)}`} className={suggestion ? 'suggestion' : undefined}>
+              <li
+                key={`${index}-${text.slice(0, 24)}`}
+                className={`line${suggestion ? ' suggestion' : ''}`}
+              >
                 {suggestion && <span className="suggestion-label">Suggestion</span>}
                 {body}
               </li>
@@ -71,11 +99,7 @@ function BriefingBody({ markdown }: { markdown: string }) {
   return (
     <div className="markdown">
       {lines.map((line, index) => (
-        <p
-          className="md-line"
-          key={`${index}-${line.slice(0, 24)}`}
-          style={{ '--i': Math.min(index, 12) } as React.CSSProperties}
-        >
+        <p className="line" key={`${index}-${line.slice(0, 24)}`}>
           {line}
         </p>
       ))}
@@ -83,14 +107,39 @@ function BriefingBody({ markdown }: { markdown: string }) {
   )
 }
 
+/** The sand rule follows the line at the middle of the viewport: reading position, not decoration. */
+function useReadingLine(key: string | number | undefined) {
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return undefined
+    const lines = [...document.querySelectorAll<HTMLElement>('.briefing .line')]
+    let current: HTMLElement | null = null
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting || entry.target === current) continue
+          current?.classList.remove('reading')
+          current = entry.target as HTMLElement
+          current.classList.add('reading')
+        }
+      },
+      { rootMargin: '-42% 0px -52% 0px' },
+    )
+    lines.forEach((line) => observer.observe(line))
+    return () => {
+      observer.disconnect()
+      current?.classList.remove('reading')
+    }
+  }, [key])
+}
+
 export function App() {
   const [status, setStatus] = useState<Status | null>(null)
-  const [feed, setFeed] = useState<FeedDay[]>([])
   const [attention, setAttention] = useState<AttentionItem[]>([])
   const [briefings, setBriefings] = useState<Briefing[]>([])
   const [today, setToday] = useState<Today | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [busy, setBusy] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const [note, setNote] = useState<{
     text: string
     tone: 'info' | 'success' | 'error'
@@ -111,28 +160,24 @@ export function App() {
   const [resultsQuery, setResultsQuery] = useState('')
   const [suggestions, setSuggestions] = useState<SearchResults | null>(null)
   const [activeSuggestion, setActiveSuggestion] = useState(0)
-  const [openDiff, setOpenDiff] = useState<{ id: number; path: string; diff: string } | null>(null)
-  const [dayLimits, setDayLimits] = useState<Record<string, number>>({})
-  const [attentionExpanded, setAttentionExpanded] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
   async function load() {
     try {
-      const [nextStatus, nextFeed, nextAttention, nextBriefings, nextSettings, nextToday] =
+      const [nextStatus, nextAttention, nextBriefings, nextSettings, nextToday] =
         await Promise.all([
           api.status(),
-          api.feed(),
           api.attention(),
           api.briefings(),
           api.settings(),
           api.today(),
         ])
       setStatus(nextStatus)
-      setFeed(nextFeed.days)
       setAttention(nextAttention)
       setBriefings(nextBriefings.items)
       setSettings(nextSettings)
       setToday(nextToday)
+      setLoaded(true)
     } catch (error) {
       setNote({
         text: error instanceof Error ? error.message : 'Backend is not reachable',
@@ -191,7 +236,7 @@ export function App() {
 
   useEffect(() => {
     if (!glow) return
-    const timer = setTimeout(() => setGlow(false), 700)
+    const timer = setTimeout(() => setGlow(false), 900)
     return () => clearTimeout(timer)
   }, [glow])
 
@@ -199,7 +244,7 @@ export function App() {
     if (!status) return
     if (wasRunning.current && !status.sync.running) {
       setSyncOutcome(status.sources.some((source) => source.lastError) ? 'error' : 'ok')
-      const timer = setTimeout(() => setSyncOutcome(null), 1400)
+      const timer = setTimeout(() => setSyncOutcome(null), 1600)
       wasRunning.current = false
       return () => clearTimeout(timer)
     }
@@ -381,21 +426,6 @@ export function App() {
     }
   }
 
-  async function toggleDiff(id: number) {
-    if (openDiff?.id === id) {
-      setOpenDiff(null)
-      return
-    }
-    try {
-      setOpenDiff({ id, ...(await api.vaultChange(id)) })
-    } catch (error) {
-      setNote({
-        text: friendlyError(error instanceof Error ? error.message : String(error)),
-        tone: 'error',
-      })
-    }
-  }
-
   const isElectron = navigator.userAgent.includes('Electron')
   const [splash, setSplash] = useState<'visible' | 'leaving' | 'hidden'>(
     isElectron ? 'hidden' : 'visible',
@@ -412,7 +442,7 @@ export function App() {
   }, [])
 
   const latest = briefings[0]
-  const visibleAttention = attentionExpanded ? attention : attention.slice(0, 5)
+  useReadingLine(latest?.id)
 
   if (showSettings && settings) {
     return (
@@ -429,7 +459,8 @@ export function App() {
     )
   }
 
-  const statusGroups = (() => {
+  const stations = (() => {
+    const order = ['vault', 'google', 'imap', 'github', 'browser']
     const map = new Map<
       string,
       { service: string; total: number; configured: number; error: string | null; lastSync: string | null }
@@ -446,8 +477,20 @@ export function App() {
       }
       map.set(source.service, group)
     }
-    return [...map.values()]
+    return [...map.values()].sort((a, b) => order.indexOf(a.service) - order.indexOf(b.service))
   })()
+
+  const running = status?.sync.running ?? false
+  const activeService = status?.sources.find((source) => source.id === status.sync.source)?.service
+  const progress = !status
+    ? 0
+    : syncOutcome
+      ? 100
+      : Math.round(
+          ((status.sync.sourceIndex + status.sync.done / Math.max(status.sync.total, 1)) /
+            Math.max(status.sync.sourceTotal, 1)) *
+            100,
+        )
 
   const setupSteps = [
     {
@@ -458,6 +501,11 @@ export function App() {
     { label: 'Generate the first briefing', done: briefings.length > 0 },
   ]
   const setupDone = setupSteps.every((step) => step.done)
+
+  const first = START_ORDER.map((kind) => attention.find((item) => item.kind === kind)).find(
+    (item): item is AttentionItem => Boolean(item),
+  )
+  const start = first ? { ...startPoint(first), href: attentionHref(first) } : null
 
   return (
     <div className="page app-enter">
@@ -473,8 +521,9 @@ export function App() {
           </div>
         </div>
       )}
-      <header className="head enter-item" style={{ '--i': 0 } as React.CSSProperties}>
-        <div className="brand">
+
+      <header className="masthead enter-item" style={{ '--i': 0 } as React.CSSProperties}>
+        <div className="ident">
           <span className="brand-mark">
             <img src="/icon-transparent.png" alt="" />
             <span className="brand-orbit" />
@@ -482,454 +531,366 @@ export function App() {
           <div>
             <h1>Local Dashboard</h1>
             <p className="sub">
-              {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+              {new Date().toLocaleDateString('en-GB', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+              })}
             </p>
           </div>
         </div>
-        <div className="status">
-          <div className="pills">
-            {statusGroups.map((group) => {
-              const url = sourceUrl(group.service, vaultPath)
-              const className = `pill ${group.configured > 0 ? 'ok' : 'off'}${group.error ? ' bad' : ''}`
-              const title = group.error ? friendlyError(group.error) : `${group.configured}/${group.total} connected`
-              const name = SERVICE_LABELS[group.service] ?? group.service
-              const label = (
-                <>
-                  {name}
-                  {group.total > 1 ? ` · ${group.total}` : ''}
-                  {group.lastSync
-                    ? ` · ${time(group.lastSync)}`
-                    : group.configured > 0
-                      ? ''
-                      : ' · not connected'}
-                </>
-              )
-              return url ? (
-                <a
-                  key={group.service}
-                  className={className}
-                  href={url}
-                  title={title}
-                  target={url.startsWith('obsidian://') ? undefined : '_blank'}
-                  rel={url.startsWith('obsidian://') ? undefined : 'noreferrer'}
-                >
-                  {label}
-                </a>
-              ) : (
-                <span key={group.service} className={className} title={title}>
-                  {label}
-                </span>
-              )
-            })}
-          </div>
-          <div className="head-actions">
-            <button
-              className="ghost"
-              onClick={() => {
-                void api
-                  .sync()
-                  .then(load)
-                  .catch((error: unknown) =>
-                    setNote({
-                      text: friendlyError(
-                        error instanceof Error ? error.message : String(error),
-                      ),
-                      tone: 'error',
-                    }),
-                  )
-              }}
-            >
-              Sync
-            </button>
-            <button className="ghost" onClick={toggleSettings}>
-              Settings
-            </button>
-          </div>
+        <div className="head-actions">
+          <button
+            className="ghost"
+            onClick={() => {
+              void api
+                .sync()
+                .then(load)
+                .catch((error: unknown) =>
+                  setNote({
+                    text: friendlyError(error instanceof Error ? error.message : String(error)),
+                    tone: 'error',
+                  }),
+                )
+            }}
+          >
+            Sync
+          </button>
+          <button className="ghost" onClick={toggleSettings}>
+            Settings
+          </button>
         </div>
       </header>
 
       <main>
-      {(status?.sync.running || syncOutcome) && status && (
-        <div
-          className={`syncbar${syncOutcome ? ` done ${syncOutcome}` : ''}`}
-          role="progressbar"
+        {note && (
+          <p className={`note ${note.tone}`} role="status" aria-live="polite">
+            {note.text}
+          </p>
+        )}
+
+        {loaded && (
+          <div className="panel enter-item" style={{ '--i': 1 } as React.CSSProperties}>
+            <section className="start">
+            {start ? (
+              <>
+                <p className="start-line">
+                  <span className="cue">Start here:</span>{' '}
+                  {start.num !== undefined && <b>{start.num}</b>} {start.text}
+                </p>
+                <p className="start-meta">
+                  {start.href ? (
+                    <a
+                      href={start.href}
+                      target={start.href.startsWith('obsidian://') ? undefined : '_blank'}
+                      rel={start.href.startsWith('obsidian://') ? undefined : 'noreferrer'}
+                    >
+                      {start.meta}
+                    </a>
+                  ) : (
+                    start.meta
+                  )}
+                </p>
+              </>
+            ) : (
+              loaded && <p className="start-line muted">Nothing needs attention.</p>
+            )}
+          </section>
+
+          {today && settings && (
+            <section className="today">
+              <span className="section-label">Today</span>
+              {today.events.length === 0 && (
+                <p className="muted">
+                  {settings.calendarConnected ? 'No events' : 'Calendar not connected'}
+                </p>
+              )}
+              {today.events.map((event) => (
+                <p key={event.id} className="event">
+                  <b>{time(event.start)}</b> {event.summary}
+                </p>
+              ))}
+              {today.conflicts.length > 0 && (
+                <p className="conflict">Conflict: {today.conflicts.join(', ')}</p>
+              )}
+              {settings.calendarConnected &&
+                today.free.slice(0, 2).map((window) => (
+                  <p key={window.from} className="free">
+                    Free {time(window.from)}–{time(window.to)}
+                  </p>
+                ))}
+            </section>
+          )}
+          </div>
+        )}
+
+        <section
+          className={`network enter-item${syncOutcome ? ` outcome-${syncOutcome}` : ''}${
+            running ? ' running' : ''
+          }`}
+          style={{ '--i': 2 } as React.CSSProperties}
+          role={running ? 'progressbar' : undefined}
           aria-label={
-            syncOutcome
-              ? syncOutcome === 'ok'
-                ? 'Sync completed'
-                : 'Sync completed with errors'
-              : `Syncing ${status.sync.source ?? 'sources'}`
+            running
+              ? `Syncing ${status?.sync.source ?? 'sources'}`
+              : 'Connected services and their last sync'
           }
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={
-            syncOutcome
-              ? 100
-              : Math.round(
-                  ((status.sync.sourceIndex + status.sync.done / Math.max(status.sync.total, 1)) /
-                    Math.max(status.sync.sourceTotal, 1)) *
-                    100,
-                )
-          }
+          aria-valuemin={running ? 0 : undefined}
+          aria-valuemax={running ? 100 : undefined}
+          aria-valuenow={running ? progress : undefined}
         >
-          {status.sources.map((source, index) => {
-            const active = status.sync.source === source.id
-            const complete = !active && index < status.sync.sourceIndex
-            const percent = syncOutcome
-              ? 100
-              : active
-                ? Math.round((status.sync.done / Math.max(status.sync.total, 1)) * 100)
-                : complete
-                  ? 100
-                  : 0
-            return (
-              <span
-                key={source.id}
-                className={`seg${active && !syncOutcome ? ' active' : ''}`}
-                title={active ? `${source.id} ${status.sync.done}/${status.sync.total}` : source.id}
+          {stations.length > 0 && (
+            <span className="rail" aria-hidden="true">
+              <i style={{ width: `${progress}%` }} />
+            </span>
+          )}
+          {stations.length === 0 && status && (
+            <p className="muted">No sources connected yet.</p>
+          )}
+          {stations.map((station) => {
+            const name = SERVICE_LABELS[station.service] ?? station.service
+            const url = sourceUrl(station.service, vaultPath)
+            const state = station.error ? 'bad' : station.configured > 0 ? 'ok' : 'off'
+            const detail = station.error
+              ? friendlyError(station.error)
+              : station.lastSync
+                ? `Last synced ${time(station.lastSync)}`
+                : station.configured > 0
+                  ? 'Waiting for the first sync'
+                  : 'Not connected'
+            const body = (
+              <>
+                <span className="name">
+                  {name}
+                  {station.total > 1 ? ` · ${station.total}` : ''}
+                </span>
+                <span className="mark" />
+                <span className="at">{station.lastSync ? time(station.lastSync) : '—'}</span>
+              </>
+            )
+            return url ? (
+              <a
+                key={station.service}
+                className={`station ${station.service} ${state}${
+                  running && activeService === station.service ? ' active' : ''
+                }`}
+                href={url}
+                title={detail}
+                target={url.startsWith('obsidian://') ? undefined : '_blank'}
+                rel={url.startsWith('obsidian://') ? undefined : 'noreferrer'}
               >
-                <i style={{ width: `${percent}%` }} />
+                {body}
+              </a>
+            ) : (
+              <span
+                key={station.service}
+                className={`station ${station.service} ${state}${
+                  running && activeService === station.service ? ' active' : ''
+                }`}
+                title={detail}
+              >
+                {body}
               </span>
             )
           })}
-        </div>
-      )}
+        </section>
 
-      {note && (
-        <p className={`note ${note.tone}`} role="status" aria-live="polite">
-          {note.text}
-        </p>
-      )}
-
-      {settings && status && !setupDone && (
-        <section className="card setup enter-item" style={{ '--i': 1 } as React.CSSProperties}>
-          <div className="card-head">
-            <h2>Get started</h2>
+        {settings && status && !setupDone && (
+          <section className="setup enter-item" style={{ '--i': 3 } as React.CSSProperties}>
+            <span className="section-label">Get started</span>
+            <ul>
+              {setupSteps.map((step) => (
+                <li key={step.label} className={step.done ? 'done' : ''}>
+                  <span className="tick" aria-hidden="true" />
+                  <span>{step.label}</span>
+                </li>
+              ))}
+            </ul>
             <button className="ghost mini" onClick={toggleSettings}>
               Open settings
             </button>
-          </div>
-          <ul>
-            {setupSteps.map((step) => (
-              <li key={step.label} className={step.done ? 'done' : ''}>
-                <span className="tick" aria-hidden="true">
-                  {step.done ? '✓' : '○'}
-                </span>
-                <span>{step.label}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {today && settings && (
-        <section className="today enter-item" style={{ '--i': 1 } as React.CSSProperties}>
-          <span className="today-label">Today</span>
-          {today.events.length === 0 && (
-            <span className="event free">
-              {settings.calendarConnected ? 'No events today' : 'Calendar not connected'}
-            </span>
-          )}
-          {today.events.map((event) => (
-            <span key={event.id} className="event">
-              <b>
-                {new Date(event.start).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-              </b>{' '}
-              {event.summary}
-            </span>
-          ))}
-          {today.conflicts.length > 0 && (
-            <span className="event conflict">Conflict: {today.conflicts.join(', ')}</span>
-          )}
-          {settings.calendarConnected &&
-            today.free.slice(0, 2).map((window) => (
-              <span key={window.from} className="event free">
-                Free {time(window.from)}–{time(window.to)}
-              </span>
-            ))}
-        </section>
-      )}
-
-      <form className="search enter-item" style={{ '--i': 2 } as React.CSSProperties} onSubmit={(event) => void search(event)}>
-        <div className="search-wrap">
-          <input
-            ref={searchRef}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={onSearchKey}
-            placeholder="Search notes, mail and Drive…"
-            autoComplete="off"
-            role="combobox"
-            aria-label="Search notes, mail and Drive"
-            aria-controls="search-suggestions"
-            aria-haspopup="listbox"
-            aria-autocomplete="list"
-            aria-expanded={items.length > 0}
-            aria-activedescendant={
-              items.length > 0 ? `search-option-${activeSuggestion}` : undefined
-            }
-          />
-          {items.length > 0 && (
-            <div className="suggest" id="search-suggestions" role="listbox">
-              {items.map((item, index) => (
-                <Fragment key={`${item.kind}-${index}`}>
-                  {(index === 0 || items[index - 1]!.kind !== item.kind) && (
-                    <div className="group">
-                      {item.kind === 'note' ? 'Notes' : item.kind === 'mail' ? 'Mail' : 'Drive'}
-                    </div>
-                  )}
-                  <div
-                    role="option"
-                    id={`search-option-${index}`}
-                    aria-selected={activeSuggestion === index}
-                    className={`item${activeSuggestion === index ? ' active' : ''}`}
-                    onMouseEnter={() => setActiveSuggestion(index)}
-                    onMouseDown={(event) => {
-                      event.preventDefault()
-                      choose(item)
-                    }}
-                  >
-                    <span className={`dot ${item.kind === 'note' ? 'vault' : item.kind}`} />
-                    <span className="label">{item.label}</span>
-                    {item.detail && <span className="detail">{item.detail}</span>}
-                  </div>
-                </Fragment>
-              ))}
-            </div>
-          )}
-        </div>
-        <button type="submit" className="ghost">Search</button>
-        {results && (
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => {
-              setQuery('')
-              setResults(null)
-              setResultsQuery('')
-              setSuggestions(null)
-            }}
-          >
-            Clear
-          </button>
+          </section>
         )}
-      </form>
 
-      {results && resultsQuery && (
-        <section className="card results">
-          <h2>Results for “{resultsQuery}”</h2>
-          {results.notes.length === 0 && results.mail.length === 0 && results.drive.length === 0 && (
-            <p className="empty">Nothing found.</p>
-          )}
-          {results.notes.map((note) => (
-            <a
-              key={note.path}
-              className="result"
-              href={obsidianUrl(vaultPath, note.path)}
-              title="Open in Obsidian"
-            >
-              <span className="dot vault" />
-              <span className="label">{note.path}</span>
-            </a>
-          ))}
-          {results.mail.map((message, index) => (
-            <a
-              key={`mail-${index}`}
-              className="result"
-              href={mailUrl(message.messageId, message.subject)}
-              target="_blank"
-              rel="noreferrer"
-              title="Open in Gmail"
-            >
-              <span className="dot mail" />
-              <span className="label">{message.subject}</span>
-              <span className="detail">{message.sender}</span>
-            </a>
-          ))}
-          {results.drive.map((file, index) => (
-            <a
-              key={`drive-${index}`}
-              className="result"
-              href={driveUrl(file.id)}
-              target="_blank"
-              rel="noreferrer"
-              title="Open in Google Drive"
-            >
-              <span className="dot drive" />
-              <span className="label">{file.name}</span>
-            </a>
-          ))}
-        </section>
-      )}
-
-      <section className={`card briefing enter-item${glow ? ' glow' : ''}`} style={{ '--i': 3 } as React.CSSProperties}>
-        <div className="card-head">
-          <h2>Briefing</h2>
-          <button className="primary" onClick={() => void generate()} disabled={busy}>
-            {busy ? 'Thinking…' : 'Briefing now'}
-          </button>
-        </div>
-        {busy ? (
-          <div className="skeleton" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
-        ) : latest ? (
-          <>
-            <p className="sub">
-              {new Date(latest.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
-            </p>
-            <BriefingBody markdown={latest.markdown} />
-          </>
-        ) : (
-          <p className="empty">
-            {settings && !settings.hasDeepSeekKey
-              ? 'Add a DeepSeek key to get your first briefing.'
-              : 'No briefing yet. Generate one whenever you are ready.'}
-          </p>
-        )}
-        {latest && status && !status.briefingToday && (
-          <p className="empty">No briefing for today yet — showing the last one.</p>
-        )}
-        {briefings.length > 1 && (
-          <details className="earlier">
-            <summary>Earlier briefings</summary>
-            {briefings.slice(1).map((briefing) => (
-              <article key={briefing.id}>
-                <h3>{new Date(briefing.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</h3>
-                <BriefingBody markdown={briefing.markdown} />
-              </article>
-            ))}
-          </details>
-        )}
-      </section>
-
-      <div className="columns enter-item" style={{ '--i': 4 } as React.CSSProperties}>
-        <section className="card">
-          <h2>Activity</h2>
-          {feed.length === 0 && (
-            <>
-              <p className="empty">No changes yet.</p>
-              {!status?.sources.some((source) => source.configured) && (
-                <button className="ghost mini" onClick={toggleSettings}>
-                  Connect a source
-                </button>
-              )}
-            </>
-          )}
-          {feed.map((day) => {
-            const limit = dayLimits[day.date] ?? 6
-            const visible = day.items.slice(0, limit)
-            const hidden = day.items.length - visible.length
-            return (
-              <div key={day.date} className="day">
-                <h3>{dayLabel(day.date)}</h3>
-                <ul>
-                  {visible.map((item, index) => (
-                    <li key={`${day.date}-${index}`}>
-                      <span className={`dot ${item.source}`} />
-                      {item.source === 'vault' && item.id ? (
-                        <button
-                          className="link"
-                          aria-expanded={openDiff?.id === item.id}
-                          aria-controls={`diff-${item.id}`}
-                          onClick={() => void toggleDiff(item.id!)}
-                        >
-                          {item.label}
-                        </button>
-                      ) : (
-                        <span className="label">{item.label}</span>
-                      )}
-                      <span className="detail">
-                        {item.source === 'vault' && item.added !== undefined ? (
-                          <>
-                            <span className="added">+{item.added}</span>
-                            {' / '}
-                            <span className="removed">-{item.removed ?? 0}</span>
-                          </>
-                        ) : (
-                          item.detail
-                        )}
-                      </span>
-                      {openDiff && openDiff.id === item.id && (
-                        <div className="diff-wrap" id={`diff-${item.id}`}>
-                          <pre className="diff">{openDiff.diff || 'No line changes'}</pre>
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                {hidden > 0 && (
-                  <div className="day-more">
-                    <button
-                      type="button"
-                      className="ghost mini"
-                      onClick={() =>
-                        setDayLimits((current) => ({
-                          ...current,
-                          [day.date]: Math.min(limit + 50, day.items.length),
-                        }))
-                      }
-                    >
-                      Show {Math.min(hidden, 50)} more
-                    </button>
-                    {limit > 6 && (
-                      <button
-                        type="button"
-                        className="ghost mini"
-                        onClick={() =>
-                          setDayLimits((current) => ({ ...current, [day.date]: 6 }))
-                        }
-                      >
-                        Show less
-                      </button>
+        <form
+          className="search enter-item"
+          style={{ '--i': 3 } as React.CSSProperties}
+          onSubmit={(event) => void search(event)}
+        >
+          <div className="search-wrap">
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={onSearchKey}
+              placeholder="Search notes, mail and Drive…"
+              autoComplete="off"
+              role="combobox"
+              aria-label="Search notes, mail and Drive"
+              aria-controls="search-suggestions"
+              aria-haspopup="listbox"
+              aria-autocomplete="list"
+              aria-expanded={items.length > 0}
+              aria-activedescendant={
+                items.length > 0 ? `search-option-${activeSuggestion}` : undefined
+              }
+            />
+            {items.length > 0 && (
+              <div className="suggest" id="search-suggestions" role="listbox">
+                {items.map((item, index) => (
+                  <Fragment key={`${item.kind}-${index}`}>
+                    {(index === 0 || items[index - 1]!.kind !== item.kind) && (
+                      <div className="group">
+                        {item.kind === 'note' ? 'Notes' : item.kind === 'mail' ? 'Mail' : 'Drive'}
+                      </div>
                     )}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </section>
-
-        <section className="card">
-          <h2>Needs attention</h2>
-          {attention.length === 0 && <p className="empty">Nothing needs attention.</p>}
-          <ul className="attention">
-            {visibleAttention.map((item, index) => {
-              const href = attentionHref(item)
-              return (
-                <li key={`${item.kind}-${index}`}>
-                  <span className={`kind ${item.kind}`}>{item.kind.replace('-', ' ')}</span>
-                  {href ? (
-                    <a
-                      className="label"
-                      href={href}
-                      target={href.startsWith('obsidian://') ? undefined : '_blank'}
-                      rel={href.startsWith('obsidian://') ? undefined : 'noreferrer'}
+                    <div
+                      role="option"
+                      id={`search-option-${index}`}
+                      aria-selected={activeSuggestion === index}
+                      className={`item${activeSuggestion === index ? ' active' : ''}`}
+                      onMouseEnter={() => setActiveSuggestion(index)}
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        choose(item)
+                      }}
                     >
-                      {item.label}
-                    </a>
-                  ) : (
-                    <span className="label">{item.label}</span>
-                  )}
-                  {item.count && item.count > 1 && <span className="count">×{item.count}</span>}
-                  <span className="detail">{item.detail}</span>
-                </li>
-              )
-            })}
-          </ul>
-          {attention.length > 5 && (
+                      <span className={`dot ${item.kind === 'note' ? 'vault' : item.kind}`} />
+                      <span className="label">{item.label}</span>
+                      {item.detail && <span className="detail">{item.detail}</span>}
+                    </div>
+                  </Fragment>
+                ))}
+              </div>
+            )}
+          </div>
+          <button type="submit" className="ghost">
+            Search
+          </button>
+          {results && (
             <button
               type="button"
-              className="ghost mini attention-toggle"
-              onClick={() => setAttentionExpanded((value) => !value)}
+              className="ghost"
+              onClick={() => {
+                setQuery('')
+                setResults(null)
+                setResultsQuery('')
+                setSuggestions(null)
+              }}
             >
-              {attentionExpanded ? 'Show less' : `Show all ${attention.length}`}
+              Clear
             </button>
           )}
-        </section>
-      </div>
+        </form>
+
+        {results && resultsQuery && (
+          <section className="results enter-item">
+            <p className="section-label">Results for “{resultsQuery}”</p>
+            {results.notes.length === 0 && results.mail.length === 0 && results.drive.length === 0 && (
+              <p className="empty">Nothing found.</p>
+            )}
+            {results.notes.map((note) => (
+              <a
+                key={note.path}
+                className="result"
+                href={obsidianUrl(vaultPath, note.path)}
+                title="Open in Obsidian"
+              >
+                <span className="dot vault" />
+                <span className="label">{note.path}</span>
+              </a>
+            ))}
+            {results.mail.map((message, index) => (
+              <a
+                key={`mail-${index}`}
+                className="result"
+                href={mailUrl(message.messageId, message.subject)}
+                target="_blank"
+                rel="noreferrer"
+                title="Open in Gmail"
+              >
+                <span className="dot mail" />
+                <span className="label">{message.subject}</span>
+                <span className="detail">{message.sender}</span>
+              </a>
+            ))}
+            {results.drive.map((file, index) => (
+              <a
+                key={`drive-${index}`}
+                className="result"
+                href={driveUrl(file.id)}
+                target="_blank"
+                rel="noreferrer"
+                title="Open in Google Drive"
+              >
+                <span className="dot drive" />
+                <span className="label">{file.name}</span>
+              </a>
+            ))}
+          </section>
+        )}
+
+        <article
+          className={`briefing enter-item${glow ? ' glow' : ''}`}
+          style={{ '--i': 4 } as React.CSSProperties}
+        >
+          <div className="briefing-margin">
+            <h2>Briefing</h2>
+            {latest && (
+              <time className="stamp" dateTime={latest.created_at}>
+                {new Date(latest.created_at).toLocaleString('en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </time>
+            )}
+            <button className="primary" onClick={() => void generate()} disabled={busy}>
+              {busy ? 'Thinking…' : 'Briefing now'}
+            </button>
+            {latest && status && !status.briefingToday && (
+              <span className="stamp">none for today yet</span>
+            )}
+          </div>
+
+          <div className="briefing-body">
+            {busy ? (
+              <div className="skeleton" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+            ) : latest ? (
+              <BriefingBody markdown={latest.markdown} />
+            ) : (
+              loaded && (
+                <p className="empty">
+                  {settings && !settings.hasDeepSeekKey
+                    ? 'Add a DeepSeek key to get your first briefing.'
+                    : 'No briefing yet. Generate one whenever you are ready.'}
+                </p>
+              )
+            )}
+
+            {briefings.length > 1 && (
+              <details className="earlier">
+                <summary>Earlier briefings</summary>
+                {briefings.slice(1).map((briefing) => (
+                  <article key={briefing.id}>
+                    <h3>
+                      {new Date(briefing.created_at).toLocaleString('en-GB', {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
+                    </h3>
+                    <BriefingBody markdown={briefing.markdown} />
+                  </article>
+                ))}
+              </details>
+            )}
+          </div>
+        </article>
       </main>
 
       {welcome && (

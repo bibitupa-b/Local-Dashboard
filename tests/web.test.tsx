@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { App } from '../src/web/App.js'
 import { SettingsPanel } from '../src/web/Settings.js'
@@ -51,26 +51,31 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  cleanup()
   vi.unstubAllGlobals()
 })
 
-test('renders the three blocks and their empty states', async () => {
+test('renders the briefing, the services line and their empty states', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => ({ ok: true, json: async () => responses[url] })),
   )
-  const { unmount } = render(<App />)
+  const { container, unmount } = render(<App />)
 
   expect(screen.getByText('Briefing')).toBeTruthy()
-  expect(screen.getByText('Activity')).toBeTruthy()
-  expect(screen.getByText('Needs attention')).toBeTruthy()
   expect(screen.getByRole('main')).toBeTruthy()
 
   await waitFor(() => {
-    expect(screen.getByText('No changes yet.')).toBeTruthy()
     expect(screen.getByText('Nothing needs attention.')).toBeTruthy()
     expect(screen.getByText('Add a DeepSeek key to get your first briefing.')).toBeTruthy()
+    expect(container.querySelector('.station')?.getAttribute('title')).toBe(
+      'Waiting for the first sync',
+    )
   })
+
+  expect(container.querySelectorAll('.station')).toHaveLength(1)
+  expect(screen.queryByText('Activity')).toBeNull()
+  expect(screen.queryByText('Needs attention')).toBeNull()
 
   unmount()
 })
@@ -176,12 +181,18 @@ test('calendar event times use the same 24-hour clock as the rest of the screen'
   unmount()
 })
 
-test('attention shows five rows with a show-all control', async () => {
-  const attention = Array.from({ length: 7 }, (_, index) => ({
-    kind: 'task',
-    label: `Task ${index + 1}`,
-    detail: 'Inbox/Plan.md',
-  }))
+test('attention shows only the pile to start with, not the whole backlog', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const attention = [
+    { kind: 'task', label: 'Task 1', detail: 'Inbox/Plan.md' },
+    {
+      kind: 'reply',
+      label: '88 awaiting your reply',
+      detail: 'Ozon, Reddit',
+      count: 88,
+    },
+    { kind: 'mail', label: 'Mail: 90 unread', detail: '3 starred', count: 90 },
+  ]
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => ({
@@ -190,10 +201,11 @@ test('attention shows five rows with a show-all control', async () => {
     })),
   )
   const { unmount } = render(<App />)
-  await waitFor(() => expect(screen.getByText('Task 1')).toBeTruthy())
-  expect(screen.getAllByText(/^Task \d$/)).toHaveLength(5)
-  fireEvent.click(screen.getByRole('button', { name: 'Show all 7' }))
-  expect(screen.getAllByText(/^Task \d$/)).toHaveLength(7)
+  await waitFor(() => expect(screen.getByText('awaiting your reply')).toBeTruthy())
+  expect(screen.getByText('88')).toBeTruthy()
+  expect(screen.getByText('Ozon, Reddit')).toBeTruthy()
+  expect(screen.queryByText('Task 1')).toBeNull()
+  expect(screen.queryByText(/unread/)).toBeNull()
   unmount()
 })
 

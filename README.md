@@ -1,11 +1,11 @@
 # Local Dashboard
 
-**One quiet screen that answers two questions: what changed lately, and what needs me now.**
+**One quiet screen: where to start today, what happened, and one briefing.**
 
-Local Dashboard reads your notes, mail, calendar, Drive, GitHub and browser history, keeps a
-local history of what moved, and turns it into a short daily briefing written by DeepSeek.
-Everything runs on your own machine. Only a compact digest leaves it, and only when a briefing
-is generated.
+Local Dashboard reads your notes, mail, calendar, Drive, GitHub and browser history, then reduces
+them to a single **Start here** number, today's calendar and a short daily briefing written by
+DeepSeek. Everything runs on your own machine. Only a compact digest leaves it, and only when a
+briefing is generated.
 
 ![Dashboard](docs/screenshots/current/dashboard.jpeg)
 
@@ -13,14 +13,15 @@ is generated.
 
 ## What it does
 
-- **Activity history** — a diff-backed log of edits to your Obsidian vault and changes in Google
-  Drive. Click a note to see exactly which lines changed.
-- **Needs attention** — open tasks grouped by tag, projects marked `status: Undone` that have gone
-  stale, notes left in the Inbox, unread mail and review requests. Rows link to the note, mail,
-  GitHub item or Drive file when one is available.
-- **Today** — the day's calendar events, free windows and conflicts in one strip.
+- **Start here** — one number and one sentence chosen from the attention rules: mail awaiting your
+  reply, unread mail, open tasks, GitHub review requests, Inbox backlog, stale projects or Drive
+  changes. The backlog stays in your services; the dashboard never becomes a second inbox.
+- **Services line** — every connected service as one line, which is also the sync progress. Click a
+  station to open that service; the tooltip says when it last synced or what failed.
+- **Today** — the day's calendar events, free windows and conflicts beside the start line.
 - **Daily briefing** — 5–7 bullets covering what moved, what is stuck and one suggestion for
-  today. Runs at 08:00, on demand, or on the first start after a missed day.
+  today. Runs at 08:00, on demand, or on the first start after a missed day. Bullets are set as a
+  reading column; a Sand tick follows the line you are reading.
 - **Search** — one query across note text, mail, Drive file names and Google Docs content.
 - **Mail** — read-only Gmail over IMAP: senders, subjects and the last 90 days of message text.
   Attachments are indexed by name only and never downloaded.
@@ -62,7 +63,7 @@ steps. Multiple accounts per service are supported.
 
 | Source | What you get | What it needs |
 | --- | --- | --- |
-| Obsidian vault | Diffs, tasks, stale projects, Inbox backlog | One or more vault folders |
+| Obsidian vault | Open tasks, stale projects, Inbox backlog (feeds Start here) | One or more vault folders |
 | Google Drive & Calendar | Drive changes, Docs text, today's events | OAuth **Desktop app** client, published to Production |
 | Gmail | Unread mail, awaiting reply, search | Gmail address + app password (2-Step Verification) |
 | GitHub | Notifications and review requests | Personal access token with `notifications` |
@@ -83,7 +84,7 @@ available keys: `PORT`, `VAULT_PATH`, `DEEPSEEK_API_KEY`, Google credentials, `G
 1. The digest contains note paths with line counts, task titles, project names, Drive file names,
    today's calendar, unread mail subjects/senders and the first ~200 characters of unread mail.
 2. It is sent to `https://api.deepseek.com` (`deepseek-chat`) only when a briefing is generated.
-3. The reply is stored in the local database and shown as a card. Earlier briefings stay available.
+3. The reply is stored in the local database and shown on the page. Earlier briefings stay available.
 
 **Never sent:** vault note bodies, full mail bodies, attachments, browser URLs or page titles,
 OAuth tokens, passwords. Browser history reaches the model as domain counts only. There is no
@@ -93,10 +94,10 @@ telemetry, no analytics and no cloud account.
 
 | | |
 | --- | --- |
-| ![Activity](docs/screenshots/current/activity.jpeg) | ![Search](docs/screenshots/current/search-suggestions.jpeg) |
-| Activity, attention and diffs | Search across notes, mail and Drive |
-| ![Settings](docs/screenshots/current/settings-connections.jpeg) | ![Diff](docs/screenshots/current/diff.jpeg) |
-| Connections with per-service hints | A note change expanded inline |
+| ![Dashboard](docs/screenshots/current/dashboard.jpeg) | ![Welcome](docs/screenshots/current/welcome.jpeg) |
+| Start here, services, today and the briefing | First run says what stays local |
+| ![Search](docs/screenshots/current/search-suggestions.jpeg) | ![Settings](docs/screenshots/current/settings.jpeg) |
+| Search across notes, mail and Drive | Connections with per-service hints |
 
 More screens: [`docs/screenshots/current/index.html`](docs/screenshots/current/index.html).
 

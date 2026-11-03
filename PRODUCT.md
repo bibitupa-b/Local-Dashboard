@@ -16,12 +16,15 @@ table are the only support channel. Single user per machine; no accounts, no rol
 
 ## Product Purpose
 
-One quiet screen that answers two questions: what changed lately, and what needs attention now —
-plus a 5–7 bullet briefing for today written by DeepSeek. Read-only toward every source and local
-by default; only a compact digest leaves the machine, and only when a briefing is generated.
+One quiet screen that answers two questions — where do I start today, and what happened — plus a
+5–7 bullet briefing for today written by DeepSeek. The briefing owns the page; a single "start here"
+count, the connected services and today's calendar sit above it. Read-only toward every source and
+local by default; only a compact digest leaves the machine, and only when a briefing is generated.
 
-Success, on a normal morning: the user opens it once, and the three blocks plus the briefing
-replace the manual sweep of notes, mail, calendar and GitHub. No clicking through tabs required.
+Success, on a normal morning: the user opens it once, reads one number and one briefing, and knows
+the machine is in order. No clicking through tabs, and no backlog to scroll. The activity feed and
+the attention queue are gone from the screen by the user's own decision (2026-11-03): the backlog
+lives in the sources, not in a second inbox.
 
 ## Positioning
 
@@ -91,6 +94,7 @@ customer logos, uptime or performance claims.
 
 1. Sources are the truth. The model sees a digest, never the source.
 2. Show the delta and the backlog; never build a second inbox.
-3. Keep the main screen quiet: briefing, activity, attention — configuration lives on its own route.
+3. Keep the main screen quiet: the briefing owns the page, with one start count, the services line
+   and today above it — configuration lives on its own route.
 4. A self-hoster must be able to diagnose and fix it from the README and the diagnostics alone.
 5. Read-only, one machine, one person. Any feature that needs a server in the middle is out of scope.
