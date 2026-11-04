@@ -6,6 +6,9 @@ export type ResurfacedNote = { path: string; days: number; excerpt: string }
 
 const TEMPLATES = 'Templates/%'
 
+/** One note comes back at most once a month: a repeating reminder is noise, not memory. */
+const RESURFACE_DAYS = 30
+
 /** Body without frontmatter and without leading headings, so the excerpt is actual text. */
 function excerptOf(text: string): string {
   const body = text.replace(/^---\n[\s\S]*?\n---\n?/, '')
@@ -27,6 +30,14 @@ export function resurfaceNote(
   opts: { minAgeDays: number; exclude: (path: string) => boolean },
 ): ResurfacedNote | null {
   const cutoff = new Date(now.getTime() - opts.minAgeDays * 86_400_000).toISOString()
+  const shownSince = new Date(now.getTime() - RESURFACE_DAYS * 86_400_000).toISOString()
+  const shown = new Set(
+    (
+      db.prepare('SELECT path FROM resurfaced WHERE last_at > ?').all(shownSince) as Array<{
+        path: string
+      }>
+    ).map((row) => row.path),
+  )
   const rows = db
     .prepare(
       `SELECT path, mtime, previous_text FROM vault_files
@@ -35,6 +46,7 @@ export function resurfaceNote(
     .all(cutoff, TEMPLATES) as Array<{ path: string; mtime: string; previous_text: string }>
 
   for (const row of rows) {
+    if (shown.has(row.path)) continue
     if (opts.exclude(row.path)) continue
     const status = parseNote(row.previous_text).frontmatter.status
     if (typeof status === 'string' && status.trim().toLowerCase() === 'done') continue

@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify'
 import type { Config } from './config.js'
 import { buildAttention } from './attention.js'
 import { createBriefing } from './briefing/index.js'
+import { answerPrompt, generateBriefing } from './briefing/deepseek.js'
 import type { Source } from './sources/types.js'
 import { todayEvents, dayPlan } from './sources/calendar.js'
 import type { HealthMap, SyncState } from './health.js'
@@ -44,6 +45,7 @@ export type RouteDeps = {
   sources: Source[] | (() => Source[])
   getSources?: () => Source[]
   generate?: typeof createBriefing
+  ask?: (digest: string, question: string) => Promise<string>
   isReady?: () => boolean
   health?: () => HealthMap
   syncState?: () => SyncState
@@ -162,6 +164,15 @@ function parseMeta(raw: string): Record<string, unknown> {
   }
 }
 
+/** One question, one answer, built only from the digest the reader already saw. */
+async function answerFromDigest(key: string, digest: string, question: string): Promise<string> {
+  const { raw } = await generateBriefing(key, `Digest:\n${digest}\n\nQuestion: ${question}`, {
+    system: answerPrompt(),
+    json: false,
+  })
+  return raw
+}
+
 export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   const { db, config } = deps
   const sourceList = (): Source[] =>
@@ -220,7 +231,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     const items = (
       db
         .prepare(
-          'SELECT id, created_at, trigger, kind, markdown, digest, body, digest_meta, feedback FROM briefings ORDER BY id DESC LIMIT ?',
+          'SELECT id, created_at, trigger, kind, markdown, digest, body, digest_meta, feedback, opens FROM briefings ORDER BY id DESC LIMIT ?',
         )
         .all(safeLimit) as Array<{
         id: number
@@ -232,6 +243,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
         body: string | null
         digest_meta: string
         feedback: string | null
+        opens: number
       }>
     ).map((row) => ({ ...row, body: parseBody(row.body), digest_meta: parseMeta(row.digest_meta) }))
     return { items }
@@ -246,6 +258,15 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     const { changes } = db
       .prepare('UPDATE briefings SET feedback = ? WHERE id = ?')
       .run(value, Number(id))
+    if (changes === 0) return reply.code(404).send({ error: 'not found' })
+    return { ok: true }
+  })
+
+  app.post('/api/briefings/:id/opened', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { changes } = db
+      .prepare('UPDATE briefings SET opens = opens + 1 WHERE id = ?')
+      .run(Number(id) || 0)
     if (changes === 0) return reply.code(404).send({ error: 'not found' })
     return { ok: true }
   })
@@ -266,6 +287,36 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       return reply.code(502).send(result)
     } finally {
       generating = false
+    }
+  })
+
+  let asking = false
+  app.post('/api/briefings/:id/ask', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const question = String(
+      ((request.body ?? {}) as { question?: unknown }).question ?? '',
+    )
+      .trim()
+      .slice(0, 200)
+    if (!question) return reply.code(400).send({ error: 'question is required' })
+    const row = db.prepare('SELECT digest FROM briefings WHERE id = ?').get(Number(id) || 0) as
+      | { digest: string }
+      | undefined
+    if (!row || !row.digest.trim()) return reply.code(404).send({ error: 'not found' })
+    if (!config.deepseekKey) return reply.code(400).send({ error: 'no-key' })
+    if (asking) return reply.code(429).send({ error: 'an answer is already being written' })
+    asking = true
+    try {
+      const answer = deps.ask
+        ? await deps.ask(row.digest, question)
+        : await answerFromDigest(config.deepseekKey, row.digest, question)
+      return { answer }
+    } catch (error) {
+      return reply
+        .code(502)
+        .send({ error: error instanceof Error ? error.message : String(error) })
+    } finally {
+      asking = false
     }
   })
 
@@ -352,6 +403,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       digestWindowHours: digestWindowHours(db),
       briefingLanguage: briefingLanguage(db),
       briefingProfile: briefingProfile(db),
+      eveningPass: getSetting(db, 'evening_pass') === '1',
       enabledSources: getList(db, 'enabled_sources'),
       dataDir: config.dataDir,
     }
@@ -406,6 +458,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       digestWindowHours?: number
       briefingLanguage?: string
       briefingProfile?: string
+      eveningPass?: boolean
       enabledSources?: string[]
     }
     if (typeof body.briefingHour === 'number' && body.briefingHour >= 0 && body.briefingHour <= 23) {
@@ -432,6 +485,9 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     }
     if (typeof body.briefingProfile === 'string') {
       setSetting(db, 'briefing_profile', body.briefingProfile.slice(0, MAX_PROFILE_CHARS))
+    }
+    if (typeof body.eveningPass === 'boolean') {
+      setSetting(db, 'evening_pass', body.eveningPass ? '1' : '0')
     }
     return { ok: true }
   })

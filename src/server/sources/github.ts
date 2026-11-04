@@ -54,16 +54,10 @@ export function createGithubSource(api: GithubApi | null, meta: SourceMeta = sou
     lastSync: (db) => getSetting(db, syncKey),
     digest: (db) => {
       const rows = db
-        .prepare('SELECT kind, repo, title FROM github_items ORDER BY updated_at DESC LIMIT 20')
-        .all() as Array<{ kind: string; repo: string; title: string }>
-      if (rows.length === 0) return ['No GitHub items']
-      const reviews = rows.filter((row) => row.kind === 'review').length
-      return [
-        `GitHub: ${rows.length - reviews} notifications, ${reviews} review requests`,
-        ...rows
-          .slice(0, 5)
-          .map((row) => `${sanitize(row.repo, 80)}: ${sanitize(row.title, 120)}`),
-      ]
+        .prepare('SELECT repo, title FROM github_items ORDER BY updated_at DESC LIMIT 5')
+        .all() as Array<{ repo: string; title: string }>
+      // The item count and its review split are stated once, in `Needs attention`; this section is the evidence.
+      return rows.map((row) => `${sanitize(row.repo, 80)}: ${sanitize(row.title, 120)}`)
     },
   }
 }

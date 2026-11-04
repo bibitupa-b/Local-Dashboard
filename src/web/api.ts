@@ -74,6 +74,7 @@ export type Briefing = {
   digest?: string
   body: BriefingBody | null
   feedback: 'useful' | 'miss' | null
+  opens: number
   digest_meta?: { since?: string; until?: string; headline?: string }
 }
 export type CalendarEvent = {
@@ -113,6 +114,7 @@ export type Settings = {
   digestWindowHours: number
   briefingLanguage: 'auto' | 'ru' | 'en'
   briefingProfile: string
+  eveningPass: boolean
   enabledSources: string[]
   dataDir: string
 }
@@ -172,6 +174,21 @@ export const api = {
     })
     if (!res.ok) throw new Error(`Feedback failed (${res.status})`)
   },
+  opened: async (id: number): Promise<void> => {
+    await fetch(`/api/briefings/${id}/opened`, { method: 'POST', keepalive: true })
+  },
+  ask: async (id: number, question: string): Promise<string> => {
+    const res = await fetch(`/api/briefings/${id}/ask`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ question }),
+    })
+    const data = (await res.json()) as { answer?: string; error?: string }
+    if (!res.ok || typeof data.answer !== 'string') {
+      throw new Error(data.error ?? `HTTP ${res.status}`)
+    }
+    return data.answer
+  },
   saveSettings: async (body: {
     briefingHour?: number
     excludedSenders?: string[]
@@ -180,6 +197,7 @@ export const api = {
     digestWindowHours?: number
     briefingLanguage?: 'auto' | 'ru' | 'en'
     briefingProfile?: string
+    eveningPass?: boolean
     enabledSources?: string[]
   }): Promise<void> => {
     await fetch('/api/settings', {

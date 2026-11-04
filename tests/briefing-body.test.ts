@@ -91,6 +91,20 @@ test('a body without a suggestion renders no closing line', () => {
   expect(renderMarkdown({ headline: 'Quiet day', bullets: [], suggestion: '' })).toBe('Quiet day')
 })
 
+test('a quiet day is its headline and one point, with no closing line', () => {
+  expect(
+    renderMarkdown({
+      headline: 'Quiet day',
+      bullets: [{ text: 'Alpha moved', refs: [] }],
+      suggestion: '',
+    }),
+  ).toBe('Quiet day\n- Alpha moved')
+})
+
+test('the prompt makes a quiet day one point without a suggestion', () => {
+  expect(systemPrompt('auto')).toMatch(/one bullet, no suggestion/i)
+})
+
 test('the prompt names the chosen briefing language', () => {
   expect(systemPrompt('ru')).toContain('in Russian')
   expect(systemPrompt('en')).toContain('in English')
@@ -101,10 +115,18 @@ test('a profile of the person still reaches the prompt', () => {
   expect(systemPrompt('en', 'Works on graphics tools.')).toContain(
     'About the reader: Works on graphics tools.',
   )
+  // What not to show is asked for in the profile, so the prompt has to honour it.
+  expect(systemPrompt('en', 'Works on graphics tools.')).toMatch(/leave something out/i)
 })
 
 test('an empty profile adds nothing to the prompt', () => {
   expect(systemPrompt('en', '')).not.toContain('About the reader:')
+})
+
+test('no verdicts leave the prompt unchanged', () => {
+  expect(systemPrompt('en', 'Works on graphics tools.', '')).toBe(
+    systemPrompt('en', 'Works on graphics tools.'),
+  )
 })
 
 test('a 600-character profile is cut to 500', () => {

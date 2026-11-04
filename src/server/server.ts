@@ -5,7 +5,7 @@ import { buildApp } from './app.js'
 import { loadConfig } from './config.js'
 import { getSetting, openDb, setSetting } from './db/index.js'
 import { createBriefing, type BriefingKind } from './briefing/index.js'
-import { isWeeklyDue, shouldCatchUp } from './briefing/schedule.js'
+import { isEveningDue, isWeeklyDue, shouldCatchUp } from './briefing/schedule.js'
 import { initLogging } from './log.js'
 import type { Source } from './sources/types.js'
 import { startVaultWatcher } from './sources/vault/index.js'
@@ -221,7 +221,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         previousMessage = null
       }
       if (previousMessage !== result.error) {
-        send('Daily briefing failed', result.error.slice(0, 160))
+        send(
+          kind === 'weekly'
+            ? 'Weekly review failed'
+            : kind === 'evening'
+              ? 'Evening pass failed'
+              : 'Daily briefing failed',
+          result.error.slice(0, 160),
+        )
       }
       return
     }
@@ -229,7 +236,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     console.log('[briefing] generated')
     if (trigger === 'auto') {
       send(
-        kind === 'weekly' ? 'Weekly review is ready' : 'Daily briefing is ready',
+        kind === 'weekly'
+          ? 'Weekly review is ready'
+          : kind === 'evening'
+            ? 'Evening pass is ready'
+            : 'Daily briefing is ready',
         result.markdown.split('\n')[0]!.slice(0, 160),
       )
     }
@@ -267,8 +278,25 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
   }
 
+  function maybeEvening(): void {
+    if (!ready || closed) return
+    // Sunday 18:00 already carries the weekly review; two briefings at once is noise.
+    if (new Date().getDay() === 0) return
+    if (getSetting(db, 'evening_pass') !== '1') return
+    const last = (kind: string): Date | null => {
+      const row = db
+        .prepare('SELECT created_at FROM briefings WHERE kind = ? ORDER BY id DESC LIMIT 1')
+        .get(kind) as { created_at: string } | undefined
+      return row ? new Date(row.created_at) : null
+    }
+    if (isEveningDue(last('daily'), last('evening'), new Date(), 18)) {
+      void brief('auto', 'evening')
+    }
+  }
+
   const tasks: ScheduledTask[] = [
     schedule(`0 ${config.briefingHour} * * *`, maybeBrief),
+    schedule('0 18 * * *', maybeEvening),
     schedule('0 18 * * 0', maybeWeekly),
     schedule('*/5 * * * *', checkEventNotifications),
     schedule('0 3 * * *', () => {
@@ -295,6 +323,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if (closed) return
     ready = true
     maybeBrief()
+    maybeEvening()
     try {
       backupDb(db, config.dataDir)
     } catch (error) {

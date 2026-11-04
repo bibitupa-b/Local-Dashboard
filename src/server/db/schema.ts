@@ -67,12 +67,18 @@ CREATE TABLE IF NOT EXISTS briefings (
   body TEXT,
   digest TEXT NOT NULL DEFAULT '',
   feedback TEXT,
-  kind TEXT NOT NULL DEFAULT 'daily'
+  kind TEXT NOT NULL DEFAULT 'daily',
+  opens INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS resurfaced (
+  path TEXT PRIMARY KEY,
+  last_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS mail_folders (
@@ -114,6 +120,7 @@ CREATE TABLE IF NOT EXISTS calendar_events (
   end TEXT NOT NULL,
   location TEXT,
   status TEXT NOT NULL DEFAULT 'confirmed',
+  attendees TEXT NOT NULL DEFAULT '[]',
   PRIMARY KEY (connection_id, id)
 );
 

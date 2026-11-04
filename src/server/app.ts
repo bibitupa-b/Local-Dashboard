@@ -16,6 +16,7 @@ export type Deps = {
   sources?: Source[] | (() => Source[])
   getSources?: () => Source[]
   generate?: typeof createBriefing
+  ask?: (digest: string, question: string) => Promise<string>
   webRoot?: string
   isReady?: () => boolean
   health?: () => HealthMap
@@ -70,6 +71,7 @@ export function buildApp(deps: Deps): FastifyInstance {
     config: deps.config,
     sources: deps.getSources ?? sources,
     generate: deps.generate,
+    ask: deps.ask,
     isReady: deps.isReady,
     health: deps.health,
     syncState: deps.syncState,

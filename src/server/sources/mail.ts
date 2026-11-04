@@ -168,16 +168,13 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
         seen.add(message.key)
         return true
       })
-      if (fresh.length === 0) return ['Unread mail: 0']
-      return [
-        `Unread mail: ${fresh.length}`,
-        ...fresh
-          .slice(0, 12)
-          .map(
-            (message) =>
-              `${sanitize(message.sender, 80)}: ${sanitize(message.subject, 120)} — ${sanitize(message.snippet, 200)}`,
-          ),
-      ]
+      // No total: the unread pile is counted once, in `Needs attention`, and the page prints that number.
+      return fresh.slice(0, 12).map((message) => {
+        const line = `${sanitize(message.sender, 80)}: ${sanitize(message.subject, 120)}`
+        // Bodies expire after 90 days, leaving no snippet: a trailing dash would read as a missing value.
+        const snippet = sanitize(message.snippet, 200)
+        return snippet ? `${line} — ${snippet}` : line
+      })
     },
   }
 }

@@ -12,6 +12,7 @@ export type CalendarEvent = {
   end: string
   location: string | null
   status: string
+  attendees?: Array<{ email: string; name: string }>
 }
 
 export type CalendarApi = {
@@ -37,10 +38,11 @@ export function createCalendarSource(api: CalendarApi | null, meta: SourceMeta =
       const events = await api.upcoming(from, to)
 
       const insert = db.prepare(
-        `INSERT INTO calendar_events (connection_id, id, calendar_id, summary, start, end, location, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO calendar_events (connection_id, id, calendar_id, summary, start, end, location, status, attendees)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(connection_id, id) DO UPDATE SET summary = excluded.summary, start = excluded.start,
-           end = excluded.end, location = excluded.location, status = excluded.status`,
+           end = excluded.end, location = excluded.location, status = excluded.status,
+           attendees = excluded.attendees`,
       )
       db.exec('BEGIN')
       try {
@@ -55,6 +57,7 @@ export function createCalendarSource(api: CalendarApi | null, meta: SourceMeta =
             event.end,
             event.location,
             event.status,
+            JSON.stringify(event.attendees ?? []),
           )
         }
         db.exec('COMMIT')
@@ -112,6 +115,9 @@ export function createGoogleCalendarApi(client: OAuth2Client | null): CalendarAp
             end: localIso(end),
             location: event.location ?? null,
             status: event.status ?? 'confirmed',
+            attendees: (event.attendees ?? [])
+              .filter((person) => person.email && !person.resource && !person.self)
+              .map((person) => ({ email: person.email!, name: person.displayName ?? '' })),
           },
         ]
       })
@@ -131,7 +137,7 @@ export function todayEvents(db: DatabaseSync, now: Date): CalendarEvent[] {
       `SELECT id, calendar_id AS calendarId, summary, start, end, location, status
        FROM calendar_events WHERE start < ? AND end > ? AND status != 'cancelled' ORDER BY start`,
     )
-    .all(to, from) as CalendarEvent[]
+    .all(to, from) as Array<Omit<CalendarEvent, 'attendees'>>
 }
 
 export type DayPlan = {

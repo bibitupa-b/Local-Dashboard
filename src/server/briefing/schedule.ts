@@ -14,3 +14,18 @@ function weekStart(date: Date): number {
 export function isWeeklyDue(lastAt: Date | null, now: Date): boolean {
   return lastAt === null || weekStart(lastAt) !== weekStart(now)
 }
+
+/**
+ * The evening pass needs a morning briefing to close and comes once a day.
+ * It is a pure decision, like the catch-up above, so the clock stays outside.
+ */
+export function isEveningDue(
+  lastDailyAt: Date | null,
+  lastEveningAt: Date | null,
+  now: Date,
+  hour: number,
+): boolean {
+  if (!lastDailyAt || now.getHours() < hour) return false
+  const today = now.toDateString()
+  return lastDailyAt.toDateString() === today && lastEveningAt?.toDateString() !== today
+}

@@ -126,7 +126,12 @@ export function buildAttention(
        WHERE visited_at >= ? GROUP BY domain ORDER BY n DESC LIMIT 3`,
     )
     .all(todayStart) as Array<{ domain: string; n: number }>
-  const visits = browsing.reduce((sum, row) => sum + row.n, 0)
+  // Every visit, not the three domains named below: the label says "today", so the number must mean today.
+  const visits = (
+    db
+      .prepare('SELECT COUNT(*) AS n FROM browser_visits WHERE visited_at >= ?')
+      .get(todayStart) as { n: number }
+  ).n
   if (visits > 0) {
     items.push({
       kind: 'browser',

@@ -79,11 +79,17 @@ test('feed groups entries by day, newest first', async () => {
   await app.close()
 })
 
-test('generating without a key returns 400', async () => {
-  const { app } = harness()
+test('generating without a key still returns a briefing', async () => {
+  const { app, db } = harness()
   const res = await app.inject({ method: 'POST', url: '/api/briefings/generate' })
-  expect(res.statusCode).toBe(400)
-  expect(res.json()).toEqual({ error: 'no-key' })
+  expect(res.statusCode).toBe(200)
+  expect(res.json().body.headline).toBe('Quiet day')
+  const row = db.prepare('SELECT digest, digest_meta FROM briefings').get() as {
+    digest: string
+    digest_meta: string
+  }
+  expect(row.digest).toBe('')
+  expect(JSON.parse(row.digest_meta).model).toBe('rules')
   await app.close()
 })
 
@@ -266,6 +272,24 @@ test('the briefing language is saved through settings and junk is refused', asyn
   await app.close()
 })
 
+test('source opens are counted and listed', async () => {
+  const { app, db } = harness()
+  db.prepare(
+    `INSERT INTO briefings (id, created_at, trigger, markdown) VALUES (1, '2026-11-04T08:00:00.000Z', 'auto', '- one')`,
+  ).run()
+
+  const first = await app.inject({ method: 'POST', url: '/api/briefings/1/opened' })
+  expect(first.statusCode).toBe(200)
+  await app.inject({ method: 'POST', url: '/api/briefings/1/opened' })
+
+  const list = await app.inject({ method: 'GET', url: '/api/briefings' })
+  expect(list.json().items[0].opens).toBe(2)
+
+  const missing = await app.inject({ method: 'POST', url: '/api/briefings/9999/opened' })
+  expect(missing.statusCode).toBe(404)
+  await app.close()
+})
+
 test('feedback is stored, validated and tied to a real briefing', async () => {
   const { app, db } = harness()
   db.prepare(
@@ -408,5 +432,88 @@ test('unknown api route returns json 404', async () => {
   const res = await app.inject({ method: 'GET', url: '/api/nope' })
   expect(res.statusCode).toBe(404)
   expect(res.json()).toEqual({ error: 'not found' })
+  await app.close()
+})
+
+function askHarness(ask: (digest: string, question: string) => Promise<string>) {
+  const db = openDb(':memory:')
+  const config = loadConfig({ DEEPSEEK_API_KEY: 'test-key', VAULT_PATH: root })
+  const app = buildApp({ db, config, sources: [], webRoot: join(root, 'no-ui'), ask })
+  db.prepare(
+    `INSERT INTO briefings (id, created_at, trigger, markdown, digest)
+     VALUES (1, '2026-11-04T08:00:00.000Z', 'auto', '- one', '# Briefing digest\nMail: 47 unread')`,
+  ).run()
+  return { app, db }
+}
+
+test('a question about the digest is answered from the digest alone', async () => {
+  const asked: Array<[string, string]> = []
+  const { app } = askHarness(async (digest, question) => {
+    asked.push([digest, question])
+    return 'The digest says 47 unread messages.'
+  })
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/briefings/1/ask',
+    payload: { question: 'Why 47 mails?' },
+  })
+  expect(res.statusCode).toBe(200)
+  expect(res.json()).toEqual({ answer: 'The digest says 47 unread messages.' })
+  expect(asked).toEqual([['# Briefing digest\nMail: 47 unread', 'Why 47 mails?']])
+  await app.close()
+})
+
+test('an empty question is refused before any call', async () => {
+  const { app } = askHarness(async () => 'should not run')
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/briefings/1/ask',
+    payload: { question: '   ' },
+  })
+  expect(res.statusCode).toBe(400)
+  await app.close()
+})
+
+test('a question about a briefing that does not exist is a 404', async () => {
+  const { app } = askHarness(async () => 'should not run')
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/briefings/9999/ask',
+    payload: { question: 'Anything?' },
+  })
+  expect(res.statusCode).toBe(404)
+  await app.close()
+})
+
+test('a second question waits for the first answer', async () => {
+  let release = () => {}
+  let started = () => {}
+  const callStarted = new Promise<void>((resolve) => {
+    started = resolve
+  })
+  const pending = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const { app } = askHarness(async () => {
+    started()
+    await pending
+    return 'One answer at a time.'
+  })
+
+  const first = app.inject({
+    method: 'POST',
+    url: '/api/briefings/1/ask',
+    payload: { question: 'Why?' },
+  })
+  await callStarted
+  const second = await app.inject({
+    method: 'POST',
+    url: '/api/briefings/1/ask',
+    payload: { question: 'And another?' },
+  })
+  expect(second.statusCode).toBe(429)
+  release()
+  expect((await first).json()).toEqual({ answer: 'One answer at a time.' })
   await app.close()
 })

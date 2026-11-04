@@ -106,8 +106,10 @@ test('digest reports aggregates, never URLs', async () => {
     visitsSince: async () => [],
   })
   const lines = source.digest(db, new Date(Date.now() - 86_400_000)).join('\n')
-  expect(lines).toContain('Browsing: 2 visits')
   expect(lines).toContain('youtube.com (1)')
+  expect(lines).toContain('github.com (1)')
+  // The visit total is counted once, in `Needs attention`.
+  expect(lines).not.toContain('Browsing:')
   expect(lines).not.toContain('secret')
   expect(lines).not.toContain('https://')
 })
@@ -123,4 +125,21 @@ test('today visits appear in attention', () => {
   const item = items.find((entry) => entry.kind === 'browser')
   expect(item?.label).toContain('1 visits today')
   expect(item?.detail).toContain('github.com')
+})
+
+test('the visit count covers every domain, not only the three named', () => {
+  const db = openDb(':memory:')
+  const now = new Date()
+  const insert = db.prepare(
+    `INSERT INTO browser_visits (url, domain, title, visited_at) VALUES (?, ?, ?, ?)`,
+  )
+  for (const domain of ['a.test', 'b.test', 'c.test', 'd.test']) {
+    insert.run(`https://${domain}/`, domain, 't', now.toISOString())
+  }
+
+  const item = buildAttention(db, now, { staleDays: 14, inboxDays: 3 }).find(
+    (entry) => entry.kind === 'browser',
+  )
+  expect(item?.count).toBe(4)
+  expect(item?.detail?.split(', ')).toHaveLength(3)
 })

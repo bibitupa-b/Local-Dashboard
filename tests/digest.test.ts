@@ -54,7 +54,9 @@ test('includes changed paths, counts and grouped tasks', () => {
     driveChanges: [{ name: 'Budget.xlsx', kind: 'modified' }],
   })
   expect(text).toContain('01 Projects/Alpha.md (+12/-3)')
-  expect(text).toContain('#vitamins (2 open)')
+  expect(text).toContain('#vitamins')
+  expect(text).toContain('Completed recently: 1')
+  expect(text).not.toContain('2 open')
   expect(text).toContain('Budget.xlsx')
   expect(text).toContain('In Inbox for 4 days')
 })
@@ -338,7 +340,29 @@ test('weekly counts compare seven days with the seven before', () => {
     'Tasks closed: 1 this week, 1 last',
     'Mail arrived: 1 this week, 1 last',
     'Events passed: 1 this week, 1 last',
+    'Notes untouched 3+ weeks: 0',
+    'Tasks open 3+ weeks: 0',
   ])
+})
+
+test('the weekly review counts what has not moved in three weeks', () => {
+  const db = openDb(':memory:')
+  const now = new Date('2026-11-08T18:00:00.000Z')
+  const ago = (days: number) => new Date(now.getTime() - days * 86_400_000).toISOString()
+
+  const note = db.prepare('INSERT INTO vault_files (path, hash, mtime, size) VALUES (?, ?, ?, 1)')
+  note.run('Inbox/Old.md', 'h', ago(30))
+  note.run('Inbox/New.md', 'h', ago(1))
+
+  const task = db.prepare(
+    `INSERT INTO tasks (path, text, done, first_seen, last_seen) VALUES ('A.md', ?, ?, ?, ?)`,
+  )
+  task.run('waiting a month', 0, ago(30), ago(1))
+  task.run('opened today', 0, ago(1), ago(1))
+  task.run('closed after a month', 1, ago(30), ago(1))
+
+  expect(weeklyCounts(db, now).split('\n')).toContain('Notes untouched 3+ weeks: 1')
+  expect(weeklyCounts(db, now).split('\n')).toContain('Tasks open 3+ weeks: 1')
 })
 
 test('lines carry numbers that resolve to their source', () => {
@@ -361,6 +385,28 @@ test('lines carry numbers that resolve to their source', () => {
   expect(refs.get(3)).toEqual({ kind: 'drive', label: 'Budget.xlsx', fileId: 'f1' })
 })
 
+test('a source is counted once, and its row prints the number its reference carries', () => {
+  const attention = [
+    { kind: 'mail' as const, label: 'Mail: 25 unread', detail: '4 starred, Alice', count: 25, messageId: '<m1@x.com>' },
+    { kind: 'task' as const, label: '#vitamins', detail: '5 open in 3 notes', count: 5, path: 'Inbox/Plan.md' },
+  ]
+  const { text, refs } = buildDigest({
+    since,
+    now,
+    until,
+    vaultChanges: [],
+    tasks: [],
+    attention,
+    driveChanges: [],
+  })
+  expect(text).toContain('- [1] [mail] Mail: 25 unread — 4 starred, Alice')
+  expect(text).not.toContain('x25')
+  expect(refs.get(1)).toEqual({ kind: 'mail', label: 'Mail: 25 unread', messageId: '<m1@x.com>' })
+  // A task row keeps its own identity and counts nobody twice; its reference is the note.
+  expect(text).toContain('- [2] [task] #vitamins — 5 open in 3 notes')
+  expect(refs.get(2)).toEqual({ kind: 'note', label: 'Plan', path: 'Inbox/Plan.md' })
+})
+
 test('truncation drops the refs it cut off', () => {
   const { text, refs } = buildDigest({
     since,
@@ -381,4 +427,21 @@ test('truncation drops the refs it cut off', () => {
   expect(refs.size).toBe(0)
   // Whatever survives, no marker is left pointing at a line that is gone.
   for (const number of refs.keys()) expect(text).toContain(`[${number}] `)
+})
+
+test('meeting prep sits right after the attention queue', () => {
+  const { text } = buildDigest({
+    since,
+    now,
+    until,
+    vaultChanges: [{ path: '01 Projects/Alpha.md', added: 1, removed: 0 }],
+    tasks: [],
+    attention: [{ kind: 'task', label: 'Open task', detail: '01 Projects/Alpha.md' }],
+    driveChanges: [],
+    meetings: ['14:30 Sync — last mail from Anna: «Re: budget» (2 d ago)'],
+  })
+  expect(text).toContain('## Meetings')
+  expect(text).toContain('last mail from Anna')
+  expect(text.indexOf('## Meetings')).toBeGreaterThan(text.indexOf('## Needs attention'))
+  expect(text.indexOf('## Meetings')).toBeLessThan(text.indexOf('## Vault changes'))
 })

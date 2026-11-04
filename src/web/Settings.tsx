@@ -288,6 +288,11 @@ export function SettingsPanel({
     remember({ briefingProfile: value })
   })
 
+  const evening = useLiveSave(settings.eveningPass, async (value) => {
+    await api.saveSettings({ eveningPass: value })
+    remember({ eveningPass: value })
+  })
+
   const senders = useLiveSave(settings.excludedSenders.join('\n'), async (raw) => {
     const list = lines(raw)
     await api.saveSettings({ excludedSenders: list })
@@ -314,7 +319,7 @@ export function SettingsPanel({
     },
   )
 
-  const fields = [hour, windowHours, language, profile, senders, vaultPrefixes, browserDomains, sources]
+  const fields = [hour, windowHours, evening, language, profile, senders, vaultPrefixes, browserDomains, sources]
   const receipts = fields.map((field) => field.receipt)
   const unsaved = receipts.filter((receipt) => receipt?.state === 'error').length
   const saving = receipts.some((receipt) => receipt?.state === 'saving')
@@ -583,6 +588,22 @@ export function SettingsPanel({
 
           <div className="pref">
             <div className="pref-head">
+              <label htmlFor="pref-evening">Evening pass</label>
+              <FieldNote receipt={evening.receipt} onRetry={evening.retry} />
+            </div>
+            <label className="check">
+              <input
+                id="pref-evening"
+                type="checkbox"
+                checked={evening.draft}
+                onChange={(event) => evening.edit(event.target.checked)}
+              />
+              A short second briefing at 18:00, closing the day
+            </label>
+          </div>
+
+          <div className="pref">
+            <div className="pref-head">
               <label htmlFor="pref-language">Briefing language</label>
               <FieldNote receipt={language.receipt} onRetry={language.retry} />
             </div>
@@ -601,14 +622,14 @@ export function SettingsPanel({
 
           <div className="pref">
             <div className="pref-head">
-              <label htmlFor="pref-profile">Briefing context (what the briefing should know about you)</label>
+              <label htmlFor="pref-profile">Briefing context (what matters, and what not to show)</label>
               <FieldNote receipt={profile.receipt} onRetry={profile.retry} />
             </div>
             <textarea
               id="pref-profile"
               rows={3}
               maxLength={500}
-              placeholder="I work on graphics tools. Don't suggest sport."
+              placeholder="I write in Russian; skip newsletters and tasks from Archive."
               value={profile.draft}
               onChange={(event) => profile.edit(event.target.value)}
             />

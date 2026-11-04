@@ -28,7 +28,7 @@ Three reference ideas carry over: the palette specimen, the low-light desk photo
 ## 2. Principles
 
 1. **The briefing is the page.** No competing list shares its measure or its first viewport.
-2. **Light is the signal.** Warm marks attention: the start figure, time, the suggestion, and the line being read. Sage marks action and health. Nothing else glows.
+2. **Light is the signal.** Warm marks attention: the start figure, time, the suggestion, the line being read, and the verdict you pressed. Sage marks action and health. Nothing else glows.
 3. **Borders, not shadows.** Rules and one step of surface lightness separate things; shadow belongs only to layers that float above the page.
 4. **One accent per meaning.** Sage = action/success, haze = information, sand = warm/time/attention, clay = error. A screen never shows more than two semantic colours at once.
 5. **Mono for metadata, sans for reading.** Paths, times, counts, labels, station names are mono and small; sentences are sans.
@@ -122,12 +122,24 @@ Derived colours, and no others: **Lichen** `#7F8F88` (browser station and dot on
 
   --dur-press: 80ms;
   --dur-hover: 120ms;
+  --dur-exit: 140ms;
+  --dur-turn: 150ms;
   --dur-reveal: 180ms;
   --dur-panel: 240ms;
+  --dur-fill: 350ms;
+  --dur-spin: 900ms;
+  --dur-breathe: 1.2s;
+  --dur-pulse: 1.6s;
+  --dur-settle: 2.4s;
+  --dur-orbit: 9s;
+  --dur-drift: 24s;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out: cubic-bezier(0.4, 0, 1, 1);
 }
 ```
+
+Every alpha is a token, and so is every duration: no `ms` or `s` literal appears outside `:root`
+except the reduced-motion overrides in §8.4.
 
 Every alpha is a token. No `rgba()` literal appears outside `:root`: the washes sit at 10–12%,
 the accent's edges and glows step `--accent-edge` 28% → `--accent-line` 35% → `--accent-pulse` 45%
@@ -162,7 +174,7 @@ Non-text: Iron on Obsidian 1.72 — decorative only. `--line-strong` on Graphite
 - No large sage fills. Sage fill is reserved for the primary button and small success marks.
 - Semantic washes replace coloured fills for banners and the suggestion block.
 - Never convey state by hue alone: a station has its name and last sync; a status has words.
-- Warm is spent on attention and in-progress reading only: one warm figure at the top, one warm suggestion at the bottom, and the tick under the eye. Do not tint a second sentence, a rule or a station name with it.
+- Warm is spent on attention and in-progress reading only: one warm figure at the top, one warm suggestion at the bottom, the tick under the eye, and the pressed verdict at the very end. Do not tint a second sentence, a rule or a station name with it.
 - User content (paths, subjects, note names) is never tinted, never uppercased. Only dots, station marks and metadata carry source colour.
 
 ### 3.5 Source colour
@@ -184,9 +196,9 @@ Station marks are 10px round, `flex: none`, sitting on the rail with a 4px `--bg
 | Connected / success | Sage | Rail fill, sync outcome glow, primary button, `GET STARTED` label, done ticks, free windows |
 | Syncing / in progress | Sage | The rail fills; the active station pulses |
 | Information / neutral accent | Haze | Banners, links to external services |
-| Time / today / attention | Sand | The start figure, the `TODAY` label, event times, the suggestion, a missing-briefing stamp, the reading ticks |
+| Time / today / attention | Sand | The start figure, the `TODAY` label, event times, the suggestion, a missing-briefing stamp, a pressed verdict, the reading ticks |
 | Warning / not connected | Mist | Hollow station, `—` in place of the time |
-| Error / conflict | Clay | Station mark, conflict line, banner border |
+| Error / conflict | Clay | Station mark, conflict line, banner border, a failed-generation stamp |
 
 ---
 
@@ -200,7 +212,9 @@ Self-hosted web fonts: Unbounded for display and Onest for body, both under the 
 | Start figure | 44 / 1 | 500 | sentence, -0.02em | The one count that says where to start (Unbounded) |
 | Start sentence | 21 / 1.45 | 400 | sentence | The clause around the figure |
 | Section | 11 / 1.4 | 500 | UPPERCASE mono, 0.14em | `BRIEFING`, `TODAY`, `GET STARTED`, `RESULTS FOR…`, suggestion label |
-| Briefing | 17 / 1.75 | 400 | sentence | The briefing markdown only |
+| Headline | 20 / 1.35 | 500 | sentence, -0.01em | The briefing's opening line — the answer (Unbounded) |
+| Briefing | 17 / 1.75 | 400 | sentence | The briefing's points, the suggestion, earlier briefings |
+| Ref | 12 / 1.4 | 400 | mono | The source line under a point |
 | Body | 15 / 1.6 | 400 | sentence | Settings, search rows |
 | Small | 14 / 1.5 | 400 | sentence | Today events, result rows |
 | Meta | 13 / 1.5 | 400 | mono 0.02em | Timestamps, start detail, connection detail |
@@ -226,6 +240,7 @@ Rules:
 - Top panel gap: 24px row, 56px column. Panel to services line: 40px. Line to search: 28px. Search to briefing: 40px.
 - Briefing: margin column 176px (152 below 1100px), 40px gap, 22px above the top rule.
 - Reading line gap: 15px. Inside the suggestion: 16px padding.
+- Briefing additions: headline to first point 18px, a point to its source line 6px, the last entry to the verdict 22px, the verdict pair 8px apart, a disclosure 28px below with 14px of padding above its rule.
 - Settings card padding: 22px; 16px below 700px.
 
 **Radius** — `--radius-sm` 6px (inputs, chips), `--radius-md` 10px (buttons, search), `--radius-lg` 14px (settings cards, popovers, modals), pills 999px. The dashboard's top-level blocks are square; radius belongs to controls and to the settings route.
@@ -269,13 +284,13 @@ body {
 3. **Services line** — one full-width row: vault, drive, mail, github, browser as stations on a 2px rail; name above, last sync below. During sync the rail fills and the active station pulses; the row is the `progressbar`.
 4. **Search** — one row, full width, with `Search` and, after a search, `Clear`.
 5. **Results** — only after a submitted search: a ruled list above the briefing.
-6. **Briefing** — full-width 1px rule, then a two-column grid: the margin (label, stamp, `Briefing now`) and the reading column at 64ch. Per-line ticks in the margin of the text; the closing line is the suggestion. `Earlier briefings` is a native disclosure under the measure.
+6. **Briefing** — full-width 1px rule, then a two-column grid: the margin (label, stamp, `Briefing now`) and the reading column at 64ch. The headline opens the column, the points carry their own sources, and the closing line is the suggestion. The verdict sits under the text; two native disclosures close the column — `Earlier briefings` and `What it read`.
 7. **Get started** — only while setup is incomplete; a single inline row above the search, no card.
 8. **Note banner** — inline, above the panel, when present.
 
 ### 6.3 Settings route
 
-Same `.page` shell, no sidebar. The route opens on a title step, not a section label: `Settings` in the masthead tier (20px Unbounded, Porcelain), one 13px mono line under it — `Stored on this machine. Only the briefing digest leaves it.` — and the ghost `Back to dashboard` aligned to the title's first line, with 32px to the first card. Card headings stay 12px mono uppercase, one tier below; the title is the route's only `<h1>`. Then cards: Connections (group per service, divider between groups, hint beside each group name, rows for saved accounts), Application (data directory, `Copy diagnostics`, `Check for updates`), Preferences (numeric fields, textareas, source checkboxes — all live, see §7.10). Connection modal 460px, confirm dialog 380px.
+Same `.page` shell, no sidebar. The route opens on a title step, not a section label: `Settings` in the masthead tier (20px Unbounded, Porcelain), one 13px mono line under it — `Stored on this machine. Only the briefing digest leaves it.` — and the ghost `Back to dashboard` aligned to the title's first line, with 32px to the first card. Card headings stay 12px mono uppercase, one tier below; the title is the route's only `<h1>`. Then cards: Connections (group per service, divider between groups, hint beside each group name, rows for saved accounts), Application (data directory, `Copy diagnostics`, `Check for updates`), Preferences (briefing hour, digest window, briefing language, briefing context, the three exclusion lists, source checkboxes — all live, see §7.10). Connection modal 460px, confirm dialog 380px.
 
 The Preferences card holds its fields in a 720px column so each receipt sits within a glance of its label; the card's status line stays at the card's right edge. No `Save` button: the card head carries the route's only save state — `Changes save as you edit`, `Saving…`, `All changes saved 09:14`, or `N changes not saved` — and every field carries its own receipt in the same mono micro tier.
 
@@ -341,15 +356,21 @@ Results: a ruled list (no card) under a `RESULTS FOR “…”` label; rows 14px
 }
 ```
 
-Margin: `BRIEFING` section label in Porcelain, the stamp in 12px mono Mist, then the single primary button. When today has no briefing yet, a second stamp reads `none for today yet` in Sand — a state, not a timestamp.
+Margin: `BRIEFING` section label in Porcelain, the stamp in 12px mono Mist, then the single primary button. The stamp is one line of four facts, separated by ` ·`: the date and time `3 Nov, 09:14`, the trigger (`auto` or `manual`), `Week` only on a weekly briefing, and the digest window as a span (`24 h`, or `3 d` past 48 hours). When today has no briefing yet, a second stamp reads `none for today yet` in Sand — a state, not a timestamp; a generation that failed leaves `Briefing failed at 09:14: <cause>` in Clay on the page, never only in a banner.
 
-Reading column: 17px/1.75 Onest, `text-wrap: pretty`, 15px between entries. Every entry (bullet or paragraph) carries a 1px Sand tick in the margin at `left: 2px`, held at 30% opacity; the tick at the middle of the viewport brightens to full Sand and grows to the line's full height (180ms). That tick is the page's signature motion: it reports where the eye is, and it is the only thing that moves while reading.
+Reading column: 17px/1.75 Onest, `text-wrap: pretty`, 15px between entries. Every entry carries a 1px Sand tick in the margin at `left: 2px`, held at 30% opacity; the tick at the middle of the viewport brightens to full Sand and grows to the line's full height (180ms). That tick is the page's signature motion: it reports where the eye is, and it is the only thing that moves while reading.
+
+**Headline.** The briefing opens with one sentence in 20px/1.35 Unbounded at 500, `text-wrap: balance`, 18px before the points. It is the answer, and it is the only display type inside the briefing — the points below it are the evidence. It is optional in the payload; when it is missing, the points start at the rule with no gap and no placeholder.
+
+**Points and their sources.** Each point is a reading line. Under it, at most three source links (`refs`) sit as a flex row with 10px gaps, 6px below the text: 12px mono Mist, a 1px `--line-soft` underline, hover Porcelain with a Sand underline. A source with no destination (a calendar event, a page title) keeps the same size and underline but dotted, in a `<span>`, so a dead link is never promised. Duplicate sources collapse; the cap is the line, not the data.
 
 The closing entry is always the suggestion: `--warm-wash`, a 1px Sand left rule, 16px 18px padding, radius 0 6 6 0, and a `Suggestion` micro-label in Sand.
 
+**The verdict.** Under the text, 22px down, two mini buttons in a labelled group — `Useful` and `Miss`. Not a rating, not a thumb: a pressed statement that seats the answer's own verdict against it. The pressed one turns Sand in both border and text and holds `aria-pressed`; pressing the other moves the mark. The vote is announced in words (`Marked useful.`); the buttons disable while it is in flight and never show a spinner. The row is absent while generating and absent when there is no briefing.
+
 Generating: the button reads `Thinking…` and three skeleton lines (12px, 100/92/64%, `--raised`, 1.6s opacity pulse) replace the body. On arrival the top rule warms for 900ms and the body fades in.
 
-`Earlier briefings`: native `<details>`, summary 14px Mist with a rotating `▸`, instant open, 150ms chevron.
+**Two disclosures, one pattern.** `Earlier briefings` and `What it read` are both native `<details>` with a 14px Mist summary, a `▸` that rotates 90° in 150ms, and instant content. They differ in payload and order: earlier briefings list newest first under a 12px mono stamp (with ` · Week` on a weekly one); `What it read` prints the exact digest sent to DeepSeek in 12px/1.5 mono Mist, `pre-wrap`, capped at 40vh with its own scroll. `Earlier briefings` appears only when there is more than one; `What it read` only when the briefing carries a digest, so an older briefing without one simply doesn't offer the receipt. That disclosure is the privacy claim made visible on the page — it is not optional decoration and does not collapse behind a settings screen.
 
 ### 7.7 Get started
 
@@ -368,7 +389,7 @@ Full width, padding 10px 12px, radius 10px, 13px Porcelain text, 1px border: inf
 
 ### 7.10 Forms and dialogs (settings route)
 
-Fields keep persistent 12px Mist labels, `--sunken` controls with radius 6px, 2px sage focus ring offset 2, Mist placeholders at 60%, native checkboxes with `accent-color`, autofill override, modal 460px on `--raised` with `--shadow-lg`, confirm dialog 380px, focus trapped and returned, Escape and backdrop click close.
+Fields keep persistent 13px Mist labels, `--sunken` controls with radius 6px, 2px sage focus ring offset 2, Mist placeholders at 60%, native checkboxes with `accent-color`, autofill override, modal 460px on `--raised` with `--shadow-lg`, confirm dialog 380px, focus trapped and returned, Escape and backdrop click close.
 
 **Preferences save themselves.** There is no `Save` button and no page-level confirmation: an edit is written 500 ms after the last keystroke, and the field reports the truth in 12px mono at the end of its label line.
 
@@ -380,6 +401,8 @@ Fields keep persistent 12px Mist labels, `--sunken` controls with radius 6px, 2p
 | Failed | the cause in Clay plus a `Retry` link | The typed value stays on screen, unsaved |
 
 Rules: a typed value is never discarded by a failed write; leaving the route flushes the last valid edit; a field that returns to the value the server already holds drops its receipt; the card head aggregates them (`Saving…` wins over `All changes saved`, any failure wins over both) and is the page's only live region for saves.
+
+**Briefing context is the one field where the user writes prose to the model.** A three-row textarea under the label `Briefing context (what the briefing should know about you)`, capped at 500 characters with no counter — the cap is a ceiling, not a target, and a live counter would invite filling it. Its placeholder is an example of tone, never an instruction: `I work on graphics tools. Don't suggest sport.` This is the only place the user's own words reach the digest, so it reads as ordinary body text: no mono, no code styling, no on-screen budget. It saves and reports exactly like every other field in the card.
 
 ### 7.11 Empty, loading, error
 
@@ -407,11 +430,19 @@ Rules: a typed value is never discarded by a failed write; leaving the route flu
 |---|---|---|
 | `--dur-press` | 80ms | Press displacement |
 | `--dur-hover` | 120ms | Hover/colour feedback |
+| `--dur-exit` | 140ms | Every exit: dialog, banner and view leave faster than they arrive |
+| `--dur-turn` | 150ms | The disclosure chevron turning 90° |
 | `--dur-reveal` | 180ms | Rows, tick, small popovers |
-| `--dur-panel` | 240ms | Modal, entrance |
+| `--dur-panel` | 240ms | Modal, entrance, view in |
+| `--dur-fill` | 350ms | The sync rail filling, `linear` |
+| `--dur-spin` | 900ms | One turn of the connection-test spinner, `linear` |
+| `--dur-breathe` | 1.2s | The active station pulsing |
+| `--dur-pulse` | 1.6s | The briefing skeleton |
+| `--dur-settle` | 2.4s | A `Saved` receipt settling from Sage to Mist |
+| `--dur-orbit` | 9s | The masthead orbit |
+| `--dur-drift` | 24s | The modal's two ambient rings |
 | `--ease` | `cubic-bezier(.22,1,.36,1)` | Standard/enter |
 | `--ease-out` | `cubic-bezier(.4,0,1,1)` | Exit |
-| progress | `linear` | Rail fill, spinners |
 
 ### 8.3 Catalog
 
@@ -426,15 +457,16 @@ Rules: a typed value is never discarded by a failed write; leaving the route flu
 | 7 | Briefing generating | Click `Briefing now` | Label → `Thinking…`; 3 skeletons pulse; on arrival the top rule warms 900ms and the body fades in | 1.6s loop; 900ms / 240ms once | Skeletons static, no warm rule |
 | 8 | Suggestion panel | Typing ≥2 chars | Fade + 2px rise | 120ms | Fade only |
 | 9 | Active suggestion | Arrow keys / hover | Background 80ms; 2px sage bar appears instantly | 80ms | Instant |
-| 10 | Earlier briefings chevron | `<details>` toggle | Rotate 90→180°; content opens instantly | 150ms | Instant |
-| 11 | Settings route | Open/close | View transition cross-fade, no horizontal slide | 160 / 240ms | Instant |
-| 12 | Modal | Open / close | Backdrop fades 200ms; dialog fades + 6px rise; exit 140ms | 240 / 140ms | Instant |
-| 13 | Ambient rings (modal) | Modal open | Two circles drift ≤12px and rotate ≤2° | 24s linear alternate | Static |
-| 14 | Masthead orbit | Always | 9s rotation; the node is the only lit point | 9s linear loop | Static |
-| 15 | Hint tooltip | Hover / focus | Fade | 120ms | Instant |
-| 16 | Connection test | Click `Test` | 14px spinner rotates; result colour fades in | 900ms linear; 240ms | Static `testing…` |
-| 17 | Banner | Appears | Fade + 4px rise; exit 120ms | 200ms | Fade only |
-| 18 | Preference receipt | Field saves / fails | The line fades in; `Saved` enters Sage and settles to Mist | 180ms in; 2.4s settle | Instant, Mist |
+| 10 | Briefing disclosures | `<details>` toggle | `Earlier briefings` and `What it read`: the `▸` turns from 0 to 90°; content opens instantly | 150ms | Instant |
+| 11 | Briefing verdict | Click `Useful` / `Miss` | The pressed mini turns Sand in border and text; the other returns to ghost | 120ms | Instant |
+| 12 | Settings route | Open/close | View transition cross-fade, no horizontal slide | 160 / 240ms | Instant |
+| 13 | Modal | Open / close | Backdrop fades 200ms; dialog fades + 6px rise; exit 140ms | 240 / 140ms | Instant |
+| 14 | Ambient rings (modal) | Modal open | Two circles drift ≤12px and rotate ≤2° | 24s linear alternate | Static |
+| 15 | Masthead orbit | Always | 9s rotation; the node is the only lit point | 9s linear loop | Static |
+| 16 | Hint tooltip | Hover / focus | Fade | 120ms | Instant |
+| 17 | Connection test | Click `Test` | 14px spinner rotates; result colour fades in | 900ms linear; 240ms | Static `testing…` |
+| 18 | Banner | Appears | Fade + 4px rise; exit 120ms | 200ms | Fade only |
+| 19 | Preference receipt | Field saves / fails | The line fades in; `Saved` enters Sage and settles to Mist | 180ms in; 2.4s settle | Instant, Mist |
 
 Rules that apply to every row:
 
@@ -482,8 +514,8 @@ With reduced motion: transforms are removed (no rise, no press, no ring drift), 
 - Landmarks: exactly one `<main>` per route (dashboard and settings); the services line is a labelled region; the rail — not the row — is the `progressbar`, with an accessible name only while syncing.
 - Keyboard: Tab follows visual order; every modal uses one dialog pattern (focus moves in, Tab stays inside, Escape closes, focus returns); a route change moves focus into the new route and back to `Settings` when it closes; Escape also closes suggestions and results; search keeps ArrowUp/Down/Enter/Escape; `/` focuses search, `b` generates, `<details>` stays native, and shortcuts are inert while a dialog is open.
 - Targets ≥32px for primary/ghost buttons, ≥24px for mini, and ≥40–44px for both on a coarse pointer; 6px between adjacent targets.
-- State is never colour-only: stations have names and times, errors have text, the suggestion has a label.
-- Live regions: banner, test result, briefing completion, search result and sync outcome. The 60-second poll is never announced.
+- State is never colour-only: stations have names and times, errors have text, the suggestion has a label, and the verdict carries `aria-pressed` inside a group named `Was this briefing useful?`.
+- Live regions: banner, test result, briefing completion, search result, sync outcome and the verdict (`Marked useful.` / `Marked as missing the point.`). The 60-second poll is never announced.
 - Inputs keep persistent labels (the search field uses `aria-label`); placeholders are hints.
 - 200% zoom: no horizontal scroll, no clipped controls. Verified at 390px and 1294px.
 - Scrollbars thin and dark; selection `--selection`; Cyrillic and emoji paths render untransformed with `overflow-wrap: anywhere`.
@@ -493,7 +525,9 @@ With reduced motion: transforms are removed (no rise, no press, no ring drift), 
 ## 10. Content and tone
 
 - Sentence case everywhere except mono micro-labels.
-- Buttons say what happens: `Briefing now`, `Sync`, `Save preferences`, `Test`, `Disconnect`, `Open settings`.
+- Buttons say what happens: `Briefing now`, `Sync`, `Save preferences`, `Test`, `Disconnect`, `Open settings`; the verdict says what it is — `Useful`, `Miss` — and nothing warmer.
+- The briefing stamp is four facts in one line, `3 Nov, 09:14 · auto · Week · 24 h`: date and time, trigger, the weekly label, the window actually read. `Week` is a label, never a second heading; a briefing that isn't weekly says nothing about its kind.
+- Privacy is stated where the data is: `What it read` names the exact digest, and the welcome dialog spells out what leaves the machine — subjects, senders, the first lines of unread mail, one line from an old note on quiet days.
 - The start sentence is plain: `Start here:` + the count + the pile's own words (`awaiting your reply`, `unread mail`, `GitHub items`), then the senders in mono. Empty: `Nothing needs attention.`
 - Errors name the cause and the next step: `Add a DeepSeek key in Settings -> Connections.` No apologies, no exclamation marks.
 - Time: 24-hour, tabular, `09:37`; dates `3 Nov`, the masthead uses the full weekday.
@@ -549,7 +583,12 @@ If a future feature needs a new component, it reuses these tokens; a new colour 
 - [x] Cyrillic/emoji paths render; user content never uppercased.
 - [x] 320px, 390px and 1294px without clipping or horizontal scroll; 200% zoom reflows; touch targets grow on a coarse pointer.
 - [x] Empty/loading/error/disabled states defined for every component.
-- [x] The warm attention colour carries the start figure, `TODAY`, the reading ticks, a missing-briefing stamp and the suggestion; Sage marks only action and health.
+- [x] The warm attention colour carries the start figure, `TODAY`, the reading ticks, a missing-briefing stamp, the suggestion and a pressed verdict; Sage marks only action and health.
+- [x] The briefing opens with one headline (20px Unbounded) and points carry at most three source links each; a source with no destination is drawn as text, never a dead link.
+- [x] The verdict is a pressed pair (`Useful` / `Miss`) in a named group, Sand when pressed, announced in words, absent while generating.
+- [x] `Earlier briefings` and `What it read` are native `<details>`; `What it read` prints the exact digest and appears only when the briefing carries one.
+- [x] The briefing stamp reads time · trigger · `Week` when weekly · the digest window; a failed generation names its time and cause in Clay on the page.
+- [x] Briefing context is a 500-character textarea that saves like every other field, with no counter on screen.
 - [x] `npm run build`, `tsc --noEmit` and `npm test` pass; Lighthouse accessibility 1.0.
 
 ---

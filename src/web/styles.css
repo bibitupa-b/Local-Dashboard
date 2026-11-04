@@ -158,10 +158,20 @@
   --shadow-sm: 0 6px 18px rgba(6, 8, 9, 0.35);
   --shadow-lg: 0 24px 60px rgba(6, 8, 9, 0.55);
 
+  /* Every duration is a token, the same way every alpha is: tuned here, not at the call site. */
   --dur-press: 80ms;
   --dur-hover: 120ms;
+  --dur-exit: 140ms; /* every exit: shorter than the entrance it reverses */
+  --dur-turn: 150ms; /* the disclosure chevron */
   --dur-reveal: 180ms;
   --dur-panel: 240ms;
+  --dur-fill: 350ms; /* the sync rail, linear */
+  --dur-spin: 900ms; /* a working spinner, one turn */
+  --dur-breathe: 1.2s; /* the station that is working */
+  --dur-pulse: 1.6s; /* a skeleton */
+  --dur-settle: 2.4s; /* a saved receipt cooling to mist */
+  --dur-orbit: 9s;
+  --dur-drift: 24s;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out: cubic-bezier(0.4, 0, 1, 1);
 }
@@ -215,6 +225,7 @@ body {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
+select:focus-visible,
 textarea:focus-visible,
 summary:focus-visible,
 [tabindex]:focus-visible {
@@ -402,7 +413,7 @@ button:disabled {
   inset: 0;
   border-radius: 50%;
   border: 1px solid var(--accent-edge);
-  animation: spin 9s linear infinite;
+  animation: spin var(--dur-orbit) linear infinite;
   pointer-events: none;
 }
 
@@ -550,7 +561,7 @@ button:disabled {
   border-radius: var(--radius-pill);
   background: var(--accent);
   transition:
-    width 350ms linear,
+    width var(--dur-fill) linear,
     background var(--dur-hover) linear;
 }
 
@@ -641,7 +652,7 @@ a.station:hover .at {
 }
 
 .network.running .station.active .mark {
-  animation: station-pulse 1.2s ease-in-out infinite;
+  animation: station-pulse var(--dur-breathe) ease-in-out infinite;
 }
 
 .network.outcome-ok .rail i {
@@ -755,10 +766,9 @@ a.station:hover .at {
   opacity: 0.8;
 }
 
+/* The ring comes from the one :focus-visible rule above; focus only lifts the edge. */
 .search input:focus {
   border-color: var(--line-strong);
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
 
 .suggest {
@@ -1056,13 +1066,15 @@ a.station:hover .at {
   color: var(--warm);
 }
 
-.earlier {
+.earlier,
+.ask {
   margin-top: 28px;
   border-top: 1px solid var(--line-soft);
   padding-top: 14px;
 }
 
-.earlier summary {
+.earlier summary,
+.ask summary {
   list-style: none;
   cursor: pointer;
   color: var(--muted);
@@ -1070,23 +1082,61 @@ a.station:hover .at {
   transition: color var(--dur-hover) var(--ease);
 }
 
-.earlier summary:hover {
+.earlier summary:hover,
+.ask summary:hover {
   color: var(--ink);
 }
 
-.earlier summary::-webkit-details-marker {
+.earlier summary::-webkit-details-marker,
+.ask summary::-webkit-details-marker {
   display: none;
 }
 
-.earlier summary::before {
+.earlier summary::before,
+.ask summary::before {
   content: "▸";
   display: inline-block;
   margin-right: 6px;
-  transition: transform 150ms var(--ease);
+  transition: transform var(--dur-turn) var(--ease);
 }
 
-.earlier[open] summary::before {
+.earlier[open] summary::before,
+.ask[open] summary::before {
   transform: rotate(90deg);
+}
+
+.ask form {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ask input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font: 400 15px/1 var(--font-sans);
+}
+
+.ask input:focus {
+  border-color: var(--line-strong);
+}
+
+.ask input::placeholder {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.ask .answer {
+  margin: 12px 0 0;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.6;
 }
 
 .earlier article {
@@ -1110,6 +1160,17 @@ a.station:hover .at {
   color: var(--muted);
 }
 
+/* A point's evidence sits under the point, not at the bottom of the page. */
+.line .why {
+  margin-top: 10px;
+  border-top: 0;
+  padding-top: 0;
+}
+
+.line .why pre {
+  margin-top: 8px;
+}
+
 /* skeleton */
 
 .skeleton {
@@ -1122,7 +1183,7 @@ a.station:hover .at {
   height: 12px;
   border-radius: var(--radius-sm);
   background: var(--raised);
-  animation: skeleton-pulse 1.6s ease-in-out infinite;
+  animation: skeleton-pulse var(--dur-pulse) ease-in-out infinite;
 }
 
 .skeleton span:nth-child(2) {
@@ -1291,7 +1352,7 @@ a.station:hover .at {
 
 /* A save is worth one breath of sage, then it returns to metadata. */
 .field-note.ok {
-  animation: receipt-settle 2400ms var(--ease) both;
+  animation: receipt-settle var(--dur-settle) var(--ease) both;
 }
 
 .field-note.bad {
@@ -1408,12 +1469,13 @@ a.station:hover .at {
   opacity: 0.6;
 }
 
+/* The ring comes from the one :focus-visible rule above; focus only lifts the edge. */
 .settings input:focus,
+.settings select:focus,
 .settings textarea:focus,
-.modal input:focus {
+.modal input:focus,
+.modal textarea:focus {
   border-color: var(--line-strong);
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
 
 input:-webkit-autofill {
@@ -1541,7 +1603,7 @@ input:-webkit-autofill {
   border: 1px solid var(--line-faint);
   border-radius: 50%;
   pointer-events: none;
-  animation: drift 24s linear infinite alternate;
+  animation: drift var(--dur-drift) linear infinite alternate;
 }
 
 .modal-backdrop::before {
@@ -1571,11 +1633,11 @@ input:-webkit-autofill {
 
 /* A fixed overlay can leave without moving the page, so its exit is allowed to play out. */
 .modal-backdrop.leaving {
-  animation: fade-out 140ms var(--ease-out) both;
+  animation: fade-out var(--dur-exit) var(--ease-out) both;
 }
 
 .modal-backdrop.leaving .modal {
-  animation: dialog-out 140ms var(--ease-out) both;
+  animation: dialog-out var(--dur-exit) var(--ease-out) both;
 }
 
 @keyframes fade-out {
@@ -1654,18 +1716,18 @@ input:-webkit-autofill {
   border-radius: 50%;
   border: 2px solid var(--line);
   border-top-color: var(--accent);
-  animation: spin 900ms linear infinite;
+  animation: spin var(--dur-spin) linear infinite;
   flex: none;
 }
 
 /* ---------- view transition ---------- */
 
 ::view-transition-old(root) {
-  animation: view-out 140ms var(--ease-out) both;
+  animation: view-out var(--dur-exit) var(--ease-out) both;
 }
 
 ::view-transition-new(root) {
-  animation: view-in 240ms var(--ease) both;
+  animation: view-in var(--dur-panel) var(--ease) both;
 }
 
 @keyframes view-out {

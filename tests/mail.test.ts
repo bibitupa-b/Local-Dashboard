@@ -146,8 +146,9 @@ test('digest lists unread subjects and counts', async () => {
   const since = new Date(Date.now() - 60_000)
   const lines = createMailSource({ folders: async () => [], syncFolder: async () => ({ messages: [], uidValidity: '1', flags: [] }) }).digest(db, since)
   const text = lines.join('\n')
-  expect(text).toContain('Unread mail: 1')
   expect(text).toContain('Quarterly plan')
+  // The unread total belongs to `Needs attention`; this section must not print a second one.
+  expect(text).not.toContain('Unread mail:')
   expect(text).not.toContain('Already read')
   expect(text).not.toContain('Win money')
 })
@@ -223,7 +224,8 @@ test('the same message in INBOX and Important counts once', () => {
   // A `since` taken after the insert would sit past the messages and drop them all.
   const since = new Date(Date.now() - 60_000)
   const lines = createMailSource({ folders: async () => [], syncFolder: async () => ({ messages: [], uidValidity: '1', flags: [] }) }).digest(db, since)
-  expect(lines.join('\n')).toContain('Unread mail: 1')
+  expect(lines.join('\n')).toContain('Duplicate')
+  expect(lines.join('\n')).not.toContain('Unread mail:')
 })
 
 test('localized Gmail folders are stored under their special-use alias', async () => {

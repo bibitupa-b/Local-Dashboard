@@ -25,7 +25,11 @@ test('sync replaces the item list and reports counts', async () => {
 
   await source.sync(db)
   expect(db.prepare('SELECT COUNT(*) AS n FROM github_items').get()).toEqual({ n: 2 })
-  expect(source.digest(db, new Date()).join('\n')).toContain('1 review requests')
+  // Items, not totals: the count and its review split live in `Needs attention`.
+  const digest = source.digest(db, new Date()).join('\n')
+  expect(digest).toContain('Item 1')
+  expect(digest).not.toContain('review requests')
+  expect(source.digest(db, new Date())).toHaveLength(2)
 
   await createGithubSource(fakeApi([item('3')])).sync(db)
   expect(db.prepare('SELECT id FROM github_items').all()).toEqual([{ id: '3' }])

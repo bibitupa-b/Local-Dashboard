@@ -23,7 +23,9 @@ export type DigestInput = {
   attention: AttentionItem[]
   driveChanges: Array<{ name: string; kind: string; fileId?: string }>
   extra?: Array<{ title: string; lines: string[] }>
+  meetings?: string[]
   previousHeadline?: string
+  previousSuggestion?: string
   previousWindow?: string
   resurface?: ResurfacedNote
 }
@@ -73,18 +75,19 @@ function noteRef(path: string): DigestRef {
 
 function attentionRef(item: AttentionItem): DigestRef | undefined {
   if (item.path) return noteRef(item.path)
+  const label = clip(item.label)
   switch (item.kind) {
     case 'mail':
     case 'reply':
-      return { kind: 'mail', label: item.label, messageId: item.messageId ?? null }
+      return { kind: 'mail', label, messageId: item.messageId ?? null }
     case 'drive':
-      return item.fileId ? { kind: 'drive', label: item.label, fileId: item.fileId } : undefined
+      return item.fileId ? { kind: 'drive', label, fileId: item.fileId } : undefined
     case 'github':
-      return { kind: 'github', label: item.label, url: item.url ?? null }
+      return { kind: 'github', label, url: item.url ?? null }
     case 'calendar':
-      return { kind: 'event', label: item.label }
+      return { kind: 'event', label }
     case 'browser':
-      return { kind: 'browser', label: item.label }
+      return { kind: 'browser', label }
     default:
       return undefined
   }
@@ -92,20 +95,20 @@ function attentionRef(item: AttentionItem): DigestRef | undefined {
 
 function groupTasks(tasks: DigestInput['tasks']): Line[] {
   const open = tasks.filter((task) => !task.done)
-  const lines: Line[] = [
-    { text: `Open: ${open.length}, completed recently: ${tasks.length - open.length}` },
-  ]
+  // No pile count here: `Needs attention` owns every count, so no section can contradict it.
+  const lines: Line[] =
+    tasks.length > open.length ? [{ text: `Completed recently: ${tasks.length - open.length}` }] : []
 
-  const tags = new Map<string, number>()
+  const tags = new Set<string>()
   const untagged: Array<{ text: string; path?: string }> = []
   for (const task of open) {
-    if (task.tag) tags.set(task.tag, (tags.get(task.tag) ?? 0) + 1)
+    if (task.tag) tags.add(task.tag)
     else untagged.push(task)
   }
-  for (const [tag, count] of tags) {
-    // Tags are counts; real tasks are work. Tags may take three quarters at most.
+  for (const tag of tags) {
+    // A habit counted once per day would push the real work out; tags may take three quarters at most.
     if (lines.length >= Math.floor(LIMITS.tasks * 0.75)) break
-    lines.push({ text: `#${tag} (${count} open)` })
+    lines.push({ text: `#${tag}` })
   }
   for (const task of untagged.slice(0, Math.max(0, LIMITS.tasks - lines.length))) {
     lines.push({ text: clip(task.text), ...(task.path ? { ref: noteRef(task.path) } : {}) })
@@ -134,17 +137,32 @@ export function buildDigest(input: DigestInput): DigestResult {
     })
   }
 
+  if (input.previousSuggestion) {
+    sections.push({
+      title: 'Previous suggestion',
+      lines: [{ text: sanitize(input.previousSuggestion, 300) }],
+    })
+  }
+
   if (input.attention.length > 0) {
     sections.push({
       title: 'Needs attention',
       lines: input.attention.slice(0, LIMITS.attention).map((item) => {
-        const count = item.count && item.count > 1 ? ` x${item.count}` : ''
         const ref = attentionRef(item)
+        // The count is stated once, by the item itself: the row never appends a second copy of it.
         return {
-          text: `[${item.kind}] ${clip(item.label)}${count} — ${clip(item.detail)}`,
+          text: `[${item.kind}] ${clip(item.label)} — ${clip(item.detail)}`,
           ...(ref ? { ref } : {}),
         }
       }),
+    })
+  }
+
+  // Prep for a meeting is worth more than the whole pile below it and costs three lines.
+  if (input.meetings && input.meetings.length > 0) {
+    sections.push({
+      title: 'Meetings',
+      lines: input.meetings.slice(0, 3).map((text) => ({ text: sanitize(text, 200) })),
     })
   }
 

@@ -95,16 +95,44 @@ function briefingSpan(meta: Briefing['digest_meta']): string | null {
   return hours >= 48 ? `${Math.round(hours / 24)} d` : `${hours} h`
 }
 
+const KIND_LABELS: Record<string, string> = { weekly: 'Week', evening: 'Evening' }
+
+function kindLabel(kind: string | undefined): string {
+  const label = kind ? KIND_LABELS[kind] : undefined
+  return label ? ` · ${label}` : ''
+}
+
+/** Hours since the briefing was written; an unreadable date reads as fresh, never as "refresh". */
+function briefingAgeHours(iso: string, now: number): number {
+  const created = Date.parse(iso)
+  return Number.isNaN(created) ? 0 : Math.floor((now - created) / 3_600_000)
+}
+
 function BriefingBody({ briefing, vaultPath }: { briefing: Briefing; vaultPath: string }) {
   return briefing.body ? (
-    <BriefingPoints body={briefing.body} vaultPath={vaultPath} />
+    <BriefingPoints
+      body={briefing.body}
+      vaultPath={vaultPath}
+      id={briefing.id}
+      digest={briefing.digest ?? ''}
+    />
   ) : (
     <LegacyBriefingBody markdown={briefing.markdown} />
   )
 }
 
 /** Structured answer: a headline to read first, points that open their source, one suggestion. */
-function BriefingPoints({ body, vaultPath }: { body: BriefingBody; vaultPath: string }) {
+function BriefingPoints({
+  body,
+  vaultPath,
+  id,
+  digest,
+}: {
+  body: BriefingBody
+  vaultPath: string
+  id: number
+  digest: string
+}) {
   return (
     <div className="markdown" lang={briefingLang(`${body.headline} ${body.bullets.map((b) => b.text).join(' ')}`)}>
       {body.headline && (
@@ -113,33 +141,46 @@ function BriefingPoints({ body, vaultPath }: { body: BriefingBody; vaultPath: st
         </p>
       )}
       <ul>
-        {body.bullets.map((bullet, index) => (
-          <li key={`${index}-${bullet.text.slice(0, 24)}`} className="line" dir="auto">
-            {bullet.text}
-            {bullet.refs.length > 0 && (
-              <span className="refs">
-                {bullet.refs.map((ref, at) => {
-                  const href = refHref(ref, vaultPath)
-                  return href ? (
-                    <a
-                      key={at}
-                      className="ref"
-                      href={href}
-                      target={href.startsWith('obsidian://') ? undefined : '_blank'}
-                      rel={href.startsWith('obsidian://') ? undefined : 'noreferrer'}
-                    >
-                      {ref.label}
-                    </a>
-                  ) : (
-                    <span key={at} className="ref text">
-                      {ref.label}
-                    </span>
-                  )
-                })}
-              </span>
-            )}
-          </li>
-        ))}
+        {body.bullets.map((bullet, index) => {
+          const refs = refLinks(bullet.refs, vaultPath)
+          const why = whyLines(
+            refs.map(({ ref }) => ref),
+            digest,
+          )
+          return (
+            <li key={`${index}-${bullet.text.slice(0, 24)}`} className="line" dir="auto">
+              {bullet.text}
+              {refs.length > 0 && (
+                <span className="refs">
+                  {refs.map(({ ref, href }, at) =>
+                    href ? (
+                      <a
+                        key={at}
+                        className="ref"
+                        href={href}
+                        target={href.startsWith('obsidian://') ? undefined : '_blank'}
+                        rel={href.startsWith('obsidian://') ? undefined : 'noreferrer'}
+                        onClick={() => void api.opened(id)}
+                      >
+                        {ref.label}
+                      </a>
+                    ) : (
+                      <span key={at} className="ref text">
+                        {ref.label}
+                      </span>
+                    ),
+                  )}
+                </span>
+              )}
+              {why.length > 0 && (
+                <details className="earlier digest-read why">
+                  <summary>Why</summary>
+                  <pre>{why.join('\n')}</pre>
+                </details>
+              )}
+            </li>
+          )
+        })}
         {body.suggestion && (
           <li className="line suggestion" dir="auto">
             <span className="suggestion-label" lang="en">
@@ -168,8 +209,44 @@ function refHref(ref: BriefingRef, vaultPath: string): string | null {
   }
 }
 
+const REFS_PER_BULLET = 3
+
+/** Two digest lines can name the same source; a point shows it once, and links no more than a line can hold. */
+function refLinks(
+  refs: BriefingRef[],
+  vaultPath: string,
+): Array<{ ref: BriefingRef; href: string | null }> {
+  const seen = new Set<string>()
+  const links: Array<{ ref: BriefingRef; href: string | null }> = []
+  for (const ref of refs) {
+    const href = refHref(ref, vaultPath)
+    const key = `${ref.label}\u0000${href ?? ''}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    links.push({ ref, href })
+    if (links.length === REFS_PER_BULLET) break
+  }
+  return links
+}
+
+const WHY_LINES = 3
+
+/** The digest lines behind a point: a ref label starts its line, so a substring finds it. */
+function whyLines(refs: BriefingRef[], digest: string): string[] {
+  if (!digest) return []
+  const lines = digest.split('\n')
+  const found: string[] = []
+  for (const ref of refs) {
+    const line = lines.find((text) => text.includes(ref.label))
+    if (!line || found.includes(line)) continue
+    found.push(line)
+    if (found.length === WHY_LINES) break
+  }
+  return found
+}
+
+// A bullet and a plain line are the same entry; the marker is punctuation, not content.
 function LegacyBriefingBody({ markdown }: { markdown: string }) {
-  // A bullet and a plain line are the same entry; the marker is punctuation, not content.
   const entries = markdown
     .split('\n')
     .map((line) => line.trim().replace(/^[-*•]\s+/, ''))
@@ -245,6 +322,9 @@ export function App() {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [busy, setBusy] = useState(false)
   const [voting, setVoting] = useState(false)
+  const [question, setQuestion] = useState('')
+  const [asking, setAsking] = useState(false)
+  const [answer, setAnswer] = useState<{ id: number; text: string } | null>(null)
   const [loaded, setLoaded] = useState(false)
   // The POST stays open for the whole sync, so this is the only local proof it started.
   const [syncPending, setSyncPending] = useState(false)
@@ -510,7 +590,27 @@ export function App() {
     }
   }
 
-  async function generate() {    // One paid call at a time: a held key repeats and must not spend twice.
+  async function askAbout(event: React.FormEvent, id: number) {
+    event.preventDefault()
+    const value = question.trim()
+    if (!value || asking) return
+    setAsking(true)
+    try {
+      setAnswer({ id, text: await api.ask(id, value) })
+    } catch (error) {
+      setNote({
+        text: `No answer: ${friendlyError(
+          error instanceof Error ? error.message : String(error),
+        )}`,
+        tone: 'error',
+      })
+    } finally {
+      setAsking(false)
+    }
+  }
+
+  async function generate() {
+    // One paid call at a time: a held key repeats and must not spend twice.
     if (generating.current) return
     generating.current = true
     setBusy(true)
@@ -535,6 +635,7 @@ export function App() {
             markdown: result.markdown,
             body: result.body,
             feedback: null,
+            opens: 0,
           },
           ...(items ?? []),
         ])
@@ -647,6 +748,9 @@ export function App() {
   }
 
   const latest = briefings?.[0]
+  // Stale is a fact about today's briefing only; an old one from yesterday is not "today's".
+  const ageHours =
+    latest && status?.briefingToday ? briefingAgeHours(latest.created_at, Date.now()) : 0
   // The settings route unmounts the briefing, so the observer is rebuilt when it returns.
   useReadingLine(latest?.id, !showSettings)
   const welcomeDialog = useLeaving()
@@ -730,7 +834,7 @@ export function App() {
       <header className="masthead enter-item" style={{ '--i': 0 } as React.CSSProperties}>
         <div className="ident">
           <span className="brand-mark">
-            <img src="/icon-transparent.png" alt="" />
+            <img src="/icon-transparent-96.png" alt="" />
             <span className="brand-orbit" />
           </span>
           <div>
@@ -1090,10 +1194,13 @@ export function App() {
 
         <article
           className={`briefing enter-item${glow ? ' glow' : ''}`}
+          aria-labelledby="briefing-label"
           style={{ '--i': 4 } as React.CSSProperties}
         >
           <div className="briefing-margin">
-            <h2 className="section-label">Briefing</h2>
+            <h2 className="section-label" id="briefing-label">
+              Briefing
+            </h2>
             {latest && (
               <time className="stamp" dateTime={latest.created_at}>
                 {new Date(latest.created_at).toLocaleString('en-GB', {
@@ -1103,12 +1210,16 @@ export function App() {
                   minute: '2-digit',
                 })}
                 {` · ${latest.trigger}`}
-                {latest.kind === 'weekly' ? ' · Week' : ''}
+                {kindLabel(latest.kind)}
                 {briefingSpan(latest.digest_meta) ? ` · ${briefingSpan(latest.digest_meta)}` : ''}
               </time>
             )}
             <button className="primary" onClick={() => void generate()} disabled={busy}>
-              {busy ? 'Thinking…' : 'Briefing now'}
+              {busy
+                ? 'Thinking…'
+                : ageHours >= 6
+                  ? `Refresh · ${ageHours} h old`
+                  : 'Briefing now'}
             </button>
             {latest && status && !status.briefingToday && (
               <span className="stamp missing">none for today yet</span>
@@ -1164,6 +1275,33 @@ export function App() {
               </div>
             )}
 
+            {latest && !busy && (
+              <details className="ask">
+                <summary>Ask about this</summary>
+                <form onSubmit={(event) => void askAbout(event, latest.id)}>
+                  <input
+                    value={question}
+                    onChange={(event) => setQuestion(event.target.value)}
+                    placeholder="Why 47 mails?"
+                    maxLength={200}
+                    aria-label="Ask about this briefing"
+                  />
+                  <button
+                    type="submit"
+                    className="ghost mini"
+                    disabled={asking || !question.trim()}
+                  >
+                    {asking ? 'Thinking…' : 'Ask'}
+                  </button>
+                </form>
+                {answer && answer.id === latest.id && (
+                  <p className="answer" dir="auto">
+                    {answer.text}
+                  </p>
+                )}
+              </details>
+            )}
+
             {(briefings?.length ?? 0) > 1 && (              <details className="earlier">
                 <summary>Earlier briefings</summary>
                 {(briefings ?? []).slice(1).map((briefing) => (
@@ -1173,7 +1311,8 @@ export function App() {
                         dateStyle: 'medium',
                         timeStyle: 'short',
                       })}
-                      {briefing.kind === 'weekly' ? ' · Week' : ''}
+                      {kindLabel(briefing.kind)}
+                      {briefing.opens > 0 ? ` · ${briefing.opens} opens` : ''}
                     </h3>
                     <BriefingBody briefing={briefing} vaultPath={vaultPath} />
                   </article>

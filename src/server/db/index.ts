@@ -56,6 +56,7 @@ const BRIEFING_COLUMNS: Array<[string, string]> = [
   ['digest', "TEXT NOT NULL DEFAULT ''"],
   ['feedback', 'TEXT'],
   ['kind', "TEXT NOT NULL DEFAULT 'daily'"],
+  ['opens', 'INTEGER NOT NULL DEFAULT 0'],
 ]
 
 export function migrate(db: DatabaseSync): void {
@@ -70,6 +71,10 @@ export function migrate(db: DatabaseSync): void {
     if (!briefingColumns.includes(name)) {
       db.exec(`ALTER TABLE briefings ADD COLUMN ${name} ${definition}`)
     }
+  }
+  const calendarColumns = columnNames(db, 'calendar_events')
+  if (calendarColumns.length > 0 && !calendarColumns.includes('attendees')) {
+    db.exec("ALTER TABLE calendar_events ADD COLUMN attendees TEXT NOT NULL DEFAULT '[]'")
   }
 }
 

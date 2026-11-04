@@ -65,6 +65,8 @@ test('renders the briefing, the services line and their empty states', async () 
   const { container, unmount } = render(<App />)
 
   expect(screen.getByText('Briefing')).toBeTruthy()
+  // The article carries the label so a screen reader announces it as the briefing, not as loose text.
+  expect(screen.getByRole('article', { name: 'Briefing' })).toBeTruthy()
   expect(screen.getByRole('main')).toBeTruthy()
 
   await waitFor(() => {
@@ -296,6 +298,99 @@ test('a structured briefing leads with its headline and opens its sources', asyn
   expect(screen.getByText('3 visits today').closest('a')).toBeNull()
   expect(screen.getByText('Suggestion')).toBeTruthy()
   expect(screen.getByText('Open Alpha')).toBeTruthy()
+  unmount()
+})
+
+test('a bullet names each source once and links no more than three', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const note = (label: string) => ({ kind: 'note', label, path: `01 Projects/${label}.md` })
+  const briefings = {
+    items: [
+      {
+        id: 4,
+        created_at: '2026-11-04T08:00:00.000Z',
+        trigger: 'auto',
+        markdown: 'Quiet day\n- Alpha moved',
+        body: {
+          headline: 'Quiet day',
+          bullets: [
+            {
+              text: 'Alpha moved',
+              refs: [
+                note('Alpha'),
+                note('Alpha'),
+                note('Beta'),
+                note('Gamma'),
+                note('Delta'),
+              ],
+            },
+          ],
+          suggestion: '',
+        },
+      },
+    ],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url === '/api/briefings?limit=10' ? briefings : responses[url] ?? {},
+    })),
+  )
+  const { container, unmount } = render(<App />)
+  await waitFor(() => expect(screen.getByText('Quiet day')).toBeTruthy())
+  expect(container.querySelectorAll('.refs .ref')).toHaveLength(3)
+  expect(screen.getAllByText('Alpha')).toHaveLength(1)
+  unmount()
+})
+
+test('a point can show the digest lines behind it', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const digest = [
+    '# Briefing digest',
+    '## Vault changes',
+    '- [1] 01 Projects/Alpha.md (+2/-1)',
+  ].join('\n')
+  const briefings = {
+    items: [
+      {
+        id: 6,
+        created_at: '2026-11-04T08:00:00.000Z',
+        trigger: 'auto',
+        markdown: 'Quiet day\n- Alpha moved\n- Nothing else',
+        digest,
+        body: {
+          headline: 'Quiet day',
+          bullets: [
+            {
+              text: 'Alpha moved',
+              refs: [{ kind: 'note', label: 'Alpha', path: '01 Projects/Alpha.md' }],
+            },
+            { text: 'Nothing else', refs: [] },
+          ],
+          suggestion: '',
+        },
+      },
+    ],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url === '/api/briefings?limit=10' ? briefings : responses[url] ?? {},
+    })),
+  )
+  const { container, unmount } = render(<App />)
+  await waitFor(() => expect(screen.getByText('Quiet day')).toBeTruthy())
+
+  const lines = container.querySelectorAll<HTMLElement>('.markdown .line')
+  const why = within(lines[0]!).getByText('Why')
+  expect(why.closest('details')?.hasAttribute('open')).toBe(false)
+  expect(within(lines[0]!).getByText(/01 Projects\/Alpha\.md \(\+2\/-1\)/)).toBeTruthy()
+  // A point with no source has nothing to prove.
+  expect(lines[1]!.querySelector('details')).toBeNull()
   unmount()
 })
 
@@ -1182,5 +1277,67 @@ test('an empty briefing says so instead of leaving a blank column', async () => 
   expect(
     await screen.findByText('This briefing came back empty. Generate another one.'),
   ).toBeTruthy()
+  unmount()
+})
+
+test('a stale briefing offers a refresh that names its age', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const status = { ...(responses['/api/status'] as Record<string, unknown>), briefingToday: true }
+  const briefings = {
+    items: [
+      {
+        id: 11,
+        created_at: new Date(Date.now() - 8 * 3_600_000).toISOString(),
+        trigger: 'auto',
+        markdown: '- one',
+      },
+    ],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => {
+        if (url === '/api/status') return status
+        if (url === '/api/briefings?limit=10') return briefings
+        return responses[url] ?? {}
+      },
+    })),
+  )
+  const { unmount } = render(<App />)
+  // The label reports the age; the call still waits for the person.
+  expect(
+    await screen.findByRole('button', { name: 'Refresh · 8 h old' }),
+  ).toBeTruthy()
+  expect(fetch).not.toHaveBeenCalledWith('/api/briefings/generate', expect.anything())
+  unmount()
+})
+
+test('a briefing from this hour keeps the plain button', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const status = { ...(responses['/api/status'] as Record<string, unknown>), briefingToday: true }
+  const briefings = {
+    items: [
+      {
+        id: 12,
+        created_at: new Date(Date.now() - 3_600_000).toISOString(),
+        trigger: 'auto',
+        markdown: '- one',
+      },
+    ],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => {
+        if (url === '/api/status') return status
+        if (url === '/api/briefings?limit=10') return briefings
+        return responses[url] ?? {}
+      },
+    })),
+  )
+  const { unmount } = render(<App />)
+  expect(await screen.findByRole('button', { name: 'Briefing now' })).toBeTruthy()
   unmount()
 })

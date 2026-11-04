@@ -53,19 +53,17 @@ export function createBrowserSource(reader: BrowserReader | null, meta: SourceMe
       setSetting(db, syncKey, now.toISOString())
     },
     lastSync: (db) => getSetting(db, syncKey),
-    digest: (db, since) => {
+    digest: (db) => {
+      // Today, because the one counter the page prints says "visits today"; a window total would argue with it.
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
       const lines = db
         .prepare(
           `SELECT domain, COUNT(*) AS n FROM browser_visits
            WHERE visited_at >= ? GROUP BY domain ORDER BY n DESC LIMIT 5`,
         )
-        .all(since.toISOString()) as Array<{ domain: string; n: number }>
-      if (lines.length === 0) return ['No browsing recorded']
-      const total = lines.reduce((sum, row) => sum + row.n, 0)
-      return [
-        `Browsing: ${total} visits`,
-        ...lines.map((row) => `${sanitize(row.domain, 80)} (${row.n})`),
-      ]
+        .all(today.toISOString()) as Array<{ domain: string; n: number }>
+      return lines.map((row) => `${sanitize(row.domain, 80)} (${row.n})`)
     },
   }
 }
