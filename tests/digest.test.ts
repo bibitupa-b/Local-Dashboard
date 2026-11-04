@@ -21,9 +21,27 @@ test('includes changed paths, counts and grouped tasks', () => {
   expect(digest).toContain('In Inbox for 4 days')
 })
 
-test('empty day is still a valid digest', () => {
+test('empty input prints no empty sections', () => {
   const digest = buildDigest({ since, vaultChanges: [], tasks: [], attention: [], driveChanges: [] })
-  expect(digest).toContain('No changes')
+  expect(digest).not.toContain('## Google Drive')
+  expect(digest).not.toContain('No changes')
+})
+
+test('attention survives a busy day', () => {
+  const digest = buildDigest({
+    since,
+    vaultChanges: Array.from({ length: 3000 }, (_, i) => ({
+      path: `02 Areas/Long note number ${i} with a fairly long descriptive path.md`,
+      added: i,
+      removed: 0,
+    })),
+    tasks: [],
+    attention: [{ kind: 'inbox', label: 'Old idea', detail: 'In Inbox for 4 days' }],
+    driveChanges: [],
+  })
+  expect(digest.length).toBeLessThanOrEqual(MAX_DIGEST_CHARS)
+  expect(digest).toContain('In Inbox for 4 days')
+  expect(digest.indexOf('Needs attention')).toBeLessThan(digest.indexOf('Vault changes'))
 })
 
 test('long input is truncated under the cap', () => {

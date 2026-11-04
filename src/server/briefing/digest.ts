@@ -31,34 +31,45 @@ function groupTasks(tasks: DigestInput['tasks']): string[] {
 }
 
 export function buildDigest(input: DigestInput): string {
-  const lines: string[] = [`# Activity since ${input.since.toISOString()}`, '']
+  // Value first: the tail is what truncation drops, so Drive and Vault go last.
+  const sections: Array<{ title: string; lines: string[] }> = []
 
-  lines.push('## Vault changes')
-  if (input.vaultChanges.length === 0) lines.push('No changes')
-  else
-    for (const change of input.vaultChanges) {
-      lines.push(`- ${clip(change.path)} (+${change.added}/-${change.removed})`)
-    }
-
-  lines.push('', '## Google Drive')
-  if (input.driveChanges.length === 0) lines.push('No changes')
-  else for (const change of input.driveChanges) lines.push(`- ${clip(change.name)} (${change.kind})`)
-
-  lines.push('', '## Tasks')
-  lines.push(...groupTasks(input.tasks))
-
-  for (const section of input.extra ?? []) {
-    lines.push('', `## ${section.title}`)
-    lines.push(...(section.lines.length > 0 ? section.lines : ['Nothing']))
+  if (input.attention.length > 0) {
+    sections.push({
+      title: 'Needs attention',
+      lines: input.attention.map((item) => {
+        const count = item.count && item.count > 1 ? ` x${item.count}` : ''
+        return `- [${item.kind}] ${clip(item.label)}${count} — ${clip(item.detail)}`
+      }),
+    })
   }
 
-  lines.push('', '## Needs attention')
-  if (input.attention.length === 0) lines.push('Nothing needs attention')
-  else
-    for (const item of input.attention) {
-      const count = item.count && item.count > 1 ? ` x${item.count}` : ''
-      lines.push(`- [${item.kind}] ${clip(item.label)}${count} — ${clip(item.detail)}`)
-    }
+  for (const section of input.extra ?? []) {
+    if (section.lines.length > 0) sections.push(section)
+  }
+
+  if (input.tasks.length > 0) {
+    sections.push({ title: 'Tasks', lines: groupTasks(input.tasks) })
+  }
+
+  if (input.vaultChanges.length > 0) {
+    sections.push({
+      title: 'Vault changes',
+      lines: input.vaultChanges.map(
+        (change) => `- ${clip(change.path)} (+${change.added}/-${change.removed})`,
+      ),
+    })
+  }
+
+  if (input.driveChanges.length > 0) {
+    sections.push({
+      title: 'Google Drive',
+      lines: input.driveChanges.map((change) => `- ${clip(change.name)} (${change.kind})`),
+    })
+  }
+
+  const lines: string[] = [`# Activity since ${input.since.toISOString()}`]
+  for (const section of sections) lines.push('', `## ${section.title}`, ...section.lines)
 
   const digest = lines.join('\n')
   if (digest.length <= MAX_DIGEST_CHARS) return digest
