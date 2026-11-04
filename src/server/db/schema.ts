@@ -63,7 +63,11 @@ CREATE TABLE IF NOT EXISTS briefings (
   created_at TEXT NOT NULL,
   trigger TEXT NOT NULL,
   markdown TEXT NOT NULL,
-  digest_meta TEXT NOT NULL DEFAULT '{}'
+  digest_meta TEXT NOT NULL DEFAULT '{}',
+  body TEXT,
+  digest TEXT NOT NULL DEFAULT '',
+  feedback TEXT,
+  kind TEXT NOT NULL DEFAULT 'daily'
 );
 
 CREATE TABLE IF NOT EXISTS settings (

@@ -101,8 +101,19 @@ export async function createBriefing(
   try {
     const markdown = await generateBriefing(config.deepseekKey, digest, opts.fetchFn)
     db.prepare(
-      `INSERT INTO briefings (created_at, trigger, markdown, digest_meta) VALUES (?, ?, ?, ?)`,
-    ).run(now.toISOString(), opts.trigger ?? 'manual', markdown, JSON.stringify({ since: since.toISOString(), sources: sources.map((source) => source.id) }))
+      `INSERT INTO briefings (created_at, trigger, markdown, digest, digest_meta) VALUES (?, ?, ?, ?, ?)`,
+    ).run(
+      now.toISOString(),
+      opts.trigger ?? 'manual',
+      markdown,
+      digest,
+      JSON.stringify({
+        since: since.toISOString(),
+        until: now.toISOString(),
+        sources: sources.map((source) => source.id),
+        model: 'deepseek-chat',
+      }),
+    )
     return { markdown }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }

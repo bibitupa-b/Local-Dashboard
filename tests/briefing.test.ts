@@ -36,8 +36,14 @@ test('successful briefing is stored', async () => {
 
   const result = await createBriefing(db, [], config, { fetchFn, trigger: 'manual' })
   expect(result).toEqual({ markdown: '- one\n- two' })
-  const row = db.prepare('SELECT trigger, markdown FROM briefings').get()
-  expect(row).toEqual({ trigger: 'manual', markdown: '- one\n- two' })
+  const row = db.prepare('SELECT trigger, markdown, digest FROM briefings').get() as {
+    trigger: string
+    markdown: string
+    digest: string
+  }
+  expect(row.trigger).toBe('manual')
+  expect(row.markdown).toBe('- one\n- two')
+  expect(row.digest).toContain('# Briefing digest')
 })
 
 test('missing key refuses without calling the API', async () => {

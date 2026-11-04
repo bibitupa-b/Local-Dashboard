@@ -50,12 +50,26 @@ function rebuildForConnections(db: DatabaseSync): void {
   db.exec(SCHEMA)
 }
 
+/** Columns added after 1.2; older databases get them without losing rows. */
+const BRIEFING_COLUMNS: Array<[string, string]> = [
+  ['body', 'TEXT'],
+  ['digest', "TEXT NOT NULL DEFAULT ''"],
+  ['feedback', 'TEXT'],
+  ['kind', "TEXT NOT NULL DEFAULT 'daily'"],
+]
+
 export function migrate(db: DatabaseSync): void {
   rebuildForConnections(db)
   db.exec(SCHEMA)
   const mailColumns = db.prepare("PRAGMA table_info('mail_messages')").all() as Array<{ name: string }>
   if (mailColumns.length > 0 && !mailColumns.some((column) => column.name === 'bulk')) {
     db.exec('ALTER TABLE mail_messages ADD COLUMN bulk INTEGER NOT NULL DEFAULT 0')
+  }
+  const briefingColumns = columnNames(db, 'briefings')
+  for (const [name, definition] of BRIEFING_COLUMNS) {
+    if (!briefingColumns.includes(name)) {
+      db.exec(`ALTER TABLE briefings ADD COLUMN ${name} ${definition}`)
+    }
   }
 }
 
