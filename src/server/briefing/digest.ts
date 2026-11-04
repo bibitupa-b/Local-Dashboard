@@ -24,6 +24,7 @@ export type DigestInput = {
   driveChanges: Array<{ name: string; kind: string; fileId?: string }>
   extra?: Array<{ title: string; lines: string[] }>
   previousHeadline?: string
+  previousWindow?: string
   resurface?: ResurfacedNote
 }
 
@@ -115,6 +116,16 @@ function groupTasks(tasks: DigestInput['tasks']): Line[] {
 export function buildDigest(input: DigestInput): DigestResult {
   // Value first: the tail is what truncation drops, so Drive and Vault go last.
   const sections: Array<{ title: string; lines: Line[] }> = []
+
+  if (input.previousWindow) {
+    sections.push({
+      title: 'This week vs last',
+      lines: input.previousWindow
+        .split('\n')
+        .filter((line) => line.trim())
+        .map((text) => ({ text: sanitize(text, 200) })),
+    })
+  }
 
   if (input.previousHeadline) {
     sections.push({

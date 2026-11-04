@@ -1103,6 +1103,7 @@ export function App() {
                   minute: '2-digit',
                 })}
                 {` · ${latest.trigger}`}
+                {latest.kind === 'weekly' ? ' · Week' : ''}
                 {briefingSpan(latest.digest_meta) ? ` · ${briefingSpan(latest.digest_meta)}` : ''}
               </time>
             )}
@@ -1172,6 +1173,7 @@ export function App() {
                         dateStyle: 'medium',
                         timeStyle: 'short',
                       })}
+                      {briefing.kind === 'weekly' ? ' · Week' : ''}
                     </h3>
                     <BriefingBody briefing={briefing} vaultPath={vaultPath} />
                   </article>

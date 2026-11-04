@@ -220,12 +220,13 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     const items = (
       db
         .prepare(
-          'SELECT id, created_at, trigger, markdown, digest, body, digest_meta, feedback FROM briefings ORDER BY id DESC LIMIT ?',
+          'SELECT id, created_at, trigger, kind, markdown, digest, body, digest_meta, feedback FROM briefings ORDER BY id DESC LIMIT ?',
         )
         .all(safeLimit) as Array<{
         id: number
         created_at: string
         trigger: string
+        kind: string
         markdown: string
         digest: string
         body: string | null

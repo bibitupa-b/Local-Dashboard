@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { MAX_DIGEST_CHARS, buildDigest } from '../src/server/briefing/digest.js'
 import { resurfaceNote } from '../src/server/briefing/resurface.js'
+import { weeklyCounts } from '../src/server/briefing/weekly.js'
 import { openDb } from '../src/server/db/index.js'
 
 const since = new Date('2026-10-30T08:00:00.000Z')
@@ -284,6 +285,60 @@ test('the previous headline opens the digest', () => {
   expect(text).toContain('## Previous briefing')
   expect(text).toContain('Yesterday was quiet')
   expect(text.indexOf('## Previous briefing')).toBeLessThan(text.indexOf('## Needs attention'))
+})
+
+test('a weekly digest opens with both weeks side by side', () => {
+  const { text } = buildDigest({
+    since,
+    now,
+    until,
+    vaultChanges: [],
+    tasks: [],
+    attention: [],
+    driveChanges: [],
+    previousWindow: 'Notes touched: 12 this week, 7 last\nMail arrived: 40 this week, 22 last',
+    previousHeadline: 'Yesterday was quiet',
+  })
+  expect(text).toContain('## This week vs last')
+  expect(text).toContain('12 this week, 7 last')
+  expect(text).toContain('40 this week, 22 last')
+  expect(text.indexOf('## This week vs last')).toBeLessThan(text.indexOf('## Previous briefing'))
+})
+
+test('weekly counts compare seven days with the seven before', () => {
+  const db = openDb(':memory:')
+  const now = new Date('2026-11-08T18:00:00.000Z')
+  const ago = (days: number) => new Date(now.getTime() - days * 86_400_000).toISOString()
+
+  const change = db.prepare('INSERT INTO vault_changes (path, detected_at) VALUES (?, ?)')
+  change.run('A.md', ago(1))
+  change.run('A.md', ago(10))
+
+  const task = db.prepare(
+    `INSERT INTO tasks (path, text, done, first_seen, last_seen) VALUES ('A.md', ?, ?, ?, ?)`,
+  )
+  task.run('closed', 1, ago(2), ago(2))
+  task.run('closed last week', 1, ago(8), ago(8))
+  task.run('still open', 0, ago(1), ago(1))
+
+  const mail = db.prepare(
+    `INSERT INTO mail_messages (folder, uid, sender, subject, date) VALUES ('INBOX', ?, 'a@x', 'S', ?)`,
+  )
+  mail.run(1, ago(3))
+  mail.run(2, ago(9))
+
+  const event = db.prepare(
+    `INSERT INTO calendar_events (id, calendar_id, summary, start, end) VALUES (?, 'primary', 'E', ?, ?)`,
+  )
+  event.run('e1', ago(4), ago(4))
+  event.run('e2', ago(11), ago(11))
+
+  expect(weeklyCounts(db, now).split('\n')).toEqual([
+    'Notes touched: 1 this week, 1 last',
+    'Tasks closed: 1 this week, 1 last',
+    'Mail arrived: 1 this week, 1 last',
+    'Events passed: 1 this week, 1 last',
+  ])
 })
 
 test('lines carry numbers that resolve to their source', () => {

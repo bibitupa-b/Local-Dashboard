@@ -4,8 +4,8 @@ import { schedule, type ScheduledTask } from 'node-cron'
 import { buildApp } from './app.js'
 import { loadConfig } from './config.js'
 import { getSetting, openDb, setSetting } from './db/index.js'
-import { createBriefing } from './briefing/index.js'
-import { shouldCatchUp } from './briefing/schedule.js'
+import { createBriefing, type BriefingKind } from './briefing/index.js'
+import { isWeeklyDue, shouldCatchUp } from './briefing/schedule.js'
 import { initLogging } from './log.js'
 import type { Source } from './sources/types.js'
 import { startVaultWatcher } from './sources/vault/index.js'
@@ -203,8 +203,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     },
   })
 
-  async function brief(trigger: 'auto' | 'manual'): Promise<void> {
-    const result = await createBriefing(db, sources, config, { trigger })
+  async function brief(trigger: 'auto' | 'manual', kind: BriefingKind = 'daily'): Promise<void> {
+    const result = await createBriefing(db, sources, config, { trigger, kind })
     if ('error' in result) {
       console.error('[briefing]', result.error)
       const previous = getSetting(db, 'briefing_last_error')
@@ -228,7 +228,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     setSetting(db, 'briefing_last_error', '')
     console.log('[briefing] generated')
     if (trigger === 'auto') {
-      send('Daily briefing is ready', result.markdown.split('\n')[0]!.slice(0, 160))
+      send(
+        kind === 'weekly' ? 'Weekly review is ready' : 'Daily briefing is ready',
+        result.markdown.split('\n')[0]!.slice(0, 160),
+      )
     }
   }
 
@@ -254,8 +257,19 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
   }
 
+  function maybeWeekly(): void {
+    if (!ready || closed) return
+    const last = db
+      .prepare("SELECT created_at FROM briefings WHERE kind = 'weekly' ORDER BY id DESC LIMIT 1")
+      .get() as { created_at: string } | undefined
+    if (isWeeklyDue(last ? new Date(last.created_at) : null, new Date())) {
+      void brief('auto', 'weekly')
+    }
+  }
+
   const tasks: ScheduledTask[] = [
     schedule(`0 ${config.briefingHour} * * *`, maybeBrief),
+    schedule('0 18 * * 0', maybeWeekly),
     schedule('*/5 * * * *', checkEventNotifications),
     schedule('0 3 * * *', () => {
       try {

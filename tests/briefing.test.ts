@@ -3,7 +3,7 @@ import { openDb, setSetting } from '../src/server/db/index.js'
 import { loadConfig } from '../src/server/config.js'
 import { createBriefing } from '../src/server/briefing/index.js'
 import { BriefingError, generateBriefing } from '../src/server/briefing/deepseek.js'
-import { shouldCatchUp } from '../src/server/briefing/schedule.js'
+import { shouldCatchUp, isWeeklyDue } from '../src/server/briefing/schedule.js'
 import { digestWindowStart } from '../src/server/briefing/window.js'
 import { sourceMeta, type Source, type SourceKind } from '../src/server/sources/types.js'
 
@@ -317,4 +317,34 @@ test('catch-up decision', () => {
   expect(shouldCatchUp(new Date('2026-10-31T00:10:00'), now, 8)).toBe(false)
   expect(shouldCatchUp(new Date('2026-10-30T08:00:00'), new Date('2026-10-31T07:59:00'), 8)).toBe(false)
   expect(shouldCatchUp(new Date('2026-10-30T08:00:00'), now, 8)).toBe(true)
+})
+
+test('the weekly review is due once per week', () => {
+  const sunday = new Date(2026, 10, 8, 18)
+  expect(isWeeklyDue(null, sunday)).toBe(true)
+  expect(isWeeklyDue(new Date(2026, 10, 8, 9), sunday)).toBe(false)
+  expect(isWeeklyDue(new Date(2026, 10, 4, 12), sunday)).toBe(false)
+  expect(isWeeklyDue(new Date(2026, 10, 1, 18), sunday)).toBe(true)
+  expect(isWeeklyDue(new Date(2026, 10, 2, 8), new Date(2026, 10, 4, 12))).toBe(false)
+})
+
+test('a weekly briefing stores its kind and a seven-day window', async () => {
+  const db = openDb(':memory:')
+  const now = new Date('2026-11-08T18:00:00.000Z')
+  let sent = ''
+  const fetchFn = (async (_url: string, init: RequestInit) => {
+    sent = JSON.parse(String(init.body)).messages[1].content
+    return new Response(JSON.stringify({ choices: [{ message: { content: '- ok' } }] }), {
+      status: 200,
+    })
+  }) as unknown as typeof fetch
+
+  await createBriefing(db, [], config, { fetchFn, now, kind: 'weekly' })
+  const row = db.prepare('SELECT kind, digest_meta FROM briefings').get() as {
+    kind: string
+    digest_meta: string
+  }
+  expect(row.kind).toBe('weekly')
+  expect(Date.parse(JSON.parse(row.digest_meta).since)).toBe(now.getTime() - 7 * 86_400_000)
+  expect(sent).toContain('## This week vs last')
 })

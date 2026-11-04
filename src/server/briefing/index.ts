@@ -6,6 +6,7 @@ import { parseModelOutput, renderMarkdown, resolveRefs, type BriefingBody } from
 import { buildDigest } from './digest.js'
 import { generateBriefing, systemPrompt } from './deepseek.js'
 import { resurfaceNote } from './resurface.js'
+import { weeklyCounts } from './weekly.js'
 import { digestWindowStart } from './window.js'
 import {
   briefingLanguage,
@@ -16,11 +17,17 @@ import {
 } from '../settings.js'
 
 export type BriefingTrigger = 'auto' | 'manual'
+export type BriefingKind = 'daily' | 'weekly'
 export type BriefingResult =
   | { id: number; markdown: string; body: BriefingBody }
   | { error: string }
 
-type Options = { trigger?: BriefingTrigger; now?: Date; fetchFn?: typeof fetch }
+type Options = {
+  trigger?: BriefingTrigger
+  kind?: BriefingKind
+  now?: Date
+  fetchFn?: typeof fetch
+}
 
 /** One digest section per source kind, however many accounts feed it. */
 const EXTRA_TITLES = { mail: 'Mail', calendar: 'Calendar', browser: 'Browser', github: 'GitHub' }
@@ -53,11 +60,10 @@ export async function createBriefing(
   const previousHeadline = last ? metaOf(last.digest_meta).headline : ''
   const previousNote = last ? metaOf(last.digest_meta).resurface : ''
 
-  const since = digestWindowStart(
-    last ? new Date(last.created_at) : null,
-    now,
-    digestWindowHours(db),
-  )
+  const since =
+    opts.kind === 'weekly'
+      ? new Date(now.getTime() - 7 * 86_400_000)
+      : digestWindowStart(last ? new Date(last.created_at) : null, now, digestWindowHours(db))
 
   const vaultChanges = isSourceEnabled(db, 'vault')
     ? (db
@@ -137,6 +143,7 @@ export async function createBriefing(
     driveChanges,
     extra,
     previousHeadline,
+    ...(opts.kind === 'weekly' ? { previousWindow: weeklyCounts(db, now) } : {}),
     ...(resurface ? { resurface } : {}),
   })
 
@@ -153,8 +160,8 @@ export async function createBriefing(
     const markdown = renderMarkdown(body)
     const { lastInsertRowid } = db
       .prepare(
-        `INSERT INTO briefings (created_at, trigger, markdown, digest, digest_meta, body)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO briefings (created_at, trigger, markdown, digest, digest_meta, body, kind)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         now.toISOString(),
@@ -175,6 +182,7 @@ export async function createBriefing(
           ...(finishReason === 'length' ? { truncated: true } : {}),
         }),
         JSON.stringify(body),
+        opts.kind ?? 'daily',
       )
     return { id: Number(lastInsertRowid), markdown, body }
   } catch (error) {

@@ -69,6 +69,7 @@ export type Briefing = {
   id: number
   created_at: string
   trigger: string
+  kind?: string
   markdown: string
   digest?: string
   body: BriefingBody | null
