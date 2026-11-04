@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.4.0
+
+The briefing gets a rhythm, a memory of its reader and a visible price. A failed request no longer
+costs a whole day, and the Sunday review answers the question a single day cannot: "am I moving?"
+
+- When DeepSeek answers 429 or 5xx, or the request times out, the briefing retries instead of
+  waiting for the next scheduled run. A bad key still fails at once.
+- Every briefing records the model, the prompt and completion tokens, and whether the answer was
+  cut off by the token limit, so a short briefing can be told apart from a truncated one.
+- `What it read` under the briefing opens the exact digest that was sent to DeepSeek, line for
+  line, without leaving the page.
+- `Briefing context` in Preferences: a few facts about the reader ("I work on graphics tools, don't
+  suggest sport"), at most 500 characters, added to the prompt and kept across restarts.
+- The prompt now asks for the sender's name when mail is waiting for an answer, not just a count.
+- A weekly review is generated on Sunday at 18:00 for the last seven days, compared with the seven
+  before it: notes touched, tasks closed, mail arrived and events passed. It sits next to the daily
+  briefings in the history and is marked `Week`.
+
 ## 1.3.0
 
 The briefing becomes something you can check. Every point can open the note, mail, file or pull
