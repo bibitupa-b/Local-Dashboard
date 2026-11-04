@@ -86,6 +86,15 @@ function startPoint(item: AttentionItem): { num?: number; text: string; meta: st
   }
 }
 
+/** A briefing is either the scheduled morning run or the one the person asked for; the window says how far back it looked. */
+function briefingSpan(meta: Briefing['digest_meta']): string | null {
+  const from = Date.parse(meta?.since ?? '')
+  const to = Date.parse(meta?.until ?? '')
+  if (Number.isNaN(from) || Number.isNaN(to) || to <= from) return null
+  const hours = Math.round((to - from) / 3_600_000)
+  return hours >= 48 ? `${Math.round(hours / 24)} d` : `${hours} h`
+}
+
 function BriefingBody({ briefing, vaultPath }: { briefing: Briefing; vaultPath: string }) {
   return briefing.body ? (
     <BriefingPoints body={briefing.body} vaultPath={vaultPath} />
@@ -1072,6 +1081,8 @@ export function App() {
                   hour: '2-digit',
                   minute: '2-digit',
                 })}
+                {` · ${latest.trigger}`}
+                {briefingSpan(latest.digest_meta) ? ` · ${briefingSpan(latest.digest_meta)}` : ''}
               </time>
             )}
             <button className="primary" onClick={() => void generate()} disabled={busy}>

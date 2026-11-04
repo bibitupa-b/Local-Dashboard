@@ -299,6 +299,34 @@ test('a structured briefing leads with its headline and opens its sources', asyn
   unmount()
 })
 
+test('the stamp names the trigger and the window it covers', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const briefings = {
+    items: [
+      {
+        id: 5,
+        created_at: '2026-11-04T08:00:00.000Z',
+        trigger: 'auto',
+        markdown: '- one',
+        body: null,
+        digest_meta: { since: '2026-10-28T08:00:00.000Z', until: '2026-11-04T08:00:00.000Z' },
+      },
+    ],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url === '/api/briefings?limit=10' ? briefings : responses[url] ?? {},
+    })),
+  )
+  const { container, unmount } = render(<App />)
+  await waitFor(() => expect(screen.getByText('one')).toBeTruthy())
+  expect(container.querySelector('.stamp')?.textContent).toContain('auto · 7 d')
+  unmount()
+})
+
 test('a failed generation is named on the page in Clay, with no retry button', async () => {
   localStorage.setItem('dashboard.welcomed', '1')
   const status = {

@@ -71,6 +71,7 @@ export type Briefing = {
   trigger: string
   markdown: string
   body: BriefingBody | null
+  digest_meta?: { since?: string; until?: string; headline?: string }
 }
 export type CalendarEvent = {
   id: string
