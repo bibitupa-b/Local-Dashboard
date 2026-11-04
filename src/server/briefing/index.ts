@@ -44,7 +44,11 @@ export async function createBriefing(
 
   const vaultChanges = isSourceEnabled(db, 'vault')
     ? (db
-        .prepare('SELECT path, added, removed FROM vault_changes WHERE detected_at >= ?')
+        .prepare(
+          `SELECT path, SUM(added) AS added, SUM(removed) AS removed FROM vault_changes
+           WHERE detected_at >= ? GROUP BY path
+           ORDER BY SUM(added) + SUM(removed) DESC LIMIT 40`,
+        )
         .all(since.toISOString()) as Array<{ path: string; added: number; removed: number }>).filter(
         (change) => !isExcludedVaultPath(db, change.path),
       )
@@ -64,8 +68,11 @@ export async function createBriefing(
   const driveChanges = isSourceEnabled(db, 'drive')
     ? (db
         .prepare(
-          `SELECT COALESCE(f.name, c.file_id) AS name, c.kind, c.file_id AS fileId FROM drive_changes c
-           LEFT JOIN drive_files f ON f.connection_id = c.connection_id AND f.id = c.file_id WHERE c.detected_at >= ?`,
+          `SELECT COALESCE(f.name, c.file_id) AS name, MAX(c.kind) AS kind, c.file_id AS fileId
+           FROM drive_changes c
+           LEFT JOIN drive_files f ON f.connection_id = c.connection_id AND f.id = c.file_id
+           WHERE c.detected_at >= ? GROUP BY c.file_id
+           ORDER BY MAX(c.detected_at) DESC LIMIT 20`,
         )
         .all(since.toISOString()) as Array<{ name: string; kind: string; fileId: string }>)
     : []

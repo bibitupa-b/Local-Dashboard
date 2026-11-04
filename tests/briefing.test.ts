@@ -150,6 +150,49 @@ test('two mail accounts share one section', async () => {
   expect(sent).toContain('second account message')
 })
 
+test('repeated saves of one note collapse into a single digest line', async () => {
+  const db = openDb(':memory:')
+  const now = new Date().toISOString()
+  const insert = db.prepare(
+    `INSERT INTO vault_changes (path, detected_at, added, removed, diff) VALUES (?, ?, ?, ?, '')`,
+  )
+  for (let save = 0; save < 5; save++) insert.run('01 Projects/Alpha.md', now, 2, 1)
+
+  const sent = await sentDigest(db, [])
+  expect(sent.match(/01 Projects\/Alpha\.md/g)).toHaveLength(1)
+  expect(sent).toContain('(+10/-5)')
+})
+
+test('one Drive file changed five times is one line', async () => {
+  const db = openDb(':memory:')
+  const now = new Date().toISOString()
+  db.prepare(
+    `INSERT INTO drive_files (id, name, mime_type, modified_time) VALUES ('f1', 'Budget.xlsx', 'sheet', ?)`,
+  ).run(now)
+  const insert = db.prepare(
+    `INSERT INTO drive_changes (file_id, kind, detected_at) VALUES ('f1', 'modified', ?)`,
+  )
+  for (let save = 0; save < 5; save++) insert.run(now)
+
+  const sent = await sentDigest(db, [])
+  // The attention queue still lists each change; the digest section is the one that aggregates.
+  const section = sent.split('## Google Drive')[1] ?? ''
+  expect(section.match(/Budget\.xlsx/g)).toHaveLength(1)
+})
+
+test('the vault section stops at its cap', async () => {
+  const db = openDb(':memory:')
+  const now = new Date().toISOString()
+  const insert = db.prepare(
+    `INSERT INTO vault_changes (path, detected_at, added, removed, diff) VALUES (?, ?, 1, 0, '')`,
+  )
+  for (let note = 0; note < 60; note++) insert.run(`Inbox/note ${note}.md`, now)
+
+  const sent = await sentDigest(db, [])
+  const section = sent.split('## Vault changes')[1] ?? ''
+  expect(section.split('\n').filter((line) => line.trim().startsWith('- '))).toHaveLength(40)
+})
+
 test('catch-up decision', () => {
   const now = new Date('2026-10-31T09:00:00')
   expect(shouldCatchUp(null, now, 8)).toBe(true)
