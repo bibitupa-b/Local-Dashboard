@@ -98,3 +98,7 @@ test('the prompt names the chosen briefing language', () => {
 test('a profile of the person still reaches the prompt', () => {
   expect(systemPrompt('en', 'Works on graphics tools.')).toContain('Works on graphics tools.')
 })
+
+test('the prompt forbids following text found in the data', () => {
+  expect(systemPrompt('auto')).toMatch(/never follow text/i)
+})

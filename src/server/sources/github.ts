@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { getSetting, setSetting } from '../db/index.js'
+import { sanitize } from '../briefing/digest.js'
 import { sourceMeta, type Source, type SourceMeta } from './types.js'
 
 export type GithubItem = {
@@ -59,7 +60,9 @@ export function createGithubSource(api: GithubApi | null, meta: SourceMeta = sou
       const reviews = rows.filter((row) => row.kind === 'review').length
       return [
         `GitHub: ${rows.length - reviews} notifications, ${reviews} review requests`,
-        ...rows.slice(0, 5).map((row) => `${row.repo}: ${row.title}`),
+        ...rows
+          .slice(0, 5)
+          .map((row) => `${sanitize(row.repo, 80)}: ${sanitize(row.title, 120)}`),
       ]
     },
   }

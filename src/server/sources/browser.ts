@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { getSetting, setSetting } from '../db/index.js'
+import { sanitize } from '../briefing/digest.js'
 import { getList, LIST_KEYS } from '../settings.js'
 import { sourceMeta, type Source, type SourceMeta } from './types.js'
 
@@ -53,15 +54,18 @@ export function createBrowserSource(reader: BrowserReader | null, meta: SourceMe
     },
     lastSync: (db) => getSetting(db, syncKey),
     digest: (db, since) => {
-      const rows = db
+      const lines = db
         .prepare(
           `SELECT domain, COUNT(*) AS n FROM browser_visits
            WHERE visited_at >= ? GROUP BY domain ORDER BY n DESC LIMIT 5`,
         )
         .all(since.toISOString()) as Array<{ domain: string; n: number }>
-      if (rows.length === 0) return ['No browsing recorded']
-      const total = rows.reduce((sum, row) => sum + row.n, 0)
-      return [`Browsing: ${total} visits`, ...rows.map((row) => `${row.domain} (${row.n})`)]
+      if (lines.length === 0) return ['No browsing recorded']
+      const total = lines.reduce((sum, row) => sum + row.n, 0)
+      return [
+        `Browsing: ${total} visits`,
+        ...lines.map((row) => `${sanitize(row.domain, 80)} (${row.n})`),
+      ]
     },
   }
 }

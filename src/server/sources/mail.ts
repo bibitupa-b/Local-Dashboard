@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { getSetting, setSetting } from '../db/index.js'
+import { sanitize } from '../briefing/digest.js'
 import { isExcludedFolder, isExcludedSender } from '../settings.js'
 import { sourceMeta, type Source, type SourceMeta } from './types.js'
 
@@ -172,7 +173,10 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
         `Unread mail: ${fresh.length}`,
         ...fresh
           .slice(0, 12)
-          .map((message) => `${message.sender}: ${message.subject} — ${message.snippet}`),
+          .map(
+            (message) =>
+              `${sanitize(message.sender, 80)}: ${sanitize(message.subject, 120)} — ${sanitize(message.snippet, 200)}`,
+          ),
       ]
     },
   }

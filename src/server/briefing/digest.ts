@@ -42,12 +42,29 @@ function headerDate(date: Date): string {
   return `${day}, ${clock} (${zone})`
 }
 
+/** Control, zero-width and bidi characters: a subject must not be able to hide or reorder itself. */
+const INVISIBLE = /[\u0000-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2066-\u2069]/g
+
+/**
+ * Untrusted text (paths, senders, subjects, snippets) is flattened to one line and cut.
+ * A newline inside a value would otherwise let it pose as a section of the digest.
+ */
+export function sanitize(text: string, cap: number): string {
+  return text
+    .replace(INVISIBLE, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, cap)
+    .trimEnd()
+}
+
 function clip(text: string): string {
-  return text.length > 200 ? `${text.slice(0, 197)}...` : text
+  return sanitize(text, 200)
 }
 
 function noteRef(path: string): DigestRef {
-  return { kind: 'note', label: path.split('/').pop()!.replace(/\.md$/i, ''), path }
+  const name = path.split('/').pop() ?? path
+  return { kind: 'note', label: sanitize(name, 160).replace(/\.md$/i, ''), path }
 }
 
 function attentionRef(item: AttentionItem): DigestRef | undefined {
@@ -109,7 +126,10 @@ export function buildDigest(input: DigestInput): DigestResult {
   for (const section of (input.extra ?? []).slice(0, LIMITS.extra)) {
     if (section.lines.length > 0) {
       // Sources return text, not rows: mail details and event names have no per-line link.
-      sections.push({ title: section.title, lines: section.lines.map((text) => ({ text })) })
+      sections.push({
+        title: sanitize(section.title, 80),
+        lines: section.lines.map((text) => ({ text: sanitize(text, 400) })),
+      })
     }
   }
 
@@ -122,7 +142,10 @@ export function buildDigest(input: DigestInput): DigestResult {
       title: 'Vault changes',
       lines: input.vaultChanges.slice(0, LIMITS.vault).map((change) => {
         const ref = noteRef(change.path)
-        return { text: `${clip(change.path)} (+${change.added}/-${change.removed})`, ref }
+        return {
+          text: `${sanitize(change.path, 160)} (+${change.added}/-${change.removed})`,
+          ref,
+        }
       }),
     })
   }
@@ -131,9 +154,15 @@ export function buildDigest(input: DigestInput): DigestResult {
     sections.push({
       title: 'Google Drive',
       lines: input.driveChanges.slice(0, LIMITS.drive).map((change) => ({
-        text: `${clip(change.name)} (${change.kind})`,
+        text: `${sanitize(change.name, 160)} (${sanitize(change.kind, 40)})`,
         ...(change.fileId
-          ? { ref: { kind: 'drive' as const, label: change.name, fileId: change.fileId } }
+          ? {
+              ref: {
+                kind: 'drive' as const,
+                label: sanitize(change.name, 160),
+                fileId: change.fileId,
+              },
+            }
           : {}),
       })),
     })
