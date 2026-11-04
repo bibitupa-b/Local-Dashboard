@@ -89,6 +89,8 @@ export async function createBriefing(
 
   const digest = buildDigest({
     since,
+    now,
+    until: now,
     vaultChanges,
     tasks: tasks.map((task) => ({ text: task.text, done: task.done === 1, tag: task.tag })),
     attention,
