@@ -193,6 +193,17 @@ test('the vault section stops at its cap', async () => {
   expect(section.split('\n').filter((line) => line.trim().startsWith('- '))).toHaveLength(40)
 })
 
+test("yesterday's headline reaches today's digest", async () => {
+  const db = openDb(':memory:')
+  db.prepare(
+    `INSERT INTO briefings (created_at, trigger, markdown, digest_meta) VALUES (?, 'auto', '- old', ?)`,
+  ).run(new Date().toISOString(), JSON.stringify({ headline: 'Yesterday was quiet' }))
+
+  const sent = await sentDigest(db, [])
+  expect(sent).toContain('## Previous briefing')
+  expect(sent).toContain('Yesterday was quiet')
+})
+
 test('catch-up decision', () => {
   const now = new Date('2026-10-31T09:00:00')
   expect(shouldCatchUp(null, now, 8)).toBe(true)

@@ -153,6 +153,22 @@ test('paths keep emoji and Cyrillic but lose invisibles and extra length', () =>
   expect(line).not.toContain('a'.repeat(200))
 })
 
+test('the previous headline opens the digest', () => {
+  const { text } = buildDigest({
+    since,
+    now,
+    until,
+    vaultChanges: [],
+    tasks: [],
+    attention: [{ kind: 'inbox', label: 'Old idea', detail: 'In Inbox for 4 days' }],
+    driveChanges: [],
+    previousHeadline: 'Yesterday was quiet',
+  })
+  expect(text).toContain('## Previous briefing')
+  expect(text).toContain('Yesterday was quiet')
+  expect(text.indexOf('## Previous briefing')).toBeLessThan(text.indexOf('## Needs attention'))
+})
+
 test('lines carry numbers that resolve to their source', () => {
   const { text, refs } = buildDigest({
     since,

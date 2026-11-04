@@ -22,6 +22,7 @@ export type DigestInput = {
   attention: AttentionItem[]
   driveChanges: Array<{ name: string; kind: string; fileId?: string }>
   extra?: Array<{ title: string; lines: string[] }>
+  previousHeadline?: string
 }
 
 /** `refs` is the map the model's `[n]` markers point at; a number with no line is dropped. */
@@ -108,6 +109,13 @@ function groupTasks(tasks: DigestInput['tasks']): Line[] {
 export function buildDigest(input: DigestInput): DigestResult {
   // Value first: the tail is what truncation drops, so Drive and Vault go last.
   const sections: Array<{ title: string; lines: Line[] }> = []
+
+  if (input.previousHeadline) {
+    sections.push({
+      title: 'Previous briefing',
+      lines: [{ text: sanitize(input.previousHeadline, 200) }],
+    })
+  }
 
   if (input.attention.length > 0) {
     sections.push({

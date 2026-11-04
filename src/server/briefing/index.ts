@@ -23,6 +23,16 @@ type Options = { trigger?: BriefingTrigger; now?: Date; fetchFn?: typeof fetch }
 /** One digest section per source kind, however many accounts feed it. */
 const EXTRA_TITLES = { mail: 'Mail', calendar: 'Calendar', browser: 'Browser', github: 'GitHub' }
 
+/** The previous briefing's headline is the only part of yesterday worth repeating whole. */
+function headlineOf(meta: string): string {
+  try {
+    const parsed = JSON.parse(meta) as { headline?: unknown }
+    return typeof parsed.headline === 'string' ? parsed.headline.slice(0, 200) : ''
+  } catch {
+    return ''
+  }
+}
+
 export async function createBriefing(
   db: DatabaseSync,
   sources: Source[],
@@ -32,9 +42,10 @@ export async function createBriefing(
   if (!config.deepseekKey) return { error: 'no-key' }
 
   const now = opts.now ?? new Date()
-  const last = db.prepare('SELECT created_at FROM briefings ORDER BY id DESC LIMIT 1').get() as
-    | { created_at: string }
+  const last = db.prepare('SELECT created_at, digest_meta FROM briefings ORDER BY id DESC LIMIT 1').get() as
+    | { created_at: string; digest_meta: string }
     | undefined
+  const previousHeadline = last ? headlineOf(last.digest_meta) : ''
 
   const since = digestWindowStart(
     last ? new Date(last.created_at) : null,
@@ -112,6 +123,7 @@ export async function createBriefing(
     attention,
     driveChanges,
     extra,
+    previousHeadline,
   })
 
   try {
