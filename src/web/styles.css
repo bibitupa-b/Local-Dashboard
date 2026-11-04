@@ -1100,6 +1100,16 @@ a.station:hover .at {
   margin: 0 0 6px;
 }
 
+.digest-read pre {
+  margin: 12px 0 0;
+  max-height: 40vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 400 12px/1.5 var(--font-mono);
+  color: var(--muted);
+}
+
 /* skeleton */
 
 .skeleton {

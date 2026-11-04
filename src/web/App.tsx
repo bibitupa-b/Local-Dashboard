@@ -1178,6 +1178,13 @@ export function App() {
                 ))}
               </details>
             )}
+
+            {latest?.digest && (
+              <details className="earlier digest-read">
+                <summary>What it read</summary>
+                <pre>{latest.digest}</pre>
+              </details>
+            )}
           </div>
         </article>
       </main>

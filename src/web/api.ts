@@ -70,6 +70,7 @@ export type Briefing = {
   created_at: string
   trigger: string
   markdown: string
+  digest?: string
   body: BriefingBody | null
   feedback: 'useful' | 'miss' | null
   digest_meta?: { since?: string; until?: string; headline?: string }
