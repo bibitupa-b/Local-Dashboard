@@ -53,7 +53,25 @@ export type AttentionItem = {
   url?: string
   fileId?: string
 }
-export type Briefing = { id: number; created_at: string; trigger: string; markdown: string }
+export type BriefingRef =
+  | { kind: 'note'; label: string; path: string }
+  | { kind: 'mail'; label: string; messageId: string | null }
+  | { kind: 'drive'; label: string; fileId: string }
+  | { kind: 'event'; label: string }
+  | { kind: 'browser'; label: string }
+  | { kind: 'github'; label: string; url: string | null }
+export type BriefingBody = {
+  headline: string
+  bullets: Array<{ text: string; refs: BriefingRef[] }>
+  suggestion: string
+}
+export type Briefing = {
+  id: number
+  created_at: string
+  trigger: string
+  markdown: string
+  body: BriefingBody | null
+}
 export type CalendarEvent = {
   id: string
   calendarId: string
@@ -134,7 +152,7 @@ export const api = {
     const res = await fetch('/api/sync', { method: 'POST' })
     if (!res.ok) throw new Error(`Sync failed (${res.status})`)
   },
-  generate: async (): Promise<{ markdown: string } | { error: string }> => {
+  generate: async (): Promise<{ markdown: string; body: BriefingBody } | { error: string }> => {
     const res = await fetch('/api/briefings/generate', { method: 'POST' })
     return res.json()
   },

@@ -3,6 +3,8 @@ import {
   api,
   type AttentionItem,
   type Briefing,
+  type BriefingBody,
+  type BriefingRef,
   type SearchResults,
   type Settings,
   type Status,
@@ -84,7 +86,80 @@ function startPoint(item: AttentionItem): { num?: number; text: string; meta: st
   }
 }
 
-function BriefingBody({ markdown }: { markdown: string }) {
+function BriefingBody({ briefing, vaultPath }: { briefing: Briefing; vaultPath: string }) {
+  return briefing.body ? (
+    <BriefingPoints body={briefing.body} vaultPath={vaultPath} />
+  ) : (
+    <LegacyBriefingBody markdown={briefing.markdown} />
+  )
+}
+
+/** Structured answer: a headline to read first, points that open their source, one suggestion. */
+function BriefingPoints({ body, vaultPath }: { body: BriefingBody; vaultPath: string }) {
+  return (
+    <div className="markdown" lang={briefingLang(`${body.headline} ${body.bullets.map((b) => b.text).join(' ')}`)}>
+      {body.headline && (
+        <p className="headline" dir="auto">
+          {body.headline}
+        </p>
+      )}
+      <ul>
+        {body.bullets.map((bullet, index) => (
+          <li key={`${index}-${bullet.text.slice(0, 24)}`} className="line" dir="auto">
+            {bullet.text}
+            {bullet.refs.length > 0 && (
+              <span className="refs">
+                {bullet.refs.map((ref, at) => {
+                  const href = refHref(ref, vaultPath)
+                  return href ? (
+                    <a
+                      key={at}
+                      className="ref"
+                      href={href}
+                      target={href.startsWith('obsidian://') ? undefined : '_blank'}
+                      rel={href.startsWith('obsidian://') ? undefined : 'noreferrer'}
+                    >
+                      {ref.label}
+                    </a>
+                  ) : (
+                    <span key={at} className="ref text">
+                      {ref.label}
+                    </span>
+                  )
+                })}
+              </span>
+            )}
+          </li>
+        ))}
+        {body.suggestion && (
+          <li className="line suggestion" dir="auto">
+            <span className="suggestion-label" lang="en">
+              Suggestion
+            </span>
+            {body.suggestion}
+          </li>
+        )}
+      </ul>
+    </div>
+  )
+}
+
+function refHref(ref: BriefingRef, vaultPath: string): string | null {
+  switch (ref.kind) {
+    case 'note':
+      return obsidianUrl(vaultPath, ref.path)
+    case 'mail':
+      return mailUrl(ref.messageId, ref.label)
+    case 'drive':
+      return driveUrl(ref.fileId)
+    case 'github':
+      return ref.url
+    default:
+      return null
+  }
+}
+
+function LegacyBriefingBody({ markdown }: { markdown: string }) {
   // A bullet and a plain line are the same entry; the marker is punctuation, not content.
   const entries = markdown
     .split('\n')
@@ -424,7 +499,13 @@ export function App() {
         })
       } else {
         setBriefings((items) => [
-          { id: Date.now(), created_at: new Date().toISOString(), trigger: 'manual', markdown: result.markdown },
+          {
+            id: Date.now(),
+            created_at: new Date().toISOString(),
+            trigger: 'manual',
+            markdown: result.markdown,
+            body: result.body,
+          },
           ...(items ?? []),
         ])
         setStatus((current) =>
@@ -1015,7 +1096,7 @@ export function App() {
                 <span />
               </div>
             ) : latest ? (
-              <BriefingBody markdown={latest.markdown} />
+              <BriefingBody briefing={latest} vaultPath={vaultPath} />
             ) : (
               briefings?.length === 0 &&
               loaded && (
@@ -1038,7 +1119,7 @@ export function App() {
                         timeStyle: 'short',
                       })}
                     </h3>
-                    <BriefingBody markdown={briefing.markdown} />
+                    <BriefingBody briefing={briefing} vaultPath={vaultPath} />
                   </article>
                 ))}
               </details>

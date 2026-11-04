@@ -218,8 +218,28 @@ test('status exposes the active sync segment', async () => {
   await app.close()
 })
 
-test('connections API saves, tests and reloads sources', async () => {
-  const db = openDb(':memory:')
+test('the briefing list carries the parsed body and survives a broken one', async () => {
+  const { app, db } = harness()
+  const body = {
+    headline: 'Quiet day',
+    bullets: [{ text: 'Alpha moved', refs: [{ kind: 'note', label: 'Alpha', path: 'Alpha.md' }] }],
+    suggestion: 'Open Alpha',
+  }
+  db.prepare(
+    `INSERT INTO briefings (id, created_at, trigger, markdown, body) VALUES (1, '2026-11-04T08:00:00.000Z', 'auto', 'Quiet day', ?)`,
+  ).run(JSON.stringify(body))
+  db.prepare(
+    `INSERT INTO briefings (id, created_at, trigger, markdown, body) VALUES (2, '2026-11-03T08:00:00.000Z', 'auto', '- old shape', 'not json')`,
+  ).run()
+
+  const res = await app.inject({ method: 'GET', url: '/api/briefings' })
+  const items = res.json().items as Array<{ id: number; body: unknown }>
+  expect(items[0]).toMatchObject({ id: 2, body: null })
+  expect(items[1]).toMatchObject({ id: 1, body })
+  await app.close()
+})
+
+test('connections API saves, tests and reloads sources', async () => {  const db = openDb(':memory:')
   const config = loadConfig({ VAULT_PATH: root })
   let reloads = 0
   const savedRows: Array<{ id: string; service: string; label: string }> = []

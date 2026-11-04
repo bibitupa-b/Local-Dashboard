@@ -959,6 +959,40 @@ a.station:hover .at {
   font-size: 15px;
 }
 
+/* The first line of a briefing is the answer; the points below are the evidence. */
+.headline {
+  margin-bottom: 18px;
+  font: 500 20px/1.35 var(--font-display);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.line .refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.line .ref {
+  font: 400 12px/1.4 var(--font-mono);
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line-soft);
+  transition:
+    color var(--dur-hover) var(--ease),
+    border-color var(--dur-hover) var(--ease);
+}
+
+.line a.ref:hover {
+  color: var(--ink);
+  border-bottom-color: var(--warm);
+}
+
+.line .ref.text {
+  border-bottom-style: dotted;
+}
+
 .line {
   position: relative;
   min-width: 0;

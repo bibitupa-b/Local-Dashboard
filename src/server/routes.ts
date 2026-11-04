@@ -132,6 +132,26 @@ function readBriefingError(db: DatabaseSync): { at: string; message: string } | 
   }
 }
 
+/** A broken stored body reads as "no body": the page then falls back to the markdown. */
+function parseBody(raw: string | null): unknown {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as { headline?: unknown; bullets?: unknown }
+    return typeof parsed?.headline === 'string' && Array.isArray(parsed.bullets) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function parseMeta(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {}
+  } catch {
+    return {}
+  }
+}
+
 export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   const { db, config } = deps
   const sourceList = (): Source[] =>
@@ -187,9 +207,20 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   app.get('/api/briefings', async (request) => {
     const { limit } = request.query as { limit?: string }
     const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 50)
-    const items = db
-      .prepare('SELECT id, created_at, trigger, markdown FROM briefings ORDER BY id DESC LIMIT ?')
-      .all(safeLimit)
+    const items = (
+      db
+        .prepare(
+          'SELECT id, created_at, trigger, markdown, body, digest_meta FROM briefings ORDER BY id DESC LIMIT ?',
+        )
+        .all(safeLimit) as Array<{
+        id: number
+        created_at: string
+        trigger: string
+        markdown: string
+        body: string | null
+        digest_meta: string
+      }>
+    ).map((row) => ({ ...row, body: parseBody(row.body), digest_meta: parseMeta(row.digest_meta) }))
     return { items }
   })
 

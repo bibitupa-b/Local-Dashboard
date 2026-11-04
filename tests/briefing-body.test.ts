@@ -1,0 +1,89 @@
+import { expect, test } from 'vitest'
+import { parseModelOutput, renderMarkdown, resolveRefs } from '../src/server/briefing/body.js'
+import type { DigestRef } from '../src/server/briefing/digest.js'
+
+const refs = new Map<number, DigestRef>([
+  [1, { kind: 'note', label: 'Alpha', path: '01 Projects/Alpha.md' }],
+  [2, { kind: 'drive', label: 'Budget.xlsx', fileId: 'f1' }],
+])
+
+test('parses the JSON schema the model was asked for', () => {
+  const parsed = parseModelOutput(
+    JSON.stringify({
+      headline: 'Quiet day',
+      bullets: [
+        { text: 'Alpha moved', refs: [1, 2] },
+        { text: 'Mail is waiting', refs: [] },
+      ],
+      suggestion: 'Open Alpha',
+    }),
+  )
+  expect(parsed).toEqual({
+    headline: 'Quiet day',
+    bullets: [
+      { text: 'Alpha moved', refs: [1, 2] },
+      { text: 'Mail is waiting', refs: [] },
+    ],
+    suggestion: 'Open Alpha',
+  })
+})
+
+test('prose from the model still yields a headline and bullets', () => {
+  const parsed = parseModelOutput('Quiet day\n- Alpha moved\n- Mail is waiting\nSuggestion: Open Alpha')
+  expect(parsed.headline).toBe('Quiet day')
+  expect(parsed.bullets.map((bullet) => bullet.text)).toEqual(['Alpha moved', 'Mail is waiting'])
+  expect(parsed.suggestion).toBe('Open Alpha')
+})
+
+test('a truncated JSON answer falls back to its lines instead of throwing', () => {
+  const parsed = parseModelOutput('{"headline":"Quiet day","bullets":[{"text":"Al')
+  expect(parsed.headline.length).toBeGreaterThan(0)
+  expect(Array.isArray(parsed.bullets)).toBe(true)
+})
+
+test('junk inside refs is dropped, not trusted', () => {
+  const parsed = parseModelOutput(
+    JSON.stringify({
+      headline: 'Day',
+      bullets: [{ text: 'Alpha moved', refs: [1, 'two', -3, 1.5, 99] }],
+      suggestion: '',
+    }),
+  )
+  expect(parsed.bullets[0]!.refs).toEqual([1, 99])
+})
+
+test('overlong fields are cut to their cap', () => {
+  const parsed = parseModelOutput(
+    JSON.stringify({
+      headline: 'h'.repeat(300),
+      bullets: [{ text: 'b'.repeat(500), refs: [] }],
+      suggestion: 's'.repeat(400),
+    }),
+  )
+  expect(parsed.headline.length).toBe(200)
+  expect(parsed.bullets[0]!.text.length).toBe(400)
+  expect(parsed.suggestion.length).toBe(300)
+})
+
+test('resolveRefs drops unknown numbers and duplicates', () => {
+  const body = resolveRefs(
+    { headline: 'Day', bullets: [{ text: 'Alpha moved', refs: [99, 1, 1] }], suggestion: '' },
+    refs,
+  )
+  expect(body.bullets[0]!.refs).toEqual([refs.get(1)])
+  expect(body.bullets).toHaveLength(1)
+})
+
+test('markdown is the headline, the bullets and the suggestion', () => {
+  expect(
+    renderMarkdown({
+      headline: 'Quiet day',
+      bullets: [{ text: 'Alpha moved', refs: [] }],
+      suggestion: 'Open Alpha',
+    }),
+  ).toBe('Quiet day\n- Alpha moved\nSuggestion: Open Alpha')
+})
+
+test('a body without a suggestion renders no closing line', () => {
+  expect(renderMarkdown({ headline: 'Quiet day', bullets: [], suggestion: '' })).toBe('Quiet day')
+})

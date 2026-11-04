@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import type { Config } from '../config.js'
 import { buildAttention } from '../attention.js'
 import type { Source } from '../sources/types.js'
+import { parseModelOutput, renderMarkdown, resolveRefs, type BriefingBody } from './body.js'
 import { buildDigest } from './digest.js'
 import { generateBriefing } from './deepseek.js'
 import { digestWindowStart } from './window.js'
@@ -12,7 +13,7 @@ import {
 } from '../settings.js'
 
 export type BriefingTrigger = 'auto' | 'manual'
-export type BriefingResult = { markdown: string } | { error: string }
+export type BriefingResult = { markdown: string; body: BriefingBody } | { error: string }
 
 type Options = { trigger?: BriefingTrigger; now?: Date; fetchFn?: typeof fetch }
 
@@ -60,10 +61,10 @@ export async function createBriefing(
   const driveChanges = isSourceEnabled(db, 'drive')
     ? (db
         .prepare(
-          `SELECT COALESCE(f.name, c.file_id) AS name, c.kind FROM drive_changes c
+          `SELECT COALESCE(f.name, c.file_id) AS name, c.kind, c.file_id AS fileId FROM drive_changes c
            LEFT JOIN drive_files f ON f.connection_id = c.connection_id AND f.id = c.file_id WHERE c.detected_at >= ?`,
         )
-        .all(since.toISOString()) as Array<{ name: string; kind: string }>)
+        .all(since.toISOString()) as Array<{ name: string; kind: string; fileId: string }>)
     : []
 
   const attention = buildAttention(db, now, { staleDays: 14, inboxDays: 3 }).filter(
@@ -92,29 +93,43 @@ export async function createBriefing(
     now,
     until: now,
     vaultChanges,
-    tasks: tasks.map((task) => ({ text: task.text, done: task.done === 1, tag: task.tag })),
+    tasks: tasks.map((task) => ({
+      text: task.text,
+      done: task.done === 1,
+      tag: task.tag,
+      path: task.path,
+    })),
     attention,
     driveChanges,
     extra,
   })
 
   try {
-    const markdown = await generateBriefing(config.deepseekKey, digest, opts.fetchFn)
+    const { raw } = await generateBriefing(
+      config.deepseekKey,
+      digest.text,
+      opts.fetchFn ? { fetchFn: opts.fetchFn } : {},
+    )
+    const body = resolveRefs(parseModelOutput(raw), digest.refs)
+    const markdown = renderMarkdown(body)
     db.prepare(
-      `INSERT INTO briefings (created_at, trigger, markdown, digest, digest_meta) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO briefings (created_at, trigger, markdown, digest, digest_meta, body)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     ).run(
       now.toISOString(),
       opts.trigger ?? 'manual',
       markdown,
-      digest,
+      digest.text,
       JSON.stringify({
         since: since.toISOString(),
         until: now.toISOString(),
+        headline: body.headline,
         sources: sources.map((source) => source.id),
         model: 'deepseek-chat',
       }),
+      JSON.stringify(body),
     )
-    return { markdown }
+    return { markdown, body }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
   }

@@ -22,28 +22,47 @@ test('digest window widens instead of shrinking', () => {
 
 test('401 from DeepSeek surfaces as BriefingError', async () => {
   const fetchFn = (async () => new Response('nope', { status: 401 })) as unknown as typeof fetch
-  await expect(generateBriefing('k', 'digest', fetchFn)).rejects.toMatchObject({ status: 401 })
-  await expect(generateBriefing('k', 'digest', fetchFn)).rejects.toBeInstanceOf(BriefingError)
+  await expect(generateBriefing('k', 'digest', { fetchFn })).rejects.toMatchObject({ status: 401 })
+  await expect(generateBriefing('k', 'digest', { fetchFn })).rejects.toBeInstanceOf(BriefingError)
 })
 
-test('successful briefing is stored', async () => {
-  const db = openDb(':memory:')
-  const fetchFn = (async () =>
-    new Response(JSON.stringify({ choices: [{ message: { content: '- one\n- two' } }] }), {
+function answer(content: string): typeof fetch {
+  return (async () =>
+    new Response(JSON.stringify({ choices: [{ message: { content } }] }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     })) as unknown as typeof fetch
+}
+
+test('successful briefing is stored as a body and its markdown', async () => {
+  const db = openDb(':memory:')
+  const fetchFn = answer(
+    JSON.stringify({
+      headline: 'Quiet day',
+      bullets: [{ text: 'Alpha moved', refs: [1] }],
+      suggestion: 'Open Alpha',
+    }),
+  )
 
   const result = await createBriefing(db, [], config, { fetchFn, trigger: 'manual' })
-  expect(result).toEqual({ markdown: '- one\n- two' })
-  const row = db.prepare('SELECT trigger, markdown, digest FROM briefings').get() as {
+  expect('body' in result && result.body.headline).toBe('Quiet day')
+  expect('markdown' in result && result.markdown).toBe('Quiet day\n- Alpha moved\nSuggestion: Open Alpha')
+  const row = db.prepare('SELECT trigger, markdown, digest, body, digest_meta FROM briefings').get() as {
     trigger: string
     markdown: string
     digest: string
+    body: string
+    digest_meta: string
   }
   expect(row.trigger).toBe('manual')
-  expect(row.markdown).toBe('- one\n- two')
+  expect(row.markdown).toBe('Quiet day\n- Alpha moved\nSuggestion: Open Alpha')
   expect(row.digest).toContain('# Briefing digest')
+  expect(JSON.parse(row.body)).toEqual({
+    headline: 'Quiet day',
+    bullets: [{ text: 'Alpha moved', refs: [] }],
+    suggestion: 'Open Alpha',
+  })
+  expect(JSON.parse(row.digest_meta).headline).toBe('Quiet day')
 })
 
 test('missing key refuses without calling the API', async () => {

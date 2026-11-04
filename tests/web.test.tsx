@@ -253,6 +253,52 @@ test('briefing bullets render as a list with a marked suggestion', async () => {
   unmount()
 })
 
+test('a structured briefing leads with its headline and opens its sources', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const briefings = {
+    items: [
+      {
+        id: 3,
+        created_at: '2026-11-04T08:00:00.000Z',
+        trigger: 'auto',
+        markdown: 'Quiet day\n- Alpha moved\nSuggestion: Open Alpha',
+        body: {
+          headline: 'Quiet day',
+          bullets: [
+            {
+              text: 'Alpha moved',
+              refs: [
+                { kind: 'note', label: 'Alpha', path: '01 Projects/Alpha.md' },
+                { kind: 'browser', label: '3 visits today' },
+              ],
+            },
+          ],
+          suggestion: 'Open Alpha',
+        },
+      },
+    ],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url === '/api/briefings?limit=10' ? briefings : responses[url] ?? {},
+    })),
+  )
+  const { container, unmount } = render(<App />)
+  await waitFor(() => expect(screen.getByText('Quiet day')).toBeTruthy())
+  expect(container.querySelector('.markdown .headline')?.textContent).toBe('Quiet day')
+  expect(container.querySelectorAll('.markdown .line')).toHaveLength(2)
+  const note = screen.getByRole('link', { name: 'Alpha' })
+  expect(note.getAttribute('href')).toBe('obsidian://open?vault=notes&file=01%20Projects%2FAlpha')
+  // A point with nowhere to go is still named, just not a link.
+  expect(screen.getByText('3 visits today').closest('a')).toBeNull()
+  expect(screen.getByText('Suggestion')).toBeTruthy()
+  expect(screen.getByText('Open Alpha')).toBeTruthy()
+  unmount()
+})
+
 test('a failed generation is named on the page in Clay, with no retry button', async () => {
   localStorage.setItem('dashboard.welcomed', '1')
   const status = {
