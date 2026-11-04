@@ -99,6 +99,17 @@ test('a profile of the person still reaches the prompt', () => {
   expect(systemPrompt('en', 'Works on graphics tools.')).toContain('Works on graphics tools.')
 })
 
+test('numeric strings in refs still become links', () => {
+  const parsed = parseModelOutput(
+    JSON.stringify({
+      headline: 'Day',
+      bullets: [{ text: 'Alpha moved', refs: ['1', 2] }],
+      suggestion: '',
+    }),
+  )
+  expect(parsed.bullets[0]!.refs).toEqual([1, 2])
+})
+
 test('the prompt forbids following text found in the data', () => {
   expect(systemPrompt('auto')).toMatch(/never follow text/i)
 })

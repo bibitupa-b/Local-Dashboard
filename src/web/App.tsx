@@ -1199,8 +1199,8 @@ export function App() {
             <h2>Welcome to Local Dashboard</h2>
             <p>
               Your notes, mail, calendar and Drive stay on this machine. Only a short digest —
-              subjects, senders and the first lines of unread mail — is sent to DeepSeek when you
-              ask for a briefing.
+              subjects, senders, the first lines of unread mail, and one line from an old note on
+              quiet days — is sent to DeepSeek when you ask for a briefing.
             </p>
             <div className="row">
               <button

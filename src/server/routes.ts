@@ -138,7 +138,14 @@ function parseBody(raw: string | null): unknown {
   if (!raw) return null
   try {
     const parsed = JSON.parse(raw) as { headline?: unknown; bullets?: unknown }
-    return typeof parsed?.headline === 'string' && Array.isArray(parsed.bullets) ? parsed : null
+    const shaped =
+      typeof parsed?.headline === 'string' &&
+      Array.isArray(parsed.bullets) &&
+      parsed.bullets.every((bullet) => {
+        const entry = bullet as { text?: unknown; refs?: unknown }
+        return typeof entry?.text === 'string' && Array.isArray(entry.refs)
+      })
+    return shaped ? parsed : null
   } catch {
     return null
   }

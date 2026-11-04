@@ -25,12 +25,15 @@ type Options = { trigger?: BriefingTrigger; now?: Date; fetchFn?: typeof fetch }
 const EXTRA_TITLES = { mail: 'Mail', calendar: 'Calendar', browser: 'Browser', github: 'GitHub' }
 
 /** The previous briefing's headline is the only part of yesterday worth repeating whole. */
-function headlineOf(meta: string): string {
+function metaOf(meta: string): { headline: string; resurface: string } {
   try {
-    const parsed = JSON.parse(meta) as { headline?: unknown }
-    return typeof parsed.headline === 'string' ? parsed.headline.slice(0, 200) : ''
+    const parsed = JSON.parse(meta) as { headline?: unknown; resurface?: unknown }
+    return {
+      headline: typeof parsed.headline === 'string' ? parsed.headline.slice(0, 200) : '',
+      resurface: typeof parsed.resurface === 'string' ? parsed.resurface : '',
+    }
   } catch {
-    return ''
+    return { headline: '', resurface: '' }
   }
 }
 
@@ -46,7 +49,8 @@ export async function createBriefing(
   const last = db.prepare('SELECT created_at, digest_meta FROM briefings ORDER BY id DESC LIMIT 1').get() as
     | { created_at: string; digest_meta: string }
     | undefined
-  const previousHeadline = last ? headlineOf(last.digest_meta) : ''
+  const previousHeadline = last ? metaOf(last.digest_meta).headline : ''
+  const previousNote = last ? metaOf(last.digest_meta).resurface : ''
 
   const since = digestWindowStart(
     last ? new Date(last.created_at) : null,
@@ -113,7 +117,7 @@ export async function createBriefing(
   const resurface = isSourceEnabled(db, 'vault')
     ? resurfaceNote(db, now, {
         minAgeDays: 30,
-        exclude: (path) => isExcludedVaultPath(db, path),
+        exclude: (path) => path === previousNote || isExcludedVaultPath(db, path),
       })
     : null
 
@@ -160,6 +164,10 @@ export async function createBriefing(
           since: since.toISOString(),
           until: now.toISOString(),
           headline: body.headline,
+          // Only remember the note if the digest actually carried it, so a busy day costs nothing.
+          ...(resurface && digest.text.includes('## Worth revisiting')
+            ? { resurface: resurface.path }
+            : {}),
           sources: sources.map((source) => source.id),
           model: 'deepseek-chat',
         }),

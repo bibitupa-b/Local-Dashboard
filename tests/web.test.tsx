@@ -509,6 +509,7 @@ test('first visit explains what leaves the machine', async () => {
   const { unmount } = render(<App />)
   expect(await screen.findByText('Welcome to Local Dashboard')).toBeTruthy()
   expect(screen.getByText(/Only a short digest/i)).toBeTruthy()
+  expect(screen.getByText(/one line from an old note/i)).toBeTruthy()
   unmount()
 })
 

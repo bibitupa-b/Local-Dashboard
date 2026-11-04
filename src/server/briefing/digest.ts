@@ -101,11 +101,15 @@ function groupTasks(tasks: DigestInput['tasks']): Line[] {
     if (task.tag) tags.set(task.tag, (tags.get(task.tag) ?? 0) + 1)
     else untagged.push(task)
   }
-  for (const [tag, count] of tags) lines.push({ text: `#${tag} (${count} open)` })
-  for (const task of untagged.slice(0, 30)) {
+  for (const [tag, count] of tags) {
+    // Tags are counts; real tasks are work. Tags may take three quarters at most.
+    if (lines.length >= Math.floor(LIMITS.tasks * 0.75)) break
+    lines.push({ text: `#${tag} (${count} open)` })
+  }
+  for (const task of untagged.slice(0, Math.max(0, LIMITS.tasks - lines.length))) {
     lines.push({ text: clip(task.text), ...(task.path ? { ref: noteRef(task.path) } : {}) })
   }
-  return lines.slice(0, LIMITS.tasks)
+  return lines
 }
 
 export function buildDigest(input: DigestInput): DigestResult {
@@ -136,9 +140,10 @@ export function buildDigest(input: DigestInput): DigestResult {
   for (const section of (input.extra ?? []).slice(0, LIMITS.extra)) {
     if (section.lines.length > 0) {
       // Sources return text, not rows: mail details and event names have no per-line link.
+      // Each section gets its own budget, or a busy mailbox would push the notes out of the digest.
       sections.push({
         title: sanitize(section.title, 80),
-        lines: section.lines.map((text) => ({ text: sanitize(text, 400) })),
+        lines: section.lines.slice(0, LIMITS.extra).map((text) => ({ text: sanitize(text, 400) })),
       })
     }
   }
@@ -199,7 +204,8 @@ function compose(
   now: Date,
   until: Date,
   sections: Array<{ title: string; lines: Line[] }>,
-): DigestResult {  const refs = new Map<number, DigestRef>()
+): DigestResult {
+  const refs = new Map<number, DigestRef>()
   const numbered = sections.map((section) => ({
     title: section.title,
     lines: section.lines.map((line) => {

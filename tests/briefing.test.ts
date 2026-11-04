@@ -216,6 +216,28 @@ test('a quiet day offers one forgotten note to the model', async () => {
   expect(sent).toContain('Inbox/Old idea.md')
 })
 
+test('a note already offered does not come back tomorrow', async () => {
+  const db = openDb(':memory:')
+  const old = new Date(Date.now() - 90 * 86_400_000).toISOString()
+  const insert = db.prepare(
+    `INSERT INTO vault_files (path, hash, mtime, size, previous_text) VALUES (?, 'h', ?, 1, 'text')`,
+  )
+  insert.run('Inbox/Already offered.md', old)
+  insert.run('02 Areas/Next one.md', new Date(Date.now() - 60 * 86_400_000).toISOString())
+  db.prepare(
+    `INSERT INTO briefings (created_at, trigger, markdown, digest_meta) VALUES (?, 'auto', '- old', ?)`,
+  ).run(
+    new Date().toISOString(),
+    JSON.stringify({ headline: 'Yesterday', resurface: 'Inbox/Already offered.md' }),
+  )
+
+  const sent = await sentDigest(db, [])
+  const section = sent.split('## Worth revisiting')[1] ?? ''
+  expect(section).toContain('02 Areas/Next one.md')
+  // The attention queue may still name the old note; the resurfaced section must move on.
+  expect(section).not.toContain('Already offered')
+})
+
 test('catch-up decision', () => {
   const now = new Date('2026-10-31T09:00:00')
   expect(shouldCatchUp(null, now, 8)).toBe(true)

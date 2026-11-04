@@ -231,11 +231,15 @@ test('the briefing list carries the parsed body and survives a broken one', asyn
   db.prepare(
     `INSERT INTO briefings (id, created_at, trigger, markdown, body) VALUES (2, '2026-11-03T08:00:00.000Z', 'auto', '- old shape', 'not json')`,
   ).run()
+  db.prepare(
+    `INSERT INTO briefings (id, created_at, trigger, markdown, body) VALUES (3, '2026-11-02T08:00:00.000Z', 'auto', '- broken shape', ?)`,
+  ).run(JSON.stringify({ headline: 'Half a body', bullets: [{ text: 'no refs here' }] }))
 
   const res = await app.inject({ method: 'GET', url: '/api/briefings' })
   const items = res.json().items as Array<{ id: number; body: unknown }>
-  expect(items[0]).toMatchObject({ id: 2, body: null })
-  expect(items[1]).toMatchObject({ id: 1, body })
+  expect(items[0]).toMatchObject({ id: 3, body: null })
+  expect(items[1]).toMatchObject({ id: 2, body: null })
+  expect(items[2]).toMatchObject({ id: 1, body })
   await app.close()
 })
 

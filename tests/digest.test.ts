@@ -155,6 +155,47 @@ test('paths keep emoji and Cyrillic but lose invisibles and extra length', () =>
   expect(line).not.toContain('a'.repeat(200))
 })
 
+test('a mail-heavy section cannot swamp the digest', () => {
+  const { text } = buildDigest({
+    since,
+    now,
+    until,
+    vaultChanges: [{ path: '01 Projects/Alpha.md', added: 1, removed: 0 }],
+    tasks: [],
+    attention: [],
+    driveChanges: [],
+    extra: [
+      {
+        title: 'Mail',
+        lines: Array.from({ length: 13 }, (_, i) => `Sender ${i}: subject ${i} — ${'x'.repeat(390)}`),
+      },
+    ],
+  })
+  const section = (text.split('## Mail')[1] ?? '').split('\n## ')[0]!
+  expect(section.split('\n').filter((line) => line.startsWith('- '))).toHaveLength(8)
+  expect(text).toContain('01 Projects/Alpha.md')
+})
+
+test('twenty recurring tags leave room for the real open tasks', () => {
+  const { text } = buildDigest({
+    since,
+    now,
+    until,
+    vaultChanges: [],
+    tasks: [
+      ...Array.from({ length: 20 }, (_, i) => ({
+        text: `#tag${i} thing`,
+        done: false,
+        tag: `tag${i}`,
+      })),
+      { text: 'real open task', done: false, tag: null, path: 'Inbox/Plan.md' },
+    ],
+    attention: [],
+    driveChanges: [],
+  })
+  expect(text).toContain('real open task')
+})
+
 test('a quiet day brings back one forgotten note', () => {
   const { text, refs } = buildDigest({
     since,
@@ -270,17 +311,19 @@ test('truncation drops the refs it cut off', () => {
     since,
     now,
     until,
-    vaultChanges: Array.from({ length: 2000 }, (_, i) => ({
-      path: `02 Areas/Long note number ${i} with a fairly long descriptive path.md`,
-      added: i,
-      removed: 0,
-    })),
+    vaultChanges: [{ path: '01 Projects/Late.md', added: 1, removed: 0 }],
     tasks: [],
     attention: [],
     driveChanges: [],
+    // The only unbounded input: enough mail to push the tail of the digest past the cap.
+    extra: Array.from({ length: 8 }, (_, section) => ({
+      title: `Mail ${section}`,
+      lines: Array.from({ length: 8 }, (_, line) => `${'x'.repeat(400)} ${line}`),
+    })),
   })
   expect(text.length).toBeLessThanOrEqual(MAX_DIGEST_CHARS)
-  // Every surviving ref still has its marker; nothing points at a line that is gone.
+  expect(text).not.toContain('01 Projects/Late.md')
+  expect(refs.size).toBe(0)
+  // Whatever survives, no marker is left pointing at a line that is gone.
   for (const number of refs.keys()) expect(text).toContain(`[${number}] `)
-  expect(refs.size).toBeLessThan(2000)
 })

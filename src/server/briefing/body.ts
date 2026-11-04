@@ -23,7 +23,10 @@ function cut(value: unknown, cap: number): string {
 
 function numbers(value: unknown): number[] {
   if (!Array.isArray(value)) return []
-  return value.filter((item): item is number => Number.isInteger(item) && (item as number) >= 1)
+  // Models sometimes answer with strings; a lost link is worse than a coercion.
+  return value
+    .map((item) => Number(item))
+    .filter((item) => Number.isInteger(item) && item >= 1)
 }
 
 function fromJson(raw: string): ParsedOutput | null {
