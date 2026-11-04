@@ -4,9 +4,10 @@ import { buildAttention } from '../attention.js'
 import type { Source } from '../sources/types.js'
 import { parseModelOutput, renderMarkdown, resolveRefs, type BriefingBody } from './body.js'
 import { buildDigest } from './digest.js'
-import { generateBriefing } from './deepseek.js'
+import { generateBriefing, systemPrompt } from './deepseek.js'
 import { digestWindowStart } from './window.js'
 import {
+  briefingLanguage,
   digestWindowHours,
   isExcludedVaultPath,
   isSourceEnabled,
@@ -108,7 +109,10 @@ export async function createBriefing(
     const { raw } = await generateBriefing(
       config.deepseekKey,
       digest.text,
-      opts.fetchFn ? { fetchFn: opts.fetchFn } : {},
+      {
+        ...(opts.fetchFn ? { fetchFn: opts.fetchFn } : {}),
+        system: systemPrompt(briefingLanguage(db)),
+      },
     )
     const body = resolveRefs(parseModelOutput(raw), digest.refs)
     const markdown = renderMarkdown(body)

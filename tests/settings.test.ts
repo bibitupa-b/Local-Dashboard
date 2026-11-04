@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import { openDb } from '../src/server/db/index.js'
 import {
   LIST_KEYS,
+  briefingLanguage,
   digestWindowHours,
   getList,
   isExcludedFolder,
@@ -51,5 +52,14 @@ test('digest window defaults to 24 hours', () => {
   expect(digestWindowHours(db)).toBe(24)
   setSetting(db, 'digest_window_hours', '6')
   expect(digestWindowHours(db)).toBe(6)
+})
+
+test('briefing language defaults to auto and ignores anything else', () => {
+  const db = openDb(':memory:')
+  expect(briefingLanguage(db)).toBe('auto')
+  setSetting(db, 'briefing_language', 'ru')
+  expect(briefingLanguage(db)).toBe('ru')
+  setSetting(db, 'briefing_language', 'de')
+  expect(briefingLanguage(db)).toBe('auto')
 })
 

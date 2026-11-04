@@ -1358,6 +1358,7 @@ a.station:hover .at {
 }
 
 .settings input,
+.settings select,
 .settings textarea,
 .modal input,
 .modal textarea {

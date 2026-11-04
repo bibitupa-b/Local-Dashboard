@@ -10,6 +10,7 @@ import type { HealthMap, SyncState } from './health.js'
 import { getSetting, setSetting } from './db/index.js'
 import {
   LIST_KEYS,
+  briefingLanguage,
   digestWindowHours,
   getList,
   normalizeVaultPrefixes,
@@ -324,6 +325,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
         (source) => source.kind === 'github' && source.lastSync(db),
       ),
       digestWindowHours: digestWindowHours(db),
+      briefingLanguage: briefingLanguage(db),
       enabledSources: getList(db, 'enabled_sources'),
       dataDir: config.dataDir,
     }
@@ -376,6 +378,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       excludedVaultPrefixes?: string[]
       excludedBrowserDomains?: string[]
       digestWindowHours?: number
+      briefingLanguage?: string
       enabledSources?: string[]
     }
     if (typeof body.briefingHour === 'number' && body.briefingHour >= 0 && body.briefingHour <= 23) {
@@ -396,6 +399,9 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     if (Array.isArray(body.enabledSources)) setList(db, 'enabled_sources', body.enabledSources)
     if (typeof body.digestWindowHours === 'number' && body.digestWindowHours >= 1) {
       setSetting(db, 'digest_window_hours', String(body.digestWindowHours))
+    }
+    if (body.briefingLanguage && ['auto', 'ru', 'en'].includes(body.briefingLanguage)) {
+      setSetting(db, 'briefing_language', body.briefingLanguage)
     }
     return { ok: true }
   })

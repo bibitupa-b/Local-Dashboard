@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { parseModelOutput, renderMarkdown, resolveRefs } from '../src/server/briefing/body.js'
+import { systemPrompt } from '../src/server/briefing/deepseek.js'
 import type { DigestRef } from '../src/server/briefing/digest.js'
 
 const refs = new Map<number, DigestRef>([
@@ -86,4 +87,14 @@ test('markdown is the headline, the bullets and the suggestion', () => {
 
 test('a body without a suggestion renders no closing line', () => {
   expect(renderMarkdown({ headline: 'Quiet day', bullets: [], suggestion: '' })).toBe('Quiet day')
+})
+
+test('the prompt names the chosen briefing language', () => {
+  expect(systemPrompt('ru')).toContain('in Russian')
+  expect(systemPrompt('en')).toContain('in English')
+  expect(systemPrompt('auto')).toContain('in the language most of the digest is written in')
+})
+
+test('a profile of the person still reaches the prompt', () => {
+  expect(systemPrompt('en', 'Works on graphics tools.')).toContain('Works on graphics tools.')
 })

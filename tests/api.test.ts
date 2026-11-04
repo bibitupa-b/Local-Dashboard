@@ -239,6 +239,29 @@ test('the briefing list carries the parsed body and survives a broken one', asyn
   await app.close()
 })
 
+test('the briefing language is saved through settings and junk is refused', async () => {
+  const { app } = harness()
+  const initial = await app.inject({ method: 'GET', url: '/api/settings' })
+  expect(initial.json().briefingLanguage).toBe('auto')
+
+  await app.inject({
+    method: 'PUT',
+    url: '/api/settings',
+    payload: { briefingLanguage: 'ru' },
+  })
+  const saved = await app.inject({ method: 'GET', url: '/api/settings' })
+  expect(saved.json().briefingLanguage).toBe('ru')
+
+  await app.inject({
+    method: 'PUT',
+    url: '/api/settings',
+    payload: { briefingLanguage: 'de' },
+  })
+  const after = await app.inject({ method: 'GET', url: '/api/settings' })
+  expect(after.json().briefingLanguage).toBe('ru')
+  await app.close()
+})
+
 test('connections API saves, tests and reloads sources', async () => {  const db = openDb(':memory:')
   const config = loadConfig({ VAULT_PATH: root })
   let reloads = 0

@@ -53,6 +53,13 @@ export function normalizeVaultPrefixes(values: string[], vaultPath: string): str
     .filter(Boolean)
 }
 
+export type BriefingLanguage = 'auto' | 'ru' | 'en'
+
+export function briefingLanguage(db: DatabaseSync): BriefingLanguage {
+  const value = getSetting(db, 'briefing_language')
+  return value === 'ru' || value === 'en' ? value : 'auto'
+}
+
 export function digestWindowHours(db: DatabaseSync): number {
   const value = Number(getSetting(db, 'digest_window_hours'))
   return value > 0 ? value : 24

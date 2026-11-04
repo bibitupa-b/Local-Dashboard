@@ -278,6 +278,11 @@ export function SettingsPanel({
     { accept: (raw) => /^\d+$/.test(raw) && Number(raw) >= 1, hint: '1 or more' },
   )
 
+  const language = useLiveSave(settings.briefingLanguage, async (value) => {
+    await api.saveSettings({ briefingLanguage: value })
+    remember({ briefingLanguage: value })
+  })
+
   const senders = useLiveSave(settings.excludedSenders.join('\n'), async (raw) => {
     const list = lines(raw)
     await api.saveSettings({ excludedSenders: list })
@@ -304,7 +309,7 @@ export function SettingsPanel({
     },
   )
 
-  const fields = [hour, windowHours, senders, vaultPrefixes, browserDomains, sources]
+  const fields = [hour, windowHours, language, senders, vaultPrefixes, browserDomains, sources]
   const receipts = fields.map((field) => field.receipt)
   const unsaved = receipts.filter((receipt) => receipt?.state === 'error').length
   const saving = receipts.some((receipt) => receipt?.state === 'saving')
@@ -569,6 +574,24 @@ export function SettingsPanel({
               value={windowHours.draft}
               onChange={(event) => windowHours.edit(event.target.value)}
             />
+          </div>
+
+          <div className="pref">
+            <div className="pref-head">
+              <label htmlFor="pref-language">Briefing language</label>
+              <FieldNote receipt={language.receipt} onRetry={language.retry} />
+            </div>
+            <select
+              id="pref-language"
+              value={language.draft}
+              onChange={(event) =>
+                language.edit(event.target.value as Settings['briefingLanguage'])
+              }
+            >
+              <option value="auto">Auto</option>
+              <option value="ru">Русский</option>
+              <option value="en">English</option>
+            </select>
           </div>
 
           <div className="pref">
