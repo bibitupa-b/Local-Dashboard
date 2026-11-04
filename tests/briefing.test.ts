@@ -204,6 +204,18 @@ test("yesterday's headline reaches today's digest", async () => {
   expect(sent).toContain('Yesterday was quiet')
 })
 
+test('a quiet day offers one forgotten note to the model', async () => {
+  const db = openDb(':memory:')
+  const old = new Date(Date.now() - 40 * 86_400_000).toISOString()
+  db.prepare(
+    `INSERT INTO vault_files (path, hash, mtime, size, previous_text) VALUES (?, 'h', ?, 1, ?)`,
+  ).run('Inbox/Old idea.md', old, 'An idea about rain')
+
+  const sent = await sentDigest(db, [])
+  expect(sent).toContain('## Worth revisiting')
+  expect(sent).toContain('Inbox/Old idea.md')
+})
+
 test('catch-up decision', () => {
   const now = new Date('2026-10-31T09:00:00')
   expect(shouldCatchUp(null, now, 8)).toBe(true)

@@ -1,5 +1,7 @@
 import { expect, test } from 'vitest'
 import { MAX_DIGEST_CHARS, buildDigest } from '../src/server/briefing/digest.js'
+import { resurfaceNote } from '../src/server/briefing/resurface.js'
+import { openDb } from '../src/server/db/index.js'
 
 const since = new Date('2026-10-30T08:00:00.000Z')
 const now = new Date('2026-11-04T12:00:00.000Z')
@@ -151,6 +153,80 @@ test('paths keep emoji and Cyrillic but lose invisibles and extra length', () =>
   const line = text.split('\n').find((entry) => entry.includes('01 Projects/'))!
   expect(line).toContain('(+1/-0)')
   expect(line).not.toContain('a'.repeat(200))
+})
+
+test('a quiet day brings back one forgotten note', () => {
+  const { text, refs } = buildDigest({
+    since,
+    now,
+    until,
+    vaultChanges: [],
+    tasks: [],
+    attention: [],
+    driveChanges: [],
+    resurface: { path: 'Inbox/Old idea.md', days: 40, excerpt: 'An idea about rain' },
+  })
+  expect(text).toContain('## Worth revisiting')
+  expect(text).toContain('Inbox/Old idea.md')
+  expect(text).toContain('40 days')
+  expect(text).toContain('An idea about rain')
+  expect([...refs.values()]).toContainEqual({
+    kind: 'note',
+    label: 'Old idea',
+    path: 'Inbox/Old idea.md',
+  })
+})
+
+test('a full day does not spend room on a forgotten note', () => {
+  const { text } = buildDigest({
+    since,
+    now,
+    until,
+    vaultChanges: Array.from({ length: 200 }, (_, i) => ({
+      path: `02 Areas/${'long note '.repeat(20)}${i}.md`,
+      added: i,
+      removed: 0,
+    })),
+    tasks: [],
+    attention: [],
+    driveChanges: [],
+    resurface: { path: 'Inbox/Old idea.md', days: 410, excerpt: 'An idea about rain' },
+  })
+  expect(text).not.toContain('## Worth revisiting')
+})
+
+test('the oldest eligible note comes back, never a template or a fresh one', () => {
+  const db = openDb(':memory:')
+  const at = new Date('2026-11-04T12:00:00.000Z')
+  const insert = db.prepare(
+    `INSERT INTO vault_files (path, hash, mtime, size, previous_text) VALUES (?, 'h', ?, 1, ?)`,
+  )
+  const daysAgo = (days: number) => new Date(at.getTime() - days * 86_400_000).toISOString()
+  insert.run('Inbox/Old idea.md', daysAgo(40), '---\ntags: [idea]\n---\nAn idea about rain')
+  insert.run('Inbox/Fresh.md', daysAgo(2), 'written this week')
+  insert.run('Templates/Template.md', daysAgo(400), 'a template')
+
+  expect(resurfaceNote(db, at, { minAgeDays: 30, exclude: () => false })).toEqual({
+    path: 'Inbox/Old idea.md',
+    days: 40,
+    excerpt: 'An idea about rain',
+  })
+})
+
+test('a hidden or finished note never comes back', () => {
+  const db = openDb(':memory:')
+  const at = new Date('2026-11-04T12:00:00.000Z')
+  const insert = db.prepare(
+    `INSERT INTO vault_files (path, hash, mtime, size, previous_text) VALUES (?, 'h', ?, 1, ?)`,
+  )
+  const old = new Date(at.getTime() - 60 * 86_400_000).toISOString()
+  insert.run('02 Areas/Done thing.md', old, '---\nstatus: Done\n---\ndone long ago')
+  insert.run('02 Areas/Hidden.md', old, 'a hidden note')
+  insert.run('02 Areas/Open.md', old, 'still open')
+
+  expect(
+    resurfaceNote(db, at, { minAgeDays: 30, exclude: (path) => path.includes('Hidden') }),
+  ).toEqual({ path: '02 Areas/Open.md', days: 60, excerpt: 'still open' })
 })
 
 test('the previous headline opens the digest', () => {

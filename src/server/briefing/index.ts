@@ -5,6 +5,7 @@ import type { Source } from '../sources/types.js'
 import { parseModelOutput, renderMarkdown, resolveRefs, type BriefingBody } from './body.js'
 import { buildDigest } from './digest.js'
 import { generateBriefing, systemPrompt } from './deepseek.js'
+import { resurfaceNote } from './resurface.js'
 import { digestWindowStart } from './window.js'
 import {
   briefingLanguage,
@@ -109,6 +110,13 @@ export async function createBriefing(
     return lines.length > 0 ? [{ title, lines }] : []
   })
 
+  const resurface = isSourceEnabled(db, 'vault')
+    ? resurfaceNote(db, now, {
+        minAgeDays: 30,
+        exclude: (path) => isExcludedVaultPath(db, path),
+      })
+    : null
+
   const digest = buildDigest({
     since,
     now,
@@ -124,6 +132,7 @@ export async function createBriefing(
     driveChanges,
     extra,
     previousHeadline,
+    ...(resurface ? { resurface } : {}),
   })
 
   try {
