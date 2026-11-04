@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.3.0
+
+The briefing becomes something you can check. Every point can open the note, mail, file or pull
+request it came from, and the top line now says what kind of day it was before listing evidence.
+
+- The briefing is stored as a structured body — a headline, numbered points with their sources,
+  and one suggestion — instead of a block of text the model invented. DeepSeek is asked for JSON;
+  a plain answer still falls back to the old lines rather than an empty column.
+- Points carry links: a note opens in Obsidian, a file in Drive, a pull request on GitHub, a
+  message in Gmail. Points about an event or browsing stay plain text.
+- `Useful` and `Miss` under the briefing record a verdict in the database, so prompt changes can
+  be judged instead of guessed.
+- The stamp names the trigger and the window: `4 Nov, 08:00 · auto · 24 h`.
+- The briefing language is a setting (`Auto / Русский / English`) instead of a guess made from
+  the notes' alphabets.
+- One note saved five times is one line with the summed diff; each digest section is capped, so a
+  busy day no longer crowds out what needs attention.
+- Subjects, senders, file names and paths are flattened and cut before they reach the digest: a
+  subject cannot open a section of its own or hide behind zero-width characters.
+- Today's digest opens with yesterday's headline, so a stuck item is named as still stuck.
+- On a quiet day with nothing to report, the digest offers one genuinely old note worth revisiting
+  instead of inviting the model to invent five generalities.
+- Generating a briefing right after another one no longer posts feedback to a made-up id.
+
 ## 1.2.0
 
 - The browser launch overlay is gone: the desktop shell already shows its own splash, so the page
