@@ -4,6 +4,7 @@ import { buildAttention } from '../attention.js'
 import type { Source } from '../sources/types.js'
 import { buildDigest } from './digest.js'
 import { generateBriefing } from './deepseek.js'
+import { digestWindowStart } from './window.js'
 import {
   digestWindowHours,
   isExcludedVaultPath,
@@ -28,8 +29,11 @@ export async function createBriefing(
     | { created_at: string }
     | undefined
 
-  const windowStart = now.getTime() - digestWindowHours(db) * 3_600_000
-  const since = new Date(Math.max(last ? Date.parse(last.created_at) : 0, windowStart))
+  const since = digestWindowStart(
+    last ? new Date(last.created_at) : null,
+    now,
+    digestWindowHours(db),
+  )
 
   const vaultChanges = isSourceEnabled(db, 'vault')
     ? (db

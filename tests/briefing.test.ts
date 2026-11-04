@@ -4,8 +4,20 @@ import { loadConfig } from '../src/server/config.js'
 import { createBriefing } from '../src/server/briefing/index.js'
 import { BriefingError, generateBriefing } from '../src/server/briefing/deepseek.js'
 import { shouldCatchUp } from '../src/server/briefing/schedule.js'
+import { digestWindowStart } from '../src/server/briefing/window.js'
 
 const config = loadConfig({ DEEPSEEK_API_KEY: 'test-key' })
+
+test('digest window widens instead of shrinking', () => {
+  const now = new Date('2026-11-04T12:00:00.000Z')
+  expect(digestWindowStart(new Date('2026-11-04T11:55:00.000Z'), now, 24).toISOString()).toBe(
+    '2026-11-03T12:00:00.000Z',
+  )
+  expect(digestWindowStart(new Date('2026-11-01T12:00:00.000Z'), now, 24).toISOString()).toBe(
+    '2026-11-01T12:00:00.000Z',
+  )
+  expect(digestWindowStart(null, now, 24).toISOString()).toBe('2026-11-03T12:00:00.000Z')
+})
 
 test('401 from DeepSeek surfaces as BriefingError', async () => {
   const fetchFn = (async () => new Response('nope', { status: 401 })) as unknown as typeof fetch
