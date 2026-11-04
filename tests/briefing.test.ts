@@ -66,6 +66,31 @@ test('successful briefing is stored as a body and its markdown', async () => {
   expect(JSON.parse(row.digest_meta).headline).toBe('Quiet day')
 })
 
+test('the model, its token cost and a truncated answer reach the metadata', async () => {
+  const db = openDb(':memory:')
+  const fetchFn = (async () =>
+    new Response(
+      JSON.stringify({
+        choices: [
+          {
+            message: { content: '{"headline":"Day","bullets":[],"suggestion":""}' },
+            finish_reason: 'length',
+          },
+        ],
+        usage: { prompt_tokens: 1200, completion_tokens: 700 },
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    )) as unknown as typeof fetch
+
+  await createBriefing(db, [], config, { fetchFn })
+  const row = db.prepare('SELECT digest_meta FROM briefings').get() as { digest_meta: string }
+  expect(JSON.parse(row.digest_meta)).toMatchObject({
+    model: 'deepseek-chat',
+    usage: { prompt: 1200, completion: 700 },
+    truncated: true,
+  })
+})
+
 test('missing key refuses without calling the API', async () => {
   let called = false
   const fetchFn = (async () => {

@@ -33,6 +33,7 @@ Write the briefing ${LANGUAGE[language]}.${profile ? `\nAbout the person: ${prof
 export type BriefingAnswer = {
   raw: string
   usage: { prompt: number; completion: number } | null
+  finishReason: string | null
 }
 
 export async function generateBriefing(
@@ -60,7 +61,7 @@ export async function generateBriefing(
   if (!res.ok) throw new BriefingError(`DeepSeek responded ${res.status}`, res.status)
 
   const data = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>
+    choices?: Array<{ message?: { content?: string }; finish_reason?: string }>
     usage?: { prompt_tokens?: number; completion_tokens?: number }
   }
   const raw = data.choices?.[0]?.message?.content?.trim()
@@ -70,5 +71,6 @@ export async function generateBriefing(
     usage: data.usage
       ? { prompt: data.usage.prompt_tokens ?? 0, completion: data.usage.completion_tokens ?? 0 }
       : null,
+    finishReason: data.choices?.[0]?.finish_reason ?? null,
   }
 }

@@ -140,7 +140,7 @@ export async function createBriefing(
   })
 
   try {
-    const { raw } = await generateBriefing(
+    const { raw, usage, finishReason } = await generateBriefing(
       config.deepseekKey,
       digest.text,
       {
@@ -170,6 +170,8 @@ export async function createBriefing(
             : {}),
           sources: sources.map((source) => source.id),
           model: 'deepseek-chat',
+          ...(usage ? { usage } : {}),
+          ...(finishReason === 'length' ? { truncated: true } : {}),
         }),
         JSON.stringify(body),
       )
