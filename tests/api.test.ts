@@ -262,6 +262,53 @@ test('the briefing language is saved through settings and junk is refused', asyn
   await app.close()
 })
 
+test('feedback is stored, validated and tied to a real briefing', async () => {
+  const { app, db } = harness()
+  db.prepare(
+    `INSERT INTO briefings (id, created_at, trigger, markdown) VALUES (1, '2026-11-04T08:00:00.000Z', 'auto', '- one')`,
+  ).run()
+
+  const useful = await app.inject({
+    method: 'POST',
+    url: '/api/briefings/1/feedback',
+    payload: { value: 'useful' },
+  })
+  expect(useful.statusCode).toBe(200)
+  expect(
+    (db.prepare('SELECT feedback FROM briefings WHERE id = 1').get() as { feedback: string })
+      .feedback,
+  ).toBe('useful')
+
+  await app.inject({
+    method: 'POST',
+    url: '/api/briefings/1/feedback',
+    payload: { value: 'miss' },
+  })
+  expect(
+    (db.prepare('SELECT feedback FROM briefings WHERE id = 1').get() as { feedback: string })
+      .feedback,
+  ).toBe('miss')
+
+  const invalid = await app.inject({
+    method: 'POST',
+    url: '/api/briefings/1/feedback',
+    payload: { value: 'great' },
+  })
+  expect(invalid.statusCode).toBe(400)
+
+  const missing = await app.inject({
+    method: 'POST',
+    url: '/api/briefings/9999/feedback',
+    payload: { value: 'useful' },
+  })
+  expect(missing.statusCode).toBe(404)
+
+  // The page reads the verdict back from the list, so it survives a reload.
+  const list = await app.inject({ method: 'GET', url: '/api/briefings' })
+  expect(list.json().items[0].feedback).toBe('miss')
+  await app.close()
+})
+
 test('connections API saves, tests and reloads sources', async () => {  const db = openDb(':memory:')
   const config = loadConfig({ VAULT_PATH: root })
   let reloads = 0

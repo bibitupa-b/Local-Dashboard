@@ -993,6 +993,18 @@ a.station:hover .at {
   border-bottom-style: dotted;
 }
 
+/* The verdict on the briefing, in words: a pressed state, not a rating out of five. */
+.feedback {
+  display: flex;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.feedback .mini[aria-pressed="true"] {
+  border-color: var(--warm);
+  color: var(--warm);
+}
+
 .line {
   position: relative;
   min-width: 0;

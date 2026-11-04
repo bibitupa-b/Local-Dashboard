@@ -45,6 +45,7 @@ test('successful briefing is stored as a body and its markdown', async () => {
   )
 
   const result = await createBriefing(db, [], config, { fetchFn, trigger: 'manual' })
+  expect('id' in result && Number.isInteger(result.id)).toBe(true)
   expect('body' in result && result.body.headline).toBe('Quiet day')
   expect('markdown' in result && result.markdown).toBe('Quiet day\n- Alpha moved\nSuggestion: Open Alpha')
   const row = db.prepare('SELECT trigger, markdown, digest, body, digest_meta FROM briefings').get() as {

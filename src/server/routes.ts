@@ -211,7 +211,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     const items = (
       db
         .prepare(
-          'SELECT id, created_at, trigger, markdown, body, digest_meta FROM briefings ORDER BY id DESC LIMIT ?',
+          'SELECT id, created_at, trigger, markdown, body, digest_meta, feedback FROM briefings ORDER BY id DESC LIMIT ?',
         )
         .all(safeLimit) as Array<{
         id: number
@@ -220,9 +220,23 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
         markdown: string
         body: string | null
         digest_meta: string
+        feedback: string | null
       }>
     ).map((row) => ({ ...row, body: parseBody(row.body), digest_meta: parseMeta(row.digest_meta) }))
     return { items }
+  })
+
+  app.post('/api/briefings/:id/feedback', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const value = ((request.body ?? {}) as { value?: unknown }).value
+    if (value !== null && value !== 'useful' && value !== 'miss') {
+      return reply.code(400).send({ error: 'value must be useful, miss or null' })
+    }
+    const { changes } = db
+      .prepare('UPDATE briefings SET feedback = ? WHERE id = ?')
+      .run(value, Number(id))
+    if (changes === 0) return reply.code(404).send({ error: 'not found' })
+    return { ok: true }
   })
 
   let generating = false

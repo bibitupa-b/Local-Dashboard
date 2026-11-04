@@ -14,7 +14,9 @@ import {
 } from '../settings.js'
 
 export type BriefingTrigger = 'auto' | 'manual'
-export type BriefingResult = { markdown: string; body: BriefingBody } | { error: string }
+export type BriefingResult =
+  | { id: number; markdown: string; body: BriefingBody }
+  | { error: string }
 
 type Options = { trigger?: BriefingTrigger; now?: Date; fetchFn?: typeof fetch }
 
@@ -116,24 +118,26 @@ export async function createBriefing(
     )
     const body = resolveRefs(parseModelOutput(raw), digest.refs)
     const markdown = renderMarkdown(body)
-    db.prepare(
-      `INSERT INTO briefings (created_at, trigger, markdown, digest, digest_meta, body)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    ).run(
-      now.toISOString(),
-      opts.trigger ?? 'manual',
-      markdown,
-      digest.text,
-      JSON.stringify({
-        since: since.toISOString(),
-        until: now.toISOString(),
-        headline: body.headline,
-        sources: sources.map((source) => source.id),
-        model: 'deepseek-chat',
-      }),
-      JSON.stringify(body),
-    )
-    return { markdown, body }
+    const { lastInsertRowid } = db
+      .prepare(
+        `INSERT INTO briefings (created_at, trigger, markdown, digest, digest_meta, body)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        now.toISOString(),
+        opts.trigger ?? 'manual',
+        markdown,
+        digest.text,
+        JSON.stringify({
+          since: since.toISOString(),
+          until: now.toISOString(),
+          headline: body.headline,
+          sources: sources.map((source) => source.id),
+          model: 'deepseek-chat',
+        }),
+        JSON.stringify(body),
+      )
+    return { id: Number(lastInsertRowid), markdown, body }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
   }

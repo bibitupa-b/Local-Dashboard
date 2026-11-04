@@ -71,6 +71,7 @@ export type Briefing = {
   trigger: string
   markdown: string
   body: BriefingBody | null
+  feedback: 'useful' | 'miss' | null
   digest_meta?: { since?: string; until?: string; headline?: string }
 }
 export type CalendarEvent = {
@@ -154,9 +155,19 @@ export const api = {
     const res = await fetch('/api/sync', { method: 'POST' })
     if (!res.ok) throw new Error(`Sync failed (${res.status})`)
   },
-  generate: async (): Promise<{ markdown: string; body: BriefingBody } | { error: string }> => {
+  generate: async (): Promise<
+    { id: number; markdown: string; body: BriefingBody } | { error: string }
+  > => {
     const res = await fetch('/api/briefings/generate', { method: 'POST' })
     return res.json()
+  },
+  feedback: async (id: number, value: 'useful' | 'miss' | null): Promise<void> => {
+    const res = await fetch(`/api/briefings/${id}/feedback`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ value }),
+    })
+    if (!res.ok) throw new Error(`Feedback failed (${res.status})`)
   },
   saveSettings: async (body: {
     briefingHour?: number

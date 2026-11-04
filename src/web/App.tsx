@@ -244,6 +244,7 @@ export function App() {
   const [today, setToday] = useState<Today | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [busy, setBusy] = useState(false)
+  const [voting, setVoting] = useState(false)
   const [loaded, setLoaded] = useState(false)
   // The POST stays open for the whole sync, so this is the only local proof it started.
   const [syncPending, setSyncPending] = useState(false)
@@ -489,8 +490,27 @@ export function App() {
     setWelcome(false)
   }
 
-  async function generate() {
-    // One paid call at a time: a held key repeats and must not spend twice.
+  async function vote(id: number, value: 'useful' | 'miss') {
+    setVoting(true)
+    try {
+      await api.feedback(id, value)
+      setBriefings((items) =>
+        (items ?? []).map((item) => (item.id === id ? { ...item, feedback: value } : item)),
+      )
+      setLive(value === 'useful' ? 'Marked useful.' : 'Marked as missing the point.')
+    } catch (error) {
+      setNote({
+        text: `Feedback failed: ${friendlyError(
+          error instanceof Error ? error.message : String(error),
+        )}`,
+        tone: 'error',
+      })
+    } finally {
+      setVoting(false)
+    }
+  }
+
+  async function generate() {    // One paid call at a time: a held key repeats and must not spend twice.
     if (generating.current) return
     generating.current = true
     setBusy(true)
@@ -509,11 +529,12 @@ export function App() {
       } else {
         setBriefings((items) => [
           {
-            id: Date.now(),
+            id: result.id,
             created_at: new Date().toISOString(),
             trigger: 'manual',
             markdown: result.markdown,
             body: result.body,
+            feedback: null,
           },
           ...(items ?? []),
         ])
@@ -1119,8 +1140,30 @@ export function App() {
               )
             )}
 
-            {(briefings?.length ?? 0) > 1 && (
-              <details className="earlier">
+            {latest && !busy && (
+              <div className="feedback" role="group" aria-label="Was this briefing useful?">
+                <button
+                  type="button"
+                  className="mini"
+                  aria-pressed={latest.feedback === 'useful'}
+                  disabled={voting}
+                  onClick={() => void vote(latest.id, 'useful')}
+                >
+                  Useful
+                </button>
+                <button
+                  type="button"
+                  className="mini"
+                  aria-pressed={latest.feedback === 'miss'}
+                  disabled={voting}
+                  onClick={() => void vote(latest.id, 'miss')}
+                >
+                  Miss
+                </button>
+              </div>
+            )}
+
+            {(briefings?.length ?? 0) > 1 && (              <details className="earlier">
                 <summary>Earlier briefings</summary>
                 {(briefings ?? []).slice(1).map((briefing) => (
                   <article key={briefing.id}>

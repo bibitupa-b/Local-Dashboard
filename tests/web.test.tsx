@@ -327,6 +327,56 @@ test('the stamp names the trigger and the window it covers', async () => {
   unmount()
 })
 
+test('a briefing can be marked useful or miss and keeps the verdict', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const item = {
+    id: 9,
+    created_at: '2026-11-04T08:00:00.000Z',
+    trigger: 'auto',
+    markdown: '- one',
+    body: null,
+    feedback: null as string | null,
+  }
+  const posts: unknown[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/briefings/9/feedback' && init?.method === 'POST') {
+        posts.push(JSON.parse(String(init.body)))
+        item.feedback = 'useful'
+        return { ok: true, json: async () => ({ ok: true }) }
+      }
+      return {
+        ok: true,
+        json: async () =>
+          url === '/api/briefings?limit=10'
+            ? { items: [{ ...item }] }
+            : responses[url] ?? {},
+      }
+    }),
+  )
+  const { unmount } = render(<App />)
+  await waitFor(() => expect(screen.getByText('one')).toBeTruthy())
+
+  const useful = screen.getByRole('button', { name: 'Useful' })
+  const miss = screen.getByRole('button', { name: 'Miss' })
+  expect(useful.getAttribute('aria-pressed')).toBe('false')
+  fireEvent.click(useful)
+  await waitFor(() => expect(useful.getAttribute('aria-pressed')).toBe('true'))
+  expect(miss.getAttribute('aria-pressed')).toBe('false')
+  expect(posts).toEqual([{ value: 'useful' }])
+
+  // A fresh load reads the verdict back from the list: it survives the reload.
+  unmount()
+  const second = render(<App />)
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Useful' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    ),
+  )
+  second.unmount()
+})
+
 test('a failed generation is named on the page in Clay, with no retry button', async () => {
   localStorage.setItem('dashboard.welcomed', '1')
   const status = {
