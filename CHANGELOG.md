@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.5.0
+
+The briefing closes the day as well as opening it, reads a meeting's mail before you walk into it,
+and can be questioned. Every point now carries its own evidence, and a missing key leaves a plain
+list of what is waiting instead of an empty column.
+
+This is the first published build since 1.2.0; 1.3.0 and 1.4.0 are included and listed below.
+
+- An opt-in evening pass at 18:00 closes the day: what got closed, what carries over, and the first
+  action tomorrow. Sunday is skipped, because the weekly review already runs at that hour.
+- `Meetings` in the digest: for the next three events within 24 hours, the last mail from one of the
+  attendees within 30 days, named by sender and subject. Attendees are stored per event.
+- `Ask about this` under the briefing answers one question (up to 200 characters) from the digest
+  only; if the digest does not hold the answer, it says so.
+- Every point with a source can open `Why` — the exact digest lines it was drawn from, three at
+  most, without unrolling the whole digest.
+- A point's link counts as an open: earlier briefings name how many times their sources were opened.
+- Without a DeepSeek key the briefing is built from the attention queue alone: a headline, up to
+  five points and a first action, marked `rules` in its metadata. Provider errors are still shown as
+  failures, never replaced by this fallback.
+- The weekly review adds `Notes untouched 3+ weeks` and `Tasks open 3+ weeks`, and the prompt asks
+  for the stagnation once instead of repeating the counters.
+- `Briefing context` now means what matters and what not to show; the prompt is told to leave
+  requested things out entirely.
+- A resurfaced note waits 30 days before it comes back, even on a quiet week.
+- `Browser: N visits today` counts every visit, not only the top three domains.
+- Mail, GitHub and browser digest sections name their evidence without restating the counts the
+  attention queue already owns.
+
 ## 1.4.0
 
 The briefing gets a rhythm, a memory of its reader and a visible price. A failed request no longer
