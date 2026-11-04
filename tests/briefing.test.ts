@@ -26,6 +26,38 @@ test('401 from DeepSeek surfaces as BriefingError', async () => {
   await expect(generateBriefing('k', 'digest', { fetchFn })).rejects.toBeInstanceOf(BriefingError)
 })
 
+test('a 429 is retried and the second answer is kept', async () => {
+  let calls = 0
+  const fetchFn = (async () => {
+    calls++
+    if (calls === 1) return new Response('busy', { status: 429 })
+    return new Response(JSON.stringify({ choices: [{ message: { content: '- ok' } }] }), {
+      status: 200,
+    })
+  }) as unknown as typeof fetch
+
+  const result = await generateBriefing('k', 'digest', {
+    fetchFn,
+    delays: [0],
+    wait: async () => {},
+  })
+  expect(calls).toBe(2)
+  expect(result.raw).toBe('- ok')
+})
+
+test('a 401 is not retried', async () => {
+  let calls = 0
+  const fetchFn = (async () => {
+    calls++
+    return new Response('nope', { status: 401 })
+  }) as unknown as typeof fetch
+
+  await expect(
+    generateBriefing('k', 'digest', { fetchFn, delays: [0], wait: async () => {} }),
+  ).rejects.toMatchObject({ status: 401 })
+  expect(calls).toBe(1)
+})
+
 function answer(content: string): typeof fetch {
   return (async () =>
     new Response(JSON.stringify({ choices: [{ message: { content } }] }), {
