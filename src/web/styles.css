@@ -929,6 +929,12 @@ a.station:hover .at {
   color: var(--warm);
 }
 
+/* A failed generation is Clay, on the page rather than inside a raised panel. */
+.stamp.failed {
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
 .briefing-body {
   min-width: 0;
 }

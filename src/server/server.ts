@@ -207,8 +207,25 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const result = await createBriefing(db, sources, config, { trigger })
     if ('error' in result) {
       console.error('[briefing]', result.error)
+      const previous = getSetting(db, 'briefing_last_error')
+      setSetting(
+        db,
+        'briefing_last_error',
+        JSON.stringify({ at: new Date().toISOString(), message: result.error }),
+      )
+      // The 15-minute retry must not repeat the same alert on every attempt.
+      let previousMessage: string | null = null
+      try {
+        previousMessage = (JSON.parse(previous ?? '') as { message?: string }).message ?? null
+      } catch {
+        previousMessage = null
+      }
+      if (previousMessage !== result.error) {
+        send('Daily briefing failed', result.error.slice(0, 160))
+      }
       return
     }
+    setSetting(db, 'briefing_last_error', '')
     console.log('[briefing] generated')
     if (trigger === 'auto') {
       send('Daily briefing is ready', result.markdown.split('\n')[0]!.slice(0, 160))

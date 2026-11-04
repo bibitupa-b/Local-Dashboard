@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { buildApp } from '../src/server/app.js'
 import { loadConfig } from '../src/server/config.js'
-import { openDb } from '../src/server/db/index.js'
+import { openDb, setSetting } from '../src/server/db/index.js'
 import { createDriveSource } from '../src/server/sources/drive.js'
 import { createVaultSource } from '../src/server/sources/vault/index.js'
 
@@ -35,6 +35,32 @@ test('status reports configured sources and no briefing yet', async () => {
     { id: 'drive:default', configured: false, lastSync: null },
   ])
   expect(res.json().briefingToday).toBe(false)
+  await app.close()
+})
+
+test('status exposes the last briefing failure and ignores a broken value', async () => {
+  const { app, db } = harness()
+  const first = await app.inject({ method: 'GET', url: '/api/status' })
+  expect(first.json().briefingError).toBeNull()
+
+  setSetting(
+    db,
+    'briefing_last_error',
+    JSON.stringify({ at: '2026-11-04T05:00:00.000Z', message: 'DeepSeek responded 429' }),
+  )
+  const failed = await app.inject({ method: 'GET', url: '/api/status' })
+  expect(failed.json().briefingError).toEqual({
+    at: '2026-11-04T05:00:00.000Z',
+    message: 'DeepSeek responded 429',
+  })
+
+  setSetting(db, 'briefing_last_error', '')
+  const cleared = await app.inject({ method: 'GET', url: '/api/status' })
+  expect(cleared.json().briefingError).toBeNull()
+
+  setSetting(db, 'briefing_last_error', 'not json')
+  const broken = await app.inject({ method: 'GET', url: '/api/status' })
+  expect(broken.json().briefingError).toBeNull()
   await app.close()
 })
 

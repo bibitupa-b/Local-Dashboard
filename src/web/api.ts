@@ -18,7 +18,12 @@ export type SyncState = {
   done: number
   total: number
 }
-export type Status = { sources: SourceStatus[]; briefingToday: boolean; sync: SyncState }
+export type Status = {
+  sources: SourceStatus[]
+  briefingToday: boolean
+  briefingError: { at: string; message: string } | null
+  sync: SyncState
+}
 export type FeedItem = {
   source: 'vault' | 'drive'
   id?: number

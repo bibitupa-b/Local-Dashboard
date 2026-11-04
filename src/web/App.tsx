@@ -427,7 +427,9 @@ export function App() {
           { id: Date.now(), created_at: new Date().toISOString(), trigger: 'manual', markdown: result.markdown },
           ...(items ?? []),
         ])
-        setStatus((current) => (current ? { ...current, briefingToday: true } : current))
+        setStatus((current) =>
+          current ? { ...current, briefingToday: true, briefingError: null } : current,
+        )
         setGlow(true)
         setLive(`Briefing ready at ${time(new Date().toISOString())}.`)
       }
@@ -996,6 +998,12 @@ export function App() {
             </button>
             {latest && status && !status.briefingToday && (
               <span className="stamp missing">none for today yet</span>
+            )}
+            {status?.briefingError && (
+              <span className="stamp failed">
+                Briefing failed at {time(status.briefingError.at)}:{' '}
+                {friendlyError(status.briefingError.message)}
+              </span>
             )}
           </div>
 

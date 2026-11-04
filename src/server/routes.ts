@@ -118,6 +118,20 @@ function feed(db: DatabaseSync, days: number): Array<{ date: string; items: Feed
   return [...groups].map(([date, items]) => ({ date, items }))
 }
 
+/** A failed generation is remembered so the page can show it; a broken value reads as no failure. */
+function readBriefingError(db: DatabaseSync): { at: string; message: string } | null {
+  const raw = getSetting(db, 'briefing_last_error')
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as { at?: unknown; message?: unknown }
+    return typeof parsed.at === 'string' && typeof parsed.message === 'string'
+      ? { at: parsed.at, message: parsed.message }
+      : null
+  } catch {
+    return null
+  }
+}
+
 export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   const { db, config } = deps
   const sourceList = (): Source[] =>
@@ -142,6 +156,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
         ...(deps.health?.()[source.id] ?? { lastError: null, lastErrorAt: null, progress: null }),
       })),
       briefingToday: briefings.some((row) => new Date(row.created_at).toDateString() === today),
+      briefingError: readBriefingError(db),
       sync:
         deps.syncState?.() ?? {
           running: false,

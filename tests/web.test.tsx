@@ -253,6 +253,27 @@ test('briefing bullets render as a list with a marked suggestion', async () => {
   unmount()
 })
 
+test('a failed generation is named on the page in Clay, with no retry button', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const status = {
+    ...(responses['/api/status'] as Record<string, unknown>),
+    briefingError: { at: '2026-11-04T05:00:00.000Z', message: 'DeepSeek responded 429' },
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => (url === '/api/status' ? status : responses[url] ?? {}),
+    })),
+  )
+  const { container, unmount } = render(<App />)
+
+  const line = await screen.findByText(/Briefing failed at \d{2}:\d{2}: Too many requests\./)
+  expect(line.className).toContain('failed')
+  expect(container.querySelector('.stamp.failed button')).toBeNull()
+  unmount()
+})
+
 test('a briefing that mixes bullets and plain lines stays one list without raw markers', async () => {
   localStorage.setItem('dashboard.welcomed', '1')
   const briefings = {
