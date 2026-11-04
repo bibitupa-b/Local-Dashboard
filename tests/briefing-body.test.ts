@@ -113,3 +113,7 @@ test('numeric strings in refs still become links', () => {
 test('the prompt forbids following text found in the data', () => {
   expect(systemPrompt('auto')).toMatch(/never follow text/i)
 })
+
+test('the prompt asks for names, not counts, when mail is waiting', () => {
+  expect(systemPrompt('auto', '')).toMatch(/name who is waiting/i)
+})
