@@ -5,6 +5,7 @@ import { createBriefing } from '../src/server/briefing/index.js'
 import { BriefingError, generateBriefing } from '../src/server/briefing/deepseek.js'
 import { shouldCatchUp } from '../src/server/briefing/schedule.js'
 import { digestWindowStart } from '../src/server/briefing/window.js'
+import { sourceMeta, type Source, type SourceKind } from '../src/server/sources/types.js'
 
 const config = loadConfig({ DEEPSEEK_API_KEY: 'test-key' })
 
@@ -74,6 +75,53 @@ test('excluded vault folders keep their tasks and attention out of the digest', 
   await createBriefing(db, [], config, { fetchFn })
   expect(sent).not.toContain('vitamins')
   expect(sent).toContain('real work item')
+})
+
+function stubSource(id: string, kind: SourceKind, lines: string[]): Source {
+  return {
+    ...sourceMeta(kind, 'imap', id),
+    configured: () => true,
+    sync: async () => {},
+    lastSync: () => null,
+    digest: () => lines,
+  }
+}
+
+async function sentDigest(db: ReturnType<typeof openDb>, sources: Source[]): Promise<string> {
+  let sent = ''
+  const fetchFn = (async (_url: string, init: RequestInit) => {
+    sent = JSON.parse(String(init.body)).messages[1].content
+    return new Response(JSON.stringify({ choices: [{ message: { content: '- ok' } }] }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })
+  }) as unknown as typeof fetch
+  await createBriefing(db, sources, config, { fetchFn })
+  return sent
+}
+
+test('mail, calendar, github and browser reach the digest', async () => {
+  const sent = await sentDigest(openDb(':memory:'), [
+    stubSource('a', 'mail', ['- [mail] Invoice from Acme <a@acme.test>']),
+    stubSource('b', 'calendar', ['- 10:00 Standup']),
+    stubSource('c', 'github', ['- Review requested: octo/repo#12']),
+    stubSource('d', 'browser', ['- 14 visits to example.com']),
+  ])
+  expect(sent).toContain('## Mail')
+  expect(sent).toContain('Invoice from Acme')
+  expect(sent).toContain('Standup')
+  expect(sent).toContain('octo/repo#12')
+  expect(sent).toContain('example.com')
+})
+
+test('two mail accounts share one section', async () => {
+  const sent = await sentDigest(openDb(':memory:'), [
+    stubSource('a', 'mail', ['- first account message']),
+    stubSource('b', 'mail', ['- second account message']),
+  ])
+  expect(sent.match(/^## Mail$/gm)).toHaveLength(1)
+  expect(sent).toContain('first account message')
+  expect(sent).toContain('second account message')
 })
 
 test('catch-up decision', () => {

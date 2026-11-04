@@ -16,6 +16,9 @@ export type BriefingResult = { markdown: string } | { error: string }
 
 type Options = { trigger?: BriefingTrigger; now?: Date; fetchFn?: typeof fetch }
 
+/** One digest section per source kind, however many accounts feed it. */
+const EXTRA_TITLES = { mail: 'Mail', calendar: 'Calendar', browser: 'Browser', github: 'GitHub' }
+
 export async function createBriefing(
   db: DatabaseSync,
   sources: Source[],
@@ -72,26 +75,25 @@ export async function createBriefing(
       (!item.path || !isExcludedVaultPath(db, item.path)),
   )
 
+  const extra = Object.entries(EXTRA_TITLES).flatMap(([kind, title]) => {
+    if (!isSourceEnabled(db, kind)) return []
+    const lines = [
+      ...new Set(
+        sources
+          .filter((source) => source.kind === kind && source.configured())
+          .flatMap((source) => source.digest(db, since)),
+      ),
+    ]
+    return lines.length > 0 ? [{ title, lines }] : []
+  })
+
   const digest = buildDigest({
     since,
     vaultChanges,
     tasks: tasks.map((task) => ({ text: task.text, done: task.done === 1, tag: task.tag })),
     attention,
     driveChanges,
-    extra: sources
-      .filter((source) => ['mail', 'calendar', 'browser', 'github'].includes(source.id) && source.configured())
-      .filter((source) => isSourceEnabled(db, source.kind))
-      .map((source) => ({
-        title:
-          source.id === 'mail'
-            ? 'Mail'
-            : source.id === 'calendar'
-              ? 'Calendar'
-              : source.id === 'browser'
-                ? 'Browser'
-                : 'GitHub',
-        lines: source.digest(db, since),
-      })),
+    extra,
   })
 
   try {
