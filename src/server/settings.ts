@@ -65,6 +65,12 @@ export function digestWindowHours(db: DatabaseSync): number {
   return value > 0 ? value : 24
 }
 
+export const MAX_PROFILE_CHARS = 500
+
+export function briefingProfile(db: DatabaseSync): string {
+  return (getSetting(db, 'briefing_profile') ?? '').slice(0, MAX_PROFILE_CHARS)
+}
+
 export function isSourceEnabled(db: DatabaseSync, id: string): boolean {
   const enabled = getList(db, 'enabled_sources')
   return enabled.length === 0 || enabled.includes(id.toLowerCase())

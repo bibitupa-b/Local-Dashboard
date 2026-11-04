@@ -111,6 +111,7 @@ export type Settings = {
   githubConnected: boolean
   digestWindowHours: number
   briefingLanguage: 'auto' | 'ru' | 'en'
+  briefingProfile: string
   enabledSources: string[]
   dataDir: string
 }
@@ -177,6 +178,7 @@ export const api = {
     excludedBrowserDomains?: string[]
     digestWindowHours?: number
     briefingLanguage?: 'auto' | 'ru' | 'en'
+    briefingProfile?: string
     enabledSources?: string[]
   }): Promise<void> => {
     await fetch('/api/settings', {

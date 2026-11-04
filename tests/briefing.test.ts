@@ -134,6 +134,22 @@ test('missing key refuses without calling the API', async () => {
   expect(called).toBe(false)
 })
 
+test('the reader profile reaches the prompt', async () => {
+  const db = openDb(':memory:')
+  setSetting(db, 'briefing_profile', 'Works on graphics tools.')
+  let system = ''
+  const fetchFn = (async (_url: string, init: RequestInit) => {
+    system = JSON.parse(String(init.body)).messages[0].content
+    return new Response(JSON.stringify({ choices: [{ message: { content: '- ok' } }] }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })
+  }) as unknown as typeof fetch
+
+  await createBriefing(db, [], config, { fetchFn })
+  expect(system).toContain('About the reader: Works on graphics tools.')
+})
+
 test('excluded vault folders keep their tasks and attention out of the digest', async () => {
   const db = openDb(':memory:')
   setSetting(db, 'vault_excluded_prefixes', '02 areas/💪 body and health')

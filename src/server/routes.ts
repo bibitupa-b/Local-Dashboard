@@ -10,7 +10,9 @@ import type { HealthMap, SyncState } from './health.js'
 import { getSetting, setSetting } from './db/index.js'
 import {
   LIST_KEYS,
+  MAX_PROFILE_CHARS,
   briefingLanguage,
+  briefingProfile,
   digestWindowHours,
   getList,
   normalizeVaultPrefixes,
@@ -348,6 +350,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       ),
       digestWindowHours: digestWindowHours(db),
       briefingLanguage: briefingLanguage(db),
+      briefingProfile: briefingProfile(db),
       enabledSources: getList(db, 'enabled_sources'),
       dataDir: config.dataDir,
     }
@@ -401,6 +404,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       excludedBrowserDomains?: string[]
       digestWindowHours?: number
       briefingLanguage?: string
+      briefingProfile?: string
       enabledSources?: string[]
     }
     if (typeof body.briefingHour === 'number' && body.briefingHour >= 0 && body.briefingHour <= 23) {
@@ -424,6 +428,9 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     }
     if (body.briefingLanguage && ['auto', 'ru', 'en'].includes(body.briefingLanguage)) {
       setSetting(db, 'briefing_language', body.briefingLanguage)
+    }
+    if (typeof body.briefingProfile === 'string') {
+      setSetting(db, 'briefing_profile', body.briefingProfile.slice(0, MAX_PROFILE_CHARS))
     }
     return { ok: true }
   })

@@ -9,6 +9,7 @@ import { resurfaceNote } from './resurface.js'
 import { digestWindowStart } from './window.js'
 import {
   briefingLanguage,
+  briefingProfile,
   digestWindowHours,
   isExcludedVaultPath,
   isSourceEnabled,
@@ -145,7 +146,7 @@ export async function createBriefing(
       digest.text,
       {
         ...(opts.fetchFn ? { fetchFn: opts.fetchFn } : {}),
-        system: systemPrompt(briefingLanguage(db)),
+        system: systemPrompt(briefingLanguage(db), briefingProfile(db)),
       },
     )
     const body = resolveRefs(parseModelOutput(raw), digest.refs)

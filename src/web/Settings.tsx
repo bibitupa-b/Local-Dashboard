@@ -283,6 +283,11 @@ export function SettingsPanel({
     remember({ briefingLanguage: value })
   })
 
+  const profile = useLiveSave(settings.briefingProfile, async (value) => {
+    await api.saveSettings({ briefingProfile: value })
+    remember({ briefingProfile: value })
+  })
+
   const senders = useLiveSave(settings.excludedSenders.join('\n'), async (raw) => {
     const list = lines(raw)
     await api.saveSettings({ excludedSenders: list })
@@ -309,7 +314,7 @@ export function SettingsPanel({
     },
   )
 
-  const fields = [hour, windowHours, language, senders, vaultPrefixes, browserDomains, sources]
+  const fields = [hour, windowHours, language, profile, senders, vaultPrefixes, browserDomains, sources]
   const receipts = fields.map((field) => field.receipt)
   const unsaved = receipts.filter((receipt) => receipt?.state === 'error').length
   const saving = receipts.some((receipt) => receipt?.state === 'saving')
@@ -592,6 +597,21 @@ export function SettingsPanel({
               <option value="ru">Русский</option>
               <option value="en">English</option>
             </select>
+          </div>
+
+          <div className="pref">
+            <div className="pref-head">
+              <label htmlFor="pref-profile">Briefing context (what the briefing should know about you)</label>
+              <FieldNote receipt={profile.receipt} onRetry={profile.retry} />
+            </div>
+            <textarea
+              id="pref-profile"
+              rows={3}
+              maxLength={500}
+              placeholder="I work on graphics tools. Don't suggest sport."
+              value={profile.draft}
+              onChange={(event) => profile.edit(event.target.value)}
+            />
           </div>
 
           <div className="pref">

@@ -2,6 +2,8 @@ import { expect, test } from 'vitest'
 import { parseModelOutput, renderMarkdown, resolveRefs } from '../src/server/briefing/body.js'
 import { systemPrompt } from '../src/server/briefing/deepseek.js'
 import type { DigestRef } from '../src/server/briefing/digest.js'
+import { openDb, setSetting } from '../src/server/db/index.js'
+import { briefingProfile } from '../src/server/settings.js'
 
 const refs = new Map<number, DigestRef>([
   [1, { kind: 'note', label: 'Alpha', path: '01 Projects/Alpha.md' }],
@@ -96,7 +98,19 @@ test('the prompt names the chosen briefing language', () => {
 })
 
 test('a profile of the person still reaches the prompt', () => {
-  expect(systemPrompt('en', 'Works on graphics tools.')).toContain('Works on graphics tools.')
+  expect(systemPrompt('en', 'Works on graphics tools.')).toContain(
+    'About the reader: Works on graphics tools.',
+  )
+})
+
+test('an empty profile adds nothing to the prompt', () => {
+  expect(systemPrompt('en', '')).not.toContain('About the reader:')
+})
+
+test('a 600-character profile is cut to 500', () => {
+  const db = openDb(':memory:')
+  setSetting(db, 'briefing_profile', 'x'.repeat(600))
+  expect(briefingProfile(db)).toHaveLength(500)
 })
 
 test('numeric strings in refs still become links', () => {
