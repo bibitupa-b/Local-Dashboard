@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.7.0
+
+A pass over the details: search now reaches every result from the keyboard, content in Russian is
+read as Russian, and the small interactive pieces stop getting in the way.
+
+- **Search** — a final `Search all for “…”` row sits in the suggestion list and is reachable with
+  the arrow keys; `Ctrl`/`Cmd`+`Enter` runs the full search from anywhere in the field, `Enter` on
+  the row opens the results, and typing again resets the selection.
+- **Language** — text that comes from your notes, mail, calendar, Drive, briefings and connections
+  declares its own `lang`, so Russian content is no longer announced with English phonetics. The
+  interface itself stays English.
+- **Accessibility** — one `h1` per route, section labels are `h2`s, the invisible search submit is
+  out of the tab order, the focus ring appears only for keyboard navigation, and the settings
+  navigation marks the current section with `aria-current`.
+- **Settings** — connection dialogs share the standard modal body and action footer, fields are
+  tied to their labels, and the saved-secret hint is announced with its field. Moving between
+  dashboard and settings returns the page to the top.
+- **Compact layout** — the sync button keeps an icon that turns amber while running and coral after
+  a failure, and drops the progress bar it cannot fit.
+- The dashboard brand is no longer a button that does nothing when it is already the current page.
+
 ## 1.6.0
 
 The interface becomes an Aurora Glass shell: one frameless window on a slow aurora, a source rail
