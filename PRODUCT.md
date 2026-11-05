@@ -37,9 +37,11 @@ cloud account behind it.
 
 - Windows desktop first, used at the start of the workday: 08:00 briefing with catch-up on start,
   plus ad hoc glances when something feels unfiled.
-- Electron window with tray, native notifications and optional autostart. Closing the window hides
-  to the tray. Packaged data lives in `%APPDATA%\Local Dashboard\data`; `.env` is optional and
-  imported once, then connections are managed in the settings screen.
+- Electron window with tray, native notifications and optional autostart. The Aurora Glass shell
+  (implementation in progress) is frameless with a custom title bar and remembers its size, position
+  and maximized state. Closing the window hides to the tray. Packaged data lives in
+  `%APPDATA%\Local Dashboard\data`; `.env` is optional and imported once, then connections are managed
+  in the settings screen.
 - Sources are real, user-owned accounts: an Obsidian vault with non-ASCII folder names, Gmail over
   IMAP with an app password, a self-created Google Cloud OAuth desktop client kept in Production,
   a GitHub token with `notifications`, and a local Chrome/Edge/Helium history database.
@@ -72,8 +74,9 @@ IDLE, weekly review and vault write-back are roadmap items, not current behaviou
 ## Brand Commitments
 
 - Name: **Local Dashboard** (product name, appId `com.bibitupa.localdashboard`), MIT.
-- Visual language is pinned in `DESIGN.md`: dark only, canonical palette, motion that reports
-  state. Treat it as binding for refinements; a replacement world needs explicit intent.
+- Visual language is pinned in `DESIGN.md`: **Aurora Glass** — dark only, glass shell, an aurora
+  environment, amber/mint/ice/coral semantics, motion that reports state. Approved as a replacement
+  world on 2026-11-04; treat it as binding for refinements.
 - Typography: Unbounded for display, Onest for body, both self-hosted in `src/web/fonts` under the
   SIL Open Font License. Cyrillic coverage is required.
 - Voice in the interface is plain and factual — statuses, counts, timestamps, no marketing tone.
@@ -83,7 +86,7 @@ IDLE, weekly review and vault write-back are roadmap items, not current behaviou
 - `README.md` — product claims, install paths, source table, privacy section, troubleshooting table.
 - `docs/screenshots/current/` — real captures of dashboard, activity, diff, search, settings,
   connection modal, confirm dialog, with `index.html` as the gallery.
-- `DESIGN.md` (30 KB), `SECURITY.md`, `CHANGELOG.md`, `AGENTS.md`, `LICENSE`.
+- `DESIGN.md` (visual language), `SECURITY.md`, `CHANGELOG.md`, `AGENTS.md`, `LICENSE`.
 - `docs/superpowers/plans/` — the build plan and the 0.8.0 redesign plan.
 - Public repo `bibitupa-b/Local-Dashboard` with tagged releases.
 
@@ -94,7 +97,7 @@ customer logos, uptime or performance claims.
 
 1. Sources are the truth. The model sees a digest, never the source.
 2. Show the delta and the backlog; never build a second inbox.
-3. Keep the main screen quiet: the briefing owns the page, with one start count, the services line
-   and today above it — configuration lives on its own route.
+3. Keep the main screen quiet: the briefing owns the page, with one start count, the source rail
+   and today around it — configuration lives in the same shell on its own route.
 4. A self-hoster must be able to diagnose and fix it from the README and the diagnostics alone.
 5. Read-only, one machine, one person. Any feature that needs a server in the middle is out of scope.

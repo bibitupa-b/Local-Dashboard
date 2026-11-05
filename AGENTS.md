@@ -63,9 +63,9 @@ These were agreed with the user; do not re-litigate them without asking.
 - Desktop shell is Electron: it embeds the existing Node server rather than requiring a system Node install. Packaged data lives in `%APPDATA%\Local Dashboard\data`; `.env` is copied there by the user, never bundled.
 - Services are configured as connections (multiple accounts per service allowed) through the settings screen; `.env` is imported once and remains a CLI fallback. DeepSeek stays a single global key.
 - Read-only everywhere. Never write to notes, the vault, or Drive.
-- The dashboard is one page: the briefing owns it, with one "start here" count derived from the
-  attention rules below, the connected services as a single line (which is also the sync progress),
-  today's calendar and settings. The activity feed and the attention queue left the screen by the
+- The dashboard is one page inside a desktop shell: the briefing owns it, with one "start here" count derived from the
+  attention rules below, the connected services as a vertical source rail (which is also the sync
+  progress), today's calendar and settings. The activity feed and the attention queue left the screen by the
   user's decision on 2026-11-03; `/api/attention` and `/api/feed` still exist as data sources.
 - Sources for phase 1: the Obsidian vault, Google Drive, Gmail (read-only IMAP) and Google Calendar.
 - Mail keeps message bodies for 90 days; older messages keep headers and subject only. Attachments are never downloaded, only their names are stored.
@@ -74,7 +74,10 @@ These were agreed with the user; do not re-litigate them without asking.
 - Scheduled 08:00 by default; generate on startup if today's briefing is missing.
 - Attention queue rules: open tasks grouped by tag (recurring tags such as `#vitamins` collapse into one row with a count), notes with frontmatter `status: Undone` untouched for 14+ days, notes sitting in `Inbox` for 3+ days, unread mail from the last 30 days and the next calendar event.
 - Autostart is managed by Electron (`app.setLoginItemSettings`), toggled from the tray.
-- Visual language follows `DESIGN.md`: dark only, canonical palette, motion that reports state. Display type is Unbounded, body is Onest (OFL, self-hosted in `src/web/fonts`).
+- Visual language follows `DESIGN.md`: **Aurora Glass** — dark only, a frameless glass shell on a
+  slowly drifting aurora, amber/mint/ice/coral semantics, motion that reports state. Onest carries
+  reading and display, Unbounded is the brand/number face, mono is the system stack; Onest and
+  Unbounded are self-hosted in `src/web/fonts` (OFL).
 
 ## Data model
 
@@ -143,5 +146,8 @@ Each item: test → code → green run → commit; release bumps the version, ta
 - **Windows is the primary target.** Use `path.join`, handle non-ASCII paths (the vault uses Cyrillic and emoji folder names), read and write UTF-8.
 - **Minimal dependencies.** Standard library and existing packages first; no ORM, no state manager, no UI framework — the interface is plain React and one CSS file.
 - **Tests for the logic that can silently break:** task extraction, diffing, digest assembly, change detection. Vitest, colocated as `*.test.ts`.
-- **Keep the main screen quiet.** One page: the briefing at the measure, with one start count, the services line and today above it. No lists, no cards on this route; configuration lives on its own settings route.
+- **Keep the main screen quiet.** One page inside the shell: the briefing at the measure, with one
+  start count, the source rail and today around it. No activity feed, no attention queue, no
+  unbounded lists; configuration lives in the same shell on its own route. The panels are structure,
+  not a card grid — see `DESIGN.md`.
 - **Get a full design document before large new phases.** Phase-1 decisions live in this file; deeper design docs go to `docs/`.

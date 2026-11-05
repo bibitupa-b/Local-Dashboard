@@ -7,6 +7,9 @@ related_targets: []
 
 # Surface brief — the dashboard
 
+> **Superseded 2026-11-04.** The Aurora Glass direction in `DESIGN.md` replaces this surface brief.
+> Kept for history. Do not implement from this file.
+
 **Scope:** the dashboard route only (`/`); Settings keeps its cards and forms.
 **Mode:** Operate. The visitor reads a briefing, checks that the machine is in order, and leaves.
 
