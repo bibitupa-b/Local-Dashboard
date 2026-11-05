@@ -9,6 +9,7 @@ import {
 } from './api.js'
 import { friendlyError } from './errors.js'
 import { useDialog, useLeaving } from './useDialog.js'
+import { WALLPAPERS } from './wallpapers.js'
 
 type FieldDef = {
   key: string
@@ -293,6 +294,11 @@ export function SettingsPanel({
     remember({ eveningPass: value })
   })
 
+  const wallpaper = useLiveSave(settings.wallpaper, async (value) => {
+    await api.saveSettings({ wallpaper: value })
+    remember({ wallpaper: value })
+  })
+
   const senders = useLiveSave(settings.excludedSenders.join('\n'), async (raw) => {
     const list = lines(raw)
     await api.saveSettings({ excludedSenders: list })
@@ -319,7 +325,7 @@ export function SettingsPanel({
     },
   )
 
-  const fields = [hour, windowHours, evening, language, profile, senders, vaultPrefixes, browserDomains, sources]
+  const fields = [hour, windowHours, evening, language, profile, senders, vaultPrefixes, browserDomains, sources, wallpaper]
   const receipts = fields.map((field) => field.receipt)
   const unsaved = receipts.filter((receipt) => receipt?.state === 'error').length
   const saving = receipts.some((receipt) => receipt?.state === 'saving')
@@ -355,6 +361,27 @@ export function SettingsPanel({
     const timer = setTimeout(() => setNotice(null), 6000)
     return () => clearTimeout(timer)
   }, [notice])
+
+  useEffect(() => {
+    const root = document.querySelector<HTMLElement>('.stage')
+    const sections = [...document.querySelectorAll<HTMLElement>('.settings-content .card')]
+    const links = [...document.querySelectorAll<HTMLAnchorElement>('.settings-nav__link')]
+    if (!root || sections.length === 0) return undefined
+    const update = () => {
+      const line = root.getBoundingClientRect().top + 96
+      const current = sections.filter((section) => section.getBoundingClientRect().top <= line).at(-1)
+      for (const link of links) {
+        link.classList.toggle('is-active', link.getAttribute('href') === `#${current?.id}`)
+      }
+    }
+    update()
+    root.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    return () => {
+      root.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [])
 
   async function test(connection: Connection) {
     setTests((current) => ({ ...current, [connection.id]: 'testing…' }))
@@ -410,23 +437,37 @@ export function SettingsPanel({
     <div className="settings-page">
       <header className="settings-head">
         <div>
-          <h1>Settings</h1>
-          <p className="sub">Stored on this machine. Only the briefing digest leaves it.</p>
+          <h1 className="page-title">Settings</h1>
+          <p className="settings-head__sub">Stored on this machine. Only the briefing digest leaves it.</p>
         </div>
-        <button className="ghost" type="button" onClick={onClose}>
+        <button className="btn btn--ghost btn--pill" type="button" onClick={onClose}>
           Back to dashboard
         </button>
       </header>
 
-      {notice && (
-        <p className={`note ${notice.tone}`} role="status" aria-live="polite">
-          {notice.text}
-        </p>
-      )}
+      <div className="settings-layout">
+        <nav className="settings-nav" aria-label="Settings sections">
+          <a className="settings-nav__link is-active" href="#section-connections">
+            Connections
+          </a>
+          <a className="settings-nav__link" href="#section-application">
+            Application
+          </a>
+          <a className="settings-nav__link" href="#section-preferences">
+            Preferences
+          </a>
+        </nav>
 
-      <section className="card">
-        <h2>Connections</h2>
-        <p className="sub">
+        <div className="settings-content">
+          {notice && (
+            <p className={`note ${notice.tone}`} role="status" aria-live="polite">
+              {notice.text}
+            </p>
+          )}
+
+      <section className="card" id="section-connections">
+        <h2 className="card__title">Connections</h2>
+        <p className="card__sub">
           DeepSeek key: {settings.hasDeepSeekKey ? 'configured' : 'not set — add it under DeepSeek API'}
         </p>
         {SERVICES.map((definition) => {
@@ -439,7 +480,7 @@ export function SettingsPanel({
                 </h3>
                 <button
                   type="button"
-                  className="ghost mini"
+                  className="btn btn--ghost btn--mini"
                   onClick={() => setEditing({ service: definition.service })}
                 >
                   {rows.length > 0 ? '+ Add account' : 'Connect'}
@@ -457,12 +498,12 @@ export function SettingsPanel({
                     <span className="label">{row.label}</span>
                     <span className="detail">{detailOf(row)}</span>
                     <span className="conn-actions">
-                      <button type="button" className="ghost mini" onClick={() => void test(row)}>
+                      <button type="button" className="btn btn--ghost btn--mini" onClick={() => void test(row)}>
                         Test
                       </button>
                       <button
                         type="button"
-                        className="ghost mini"
+                        className="btn btn--ghost btn--mini"
                         onClick={() => setEditing({ service: definition.service, connection: row })}
                       >
                         Edit
@@ -470,14 +511,14 @@ export function SettingsPanel({
                       {definition.service === 'google' &&
                         (row.secretsSet.includes('tokens') ? (
                           <a
-                            className="ghost mini"
+                            className="btn btn--ghost btn--mini"
                             href={`/api/oauth/google/start?connection=${row.id}`}
                           >
                             Reconnect
                           </a>
                         ) : (
                           <a
-                            className="ghost mini"
+                            className="btn btn--ghost btn--mini"
                             href={`/api/oauth/google/start?connection=${row.id}`}
                           >
                             Connect
@@ -485,7 +526,7 @@ export function SettingsPanel({
                         ))}
                       <button
                         type="button"
-                        className="danger mini"
+                        className="btn btn--danger btn--mini"
                         onClick={() => setConfirming(row)}
                       >
                         Disconnect
@@ -508,26 +549,26 @@ export function SettingsPanel({
         })}
       </section>
 
-      <section className="card">
-        <h2>Application</h2>
-        <p className="sub">
+      <section className="card" id="section-application">
+        <h2 className="card__title">Application</h2>
+        <p className="card__sub">
           Database, logs and backups live in <span className="detail">{settings.dataDir}</span>.
         </p>
         <div className="row">
           {window.dashboard && (
             <button
               type="button"
-              className="ghost"
+              className="btn btn--ghost"
               onClick={() => window.dashboard?.openDataFolder()}
             >
               Open data folder
             </button>
           )}
-          <button type="button" className="ghost" onClick={() => void copyDiagnostics()}>
+          <button type="button" className="btn btn--ghost" onClick={() => void copyDiagnostics()}>
             Copy diagnostics
           </button>
           <a
-            className="ghost mini"
+            className="btn btn--ghost btn--mini"
             href="https://github.com/bibitupa-b/Local-Dashboard/releases/latest"
             target="_blank"
             rel="noreferrer"
@@ -535,7 +576,7 @@ export function SettingsPanel({
             Check for updates
           </a>
           {window.dashboard && (
-            <button type="button" className="danger" onClick={() => window.dashboard?.quit()}>
+            <button type="button" className="btn btn--danger" onClick={() => window.dashboard?.quit()}>
               Quit application
             </button>
           )}
@@ -548,9 +589,9 @@ export function SettingsPanel({
         )}
       </section>
 
-      <section className="card settings" aria-labelledby="preferences">
+      <section className="card settings" id="section-preferences" aria-labelledby="preferences">
         <div className="card-head">
-          <h2 id="preferences">Preferences</h2>
+          <h2 id="preferences" className="card__title">Preferences</h2>
           <span className={`save-state${unsaved > 0 ? ' bad' : ''}`} role="status" aria-live="polite">
             {saveState}
           </span>
@@ -676,6 +717,36 @@ export function SettingsPanel({
             />
           </div>
 
+          <div className="pref pref--wide">
+            <div className="pref-head">
+              <span className="field-label">App background</span>
+              <FieldNote receipt={wallpaper.receipt} onRetry={wallpaper.retry} />
+            </div>
+            <div className="wallpapers" role="radiogroup" aria-label="App background">
+              {WALLPAPERS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={wallpaper.draft === item.id}
+                  className={`wallpaper${wallpaper.draft === item.id ? ' is-active' : ''}${
+                    item.id === 'aurora' ? ' wallpaper--aurora' : ''
+                  }`}
+                  onClick={() => wallpaper.edit(item.id)}
+                  title={item.title}
+                >
+                  {item.thumb ? (
+                    <img src={item.thumb} alt="" loading="lazy" />
+                  ) : (
+                    <span className="wallpaper__aurora" aria-hidden="true" />
+                  )}
+                  <span className="wallpaper__name">{item.title}</span>
+                </button>
+              ))}
+            </div>
+            <p className="sub">The image sits behind the glass; Aurora stays the default.</p>
+          </div>
+
           <fieldset className="sources">
             <legend>Sources in the briefing</legend>
             {Object.entries(SOURCE_LABELS).map(([source, label]) => (
@@ -702,6 +773,8 @@ export function SettingsPanel({
           </div>
         </div>
       </section>
+        </div>
+      </div>
 
       {/* A dialog is not page content: it leaves the Settings landmark, so `<main>` holds only the route. */}
       {editing &&
@@ -891,10 +964,10 @@ function ConnectionForm({
           </p>
         )}
         <div className="row">
-          <button type="submit" className="primary">
+          <button type="submit" className="btn btn--primary">
             {connection ? 'Save changes' : 'Add connection'}
           </button>
-          <button type="button" className="ghost" onClick={() => close(onClose)}>
+          <button type="button" className="btn btn--ghost" onClick={() => close(onClose)}>
             Cancel
           </button>
         </div>
@@ -940,10 +1013,10 @@ function ConfirmDialog({
         <h2>{title}</h2>
         <p id={messageId}>{message}</p>
         <div className="row">
-          <button type="button" className="ghost" onClick={cancel}>
+          <button type="button" className="btn btn--ghost" onClick={cancel}>
             Cancel
           </button>
-          <button type="submit" className="danger">
+          <button type="submit" className="btn btn--danger">
             {confirmLabel}
           </button>
         </div>

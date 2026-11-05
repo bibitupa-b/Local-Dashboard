@@ -116,6 +116,7 @@ export type Settings = {
   briefingProfile: string
   eveningPass: boolean
   enabledSources: string[]
+  wallpaper: string
   dataDir: string
 }
 
@@ -199,6 +200,7 @@ export const api = {
     briefingProfile?: string
     eveningPass?: boolean
     enabledSources?: string[]
+    wallpaper?: string
   }): Promise<void> => {
     await fetch('/api/settings', {
       method: 'PUT',

@@ -15,6 +15,59 @@ import { friendlyError } from './errors.js'
 import { briefingLang } from './lang.js'
 import { driveUrl, mailUrl, obsidianUrl, sourceUrl } from './links.js'
 import { dialogOpen, useDialog, useLeaving } from './useDialog.js'
+import { wallpaperById } from './wallpapers.js'
+
+function SourceGlyph({ service }: { service: string }) {
+  const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  return (
+    <svg className="od-icon rail__icon" viewBox="0 0 24 24" aria-hidden="true">
+      {service === 'vault' && (
+        <>
+          <path d="M6.5 3.5h8l4 4V20a1.2 1.2 0 0 1-1.2 1.2H6.5A1.2 1.2 0 0 1 5.3 20V4.7a1.2 1.2 0 0 1 1.2-1.2z" {...common} />
+          <path d="M14.2 3.6V8h4.1M8.6 12h6.8M8.6 15.5h4.8" {...common} />
+        </>
+      )}
+      {service === 'google' && (
+        <>
+          <path d="M12 3.4L21 19.4H3L12 3.4z" {...common} />
+          <path d="M8.1 12.4h7.8" {...common} />
+        </>
+      )}
+      {service === 'imap' && (
+        <>
+          <rect x="3" y="5.4" width="18" height="13.2" rx="2.4" {...common} />
+          <path d="M4.2 7.1L12 13l7.8-5.9" {...common} />
+        </>
+      )}
+      {service === 'github' && (
+        <>
+          <circle cx="6.5" cy="6" r="2.6" {...common} />
+          <circle cx="6.5" cy="18" r="2.6" {...common} />
+          <circle cx="17.5" cy="8" r="2.6" {...common} />
+          <path d="M6.5 8.6v6.8M9.1 6h3.4a3 3 0 0 1 3 3" {...common} />
+        </>
+      )}
+      {service === 'browser' && (
+        <>
+          <circle cx="12" cy="12" r="8.5" {...common} />
+          <path d="M15.6 8.4l-1.9 5.3-5.3 1.9 1.9-5.3 5.3-1.9z" {...common} />
+        </>
+      )}
+      {service === 'calendar' && (
+        <>
+          <rect x="3.5" y="5.5" width="17" height="15" rx="2" {...common} />
+          <path d="M3.5 10h17M8 3.5v4M16 3.5v4" {...common} />
+        </>
+      )}
+      {service === 'settings' && (
+        <>
+          <circle cx="12" cy="12" r="3" {...common} />
+          <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" {...common} strokeWidth={1.3} />
+        </>
+      )}
+    </svg>
+  )
+}
 
 const SERVICE_LABELS: Record<string, string> = {
   vault: 'vault',
@@ -121,6 +174,23 @@ function BriefingBody({ briefing, vaultPath }: { briefing: Briefing; vaultPath: 
   )
 }
 
+function refTint(kind: BriefingRef['kind']): string {
+  switch (kind) {
+    case 'note':
+      return '--mint'
+    case 'mail':
+      return '--amber'
+    case 'drive':
+      return '--ice'
+    case 'github':
+      return '--ink'
+    case 'browser':
+      return '--periwinkle'
+    default:
+      return '--amber'
+  }
+}
+
 /** Structured answer: a headline to read first, points that open their source, one suggestion. */
 function BriefingPoints({
   body,
@@ -134,13 +204,16 @@ function BriefingPoints({
   digest: string
 }) {
   return (
-    <div className="markdown" lang={briefingLang(`${body.headline} ${body.bullets.map((b) => b.text).join(' ')}`)}>
+    <div
+      className="markdown"
+      lang={briefingLang(`${body.headline} ${body.bullets.map((b) => b.text).join(' ')}`)}
+    >
       {body.headline && (
-        <p className="headline" dir="auto">
+        <h3 className="briefing__headline headline" dir="auto">
           {body.headline}
-        </p>
+        </h3>
       )}
-      <ul>
+      <ul className="briefing__reading">
         {body.bullets.map((bullet, index) => {
           const refs = refLinks(bullet.refs, vaultPath)
           const why = whyLines(
@@ -148,48 +221,64 @@ function BriefingPoints({
             digest,
           )
           return (
-            <li key={`${index}-${bullet.text.slice(0, 24)}`} className="line" dir="auto">
-              {bullet.text}
-              {refs.length > 0 && (
-                <span className="refs">
-                  {refs.map(({ ref, href }, at) =>
-                    href ? (
-                      <a
-                        key={at}
-                        className="ref"
-                        href={href}
-                        target={href.startsWith('obsidian://') ? undefined : '_blank'}
-                        rel={href.startsWith('obsidian://') ? undefined : 'noreferrer'}
-                        onClick={() => void api.opened(id)}
-                      >
-                        {ref.label}
-                      </a>
-                    ) : (
-                      <span key={at} className="ref text">
-                        {ref.label}
-                      </span>
-                    ),
+            <li key={`${index}-${bullet.text.slice(0, 24)}`} className="line point" dir="auto">
+              <p>{bullet.text}</p>
+              {(refs.length > 0 || why.length > 0) && (
+                <div className="point__sources">
+                  <span className="refs">
+                    {refs.map(({ ref, href }, at) =>
+                      href ? (
+                        <a
+                          key={at}
+                          className="chip ref"
+                          href={href}
+                          target={href.startsWith('obsidian://') ? undefined : '_blank'}
+                          rel={href.startsWith('obsidian://') ? undefined : 'noreferrer'}
+                          onClick={() => void api.opened(id)}
+                        >
+                          <span
+                            className="status-dot"
+                            style={{ '--dot': `var(${refTint(ref.kind)})` } as React.CSSProperties}
+                            aria-hidden="true"
+                          />
+                          {ref.label}
+                        </a>
+                      ) : (
+                        <span key={at} className="chip chip--dead ref text">
+                          <span
+                            className="status-dot"
+                            style={{ '--dot': `var(${refTint(ref.kind)})` } as React.CSSProperties}
+                            aria-hidden="true"
+                          />
+                          {ref.label}
+                        </span>
+                      ),
+                    )}
+                  </span>
+                  {why.length > 0 && (
+                    <details className="why">
+                      <summary>Why</summary>
+                      <div className="why-panel">
+                        {why.map((line) => (
+                          <span key={line}>{line}</span>
+                        ))}
+                      </div>
+                    </details>
                   )}
-                </span>
-              )}
-              {why.length > 0 && (
-                <details className="earlier digest-read why">
-                  <summary>Why</summary>
-                  <pre>{why.join('\n')}</pre>
-                </details>
+                </div>
               )}
             </li>
           )
         })}
-        {body.suggestion && (
-          <li className="line suggestion" dir="auto">
-            <span className="suggestion-label" lang="en">
-              Suggestion
-            </span>
-            {body.suggestion}
-          </li>
-        )}
       </ul>
+      {body.suggestion && (
+        <div className="suggestion line" dir="auto">
+          <span className="label label--amber" lang="en">
+            Suggestion
+          </span>
+          <p>{body.suggestion}</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -262,7 +351,7 @@ function LegacyBriefingBody({ markdown }: { markdown: string }) {
 
   return (
     <div className="markdown" lang={briefingLang(markdown)}>
-      <ul>
+      <ul className="briefing__reading">
         {entries.map((text, index) => {
           // The closing entry is the suggestion — but a one-line briefing has no closing entry.
           const suggestion = index === entries.length - 1 && entries.length > 1
@@ -270,17 +359,13 @@ function LegacyBriefingBody({ markdown }: { markdown: string }) {
             ? text.replace(/^(suggestion|предложение|рекомендация)\s*[:—-]\s*/i, '')
             : text
           return (
-            <li
-              key={`${index}-${text.slice(0, 24)}`}
-              className={`line${suggestion ? ' suggestion' : ''}`}
-              dir="auto"
-            >
+            <li key={`${index}-${text.slice(0, 24)}`} className="line point" dir="auto">
+              <p>{body}</p>
               {suggestion && (
-                <span className="suggestion-label" lang="en">
+                <span className="label label--amber" lang="en">
                   Suggestion
                 </span>
               )}
-              {body}
             </li>
           )
         })}
@@ -293,15 +378,15 @@ function LegacyBriefingBody({ markdown }: { markdown: string }) {
 function useReadingLine(key: string | number | undefined, visible: boolean) {
   useEffect(() => {
     if (!visible || typeof IntersectionObserver === 'undefined') return undefined
-    const lines = [...document.querySelectorAll<HTMLElement>('.briefing .line')]
+    const lines = [...document.querySelectorAll<HTMLElement>('.briefing .point')]
     let current: HTMLElement | null = null
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (!entry.isIntersecting || entry.target === current) continue
-          current?.classList.remove('reading')
+          current?.classList.remove('is-reading')
           current = entry.target as HTMLElement
-          current.classList.add('reading')
+          current.classList.add('is-reading')
         }
       },
       { rootMargin: '-42% 0px -52% 0px' },
@@ -351,7 +436,6 @@ export function App() {
   const [activeSuggestion, setActiveSuggestion] = useState(0)
   const searchRef = useRef<HTMLInputElement>(null)
   const generating = useRef(false)
-  const settingsButton = useRef<HTMLButtonElement>(null)
   const wasSettings = useRef(showSettings)
   const searched = useRef('')
   const [live, setLive] = useState('')
@@ -536,7 +620,7 @@ export function App() {
     if (wasSettings.current === showSettings) return
     wasSettings.current = showSettings
     if (showSettings) document.querySelector<HTMLElement>('.settings-head button')?.focus()
-    else settingsButton.current?.focus()
+    else document.querySelector<HTMLElement>('.rail__btn--settings')?.focus()
   }, [showSettings])
 
   function withViewTransition(update: () => void): void {
@@ -758,20 +842,6 @@ export function App() {
     welcomeDialog.close(dismissWelcome),
   )
 
-  if (showSettings && settings) {
-    return (
-      <div className="page app-enter">
-        <main>
-          <SettingsPanel
-            settings={settings}
-            onClose={closeSettings}
-            onSaved={setSettings}
-          />
-        </main>
-      </div>
-    )
-  }
-
   const stations = (() => {
     const order = ['vault', 'google', 'imap', 'github', 'browser']
     const map = new Map<
@@ -829,68 +899,357 @@ export function App() {
   )
   const start = first ? { ...startPoint(first), href: attentionHref(first) } : null
 
-  return (
-    <div className="page app-enter">
-      <header className="masthead enter-item" style={{ '--i': 0 } as React.CSSProperties}>
-        <div className="ident">
-          <span className="brand-mark">
-            <img src="/icon-transparent-96.png" alt="" />
-            <span className="brand-orbit" />
-          </span>
-          <div>
-            <h1>Local Dashboard</h1>
-            <p className="sub">
-              {new Date().toLocaleDateString('en-GB', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-              })}
-            </p>
-          </div>
+  const date = new Date().toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
+  const wall = wallpaperById(settings?.wallpaper)
+  const lastSync = stations
+    .map((station) => station.lastSync)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1)
+  const anyError = stations.some((station) => station.error)
+  const railState = (station: (typeof stations)[number]): 'ok' | 'error' | 'hollow' =>
+    station.error ? 'error' : station.configured > 0 ? 'ok' : 'hollow'
+
+  function doSync(): void {
+    setSyncPending(true)
+    void api
+      .sync()
+      .then(load)
+      .catch((error: unknown) =>
+        setNote({
+          text: friendlyError(error instanceof Error ? error.message : String(error)),
+          tone: 'error',
+        }),
+      )
+      .finally(() => setSyncPending(false))
+  }
+
+  function clearSearch(): void {
+    setQuery('')
+    setResults(null)
+    setResultsQuery('')
+    setSuggestions(null)
+  }
+
+  const environment = (
+    <div className={`environment${wall.full ? ' environment--photo' : ''}`} aria-hidden="true">
+      {wall.full && (
+        <div className="environment__photo" style={{ backgroundImage: `url(${wall.full})` }} />
+      )}
+      <div className="environment__aurora">
+        <span className="orb orb--indigo" />
+        <span className="orb orb--teal" />
+        <span className="orb orb--amber" />
+        <span className="conic-band" />
+      </div>
+      <div className="environment__grain" />
+    </div>
+  )
+
+  const rail = (
+    <nav className="rail glass" aria-label="Sources and settings">
+      <div className="rail__group">
+        {stations.map((station) => {
+          const name = SERVICE_LABELS[station.service] ?? station.service
+          const url = sourceUrl(station.service, vaultPath)
+          const detail = station.error
+            ? friendlyError(station.error)
+            : station.lastSync
+              ? `Last synced ${time(station.lastSync)}`
+              : station.configured > 0
+                ? 'Waiting for the first sync'
+                : 'Not connected'
+          const label = `${name}, ${
+            station.total > 1 ? `${station.total} accounts, ` : ''
+          }${detail}${url ? `, ${OPEN_LABELS[station.service] ?? 'opens the service'}` : ''}`
+          const body = (
+            <>
+              <SourceGlyph service={station.service} />
+              <span className={`status-dot status-dot--${railState(station)}`} aria-hidden="true" />
+              <span className="sr-only">{name}</span>
+              <span className="sr-only">{detail}</span>
+            </>
+          )
+          const active = running && activeService === station.service
+          return url ? (
+            <a
+              key={station.service}
+              className={`rail__btn station ${station.service} rail__btn--${station.service}${active ? ' is-syncing' : ''}`}
+              href={url}
+              aria-label={label}
+              title={detail}
+              data-tip={name}
+              data-tip-sub={detail}
+              target={url.startsWith('obsidian://') ? undefined : '_blank'}
+              rel={url.startsWith('obsidian://') ? undefined : 'noreferrer'}
+            >
+              {body}
+            </a>
+          ) : (
+            <button
+              key={station.service}
+              type="button"
+              className={`rail__btn station ${station.service} rail__btn--${station.service}${active ? ' is-syncing' : ''}`}
+              onClick={toggleSettings}
+              aria-label={label}
+              title={detail}
+              data-tip={name}
+              data-tip-sub={detail}
+            >
+              {body}
+            </button>
+          )
+        })}
+      </div>
+      {stations.length > 0 && (
+        <span
+          className="rail__progress"
+          role={running ? 'progressbar' : undefined}
+          aria-label={running ? `Syncing ${syncing ?? 'sources'}` : undefined}
+          aria-valuemin={running ? 0 : undefined}
+          aria-valuemax={running ? 100 : undefined}
+          aria-valuenow={running ? progress : undefined}
+          aria-hidden={running ? undefined : true}
+        >
+          <i style={{ width: `${fill}%` }} />
+        </span>
+      )}
+      <div className="rail__spacer" />
+      <button
+        type="button"
+        className={`rail__btn rail__btn--settings${showSettings ? ' is-active' : ''}`}
+        onClick={toggleSettings}
+        aria-label="Settings"
+        title="Settings — Connections, Application, Preferences"
+        data-tip="Settings"
+        data-tip-sub="Connections, Application, Preferences"
+      >
+        <SourceGlyph service="settings" />
+      </button>
+    </nav>
+  )
+
+  function topbar(isSettings: boolean) {
+    const failed = stations.some((station) => station.error)
+    return (
+      <header className="topbar">
+        <div className="topbar__left">
+          <button
+            type="button"
+            className="brand"
+            onClick={isSettings ? closeSettings : undefined}
+            aria-label="Local Dashboard"
+          >
+            <img className="brand__mark" src="/icon-transparent-96.png" alt="" />
+            <span className="brand__text">
+              <span className="brand__name">Local Dashboard</span>
+              <span className="brand__date">{date}</span>
+            </span>
+          </button>
         </div>
-        <div className="head-actions">
+
+        <div className="topbar__center">
+          {isSettings ? (
+            <div className="topbar__crumb" aria-label="Settings">
+              <span>Settings</span>
+            </div>
+          ) : (
+            <form
+              className="command search-wrap"
+              onSubmit={(event) => void search(event)}
+              role="search"
+            >
+              <svg
+                className="od-icon command__icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.7" />
+                <path
+                  d="M16 16l4.2 4.2"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <input
+                ref={searchRef}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={onSearchKey}
+                onBlur={() => setSuggestions(null)}
+                placeholder="Search notes, mail and Drive…"
+                autoComplete="off"
+                role="combobox"
+                aria-label="Search notes, mail and Drive"
+                aria-controls={items.length > 0 ? 'search-suggestions' : undefined}
+                aria-haspopup="listbox"
+                aria-autocomplete="list"
+                aria-expanded={items.length > 0}
+                aria-activedescendant={
+                  items.length > 0 ? `search-option-${activeSuggestion}` : undefined
+                }
+              />
+              <kbd className="command__key" aria-hidden="true">
+                /
+              </kbd>
+              <button type="submit" className="sr-only">
+                Search
+              </button>
+              {items.length > 0 && (
+                <div className="suggest" id="search-suggestions" role="listbox">
+                  {items.map((item, index) => (
+                    <Fragment key={`${item.kind}-${index}`}>
+                      {(index === 0 || items[index - 1]!.kind !== item.kind) && (
+                        <div className="group" aria-hidden="true">
+                          {item.kind === 'note' ? 'Notes' : item.kind === 'mail' ? 'Mail' : 'Drive'}
+                        </div>
+                      )}
+                      <div
+                        role="option"
+                        id={`search-option-${index}`}
+                        aria-selected={activeSuggestion === index}
+                        className={`item${activeSuggestion === index ? ' active' : ''}`}
+                        onMouseEnter={() => setActiveSuggestion(index)}
+                        onMouseDown={(event) => {
+                          event.preventDefault()
+                          choose(item)
+                        }}
+                      >
+                        <span className={`dot ${item.kind === 'note' ? 'vault' : item.kind}`} />
+                        <span className="sr-only">
+                          {item.kind === 'note'
+                            ? 'Note'
+                            : item.kind === 'mail'
+                              ? 'Mail'
+                              : 'Drive'}
+                          :{' '}
+                        </span>
+                        <span className="label">{item.label}</span>
+                        {item.detail && <span className="detail">{item.detail}</span>}
+                      </div>
+                    </Fragment>
+                  ))}
+                </div>
+              )}
+            </form>
+          )}
+        </div>
+
+        <div className="topbar__right">
           <button
-            className="ghost"
+            type="button"
+            className={`sync${running ? ' is-running' : ''}${failed ? ' is-failed' : ''}`}
             disabled={running}
-            onClick={() => {
-              setSyncPending(true)
-              void api
-                .sync()
-                .then(load)
-                .catch((error: unknown) =>
-                  setNote({
-                    text: friendlyError(error instanceof Error ? error.message : String(error)),
-                    tone: 'error',
-                  }),
-                )
-                .finally(() => setSyncPending(false))
-            }}
+            onClick={doSync}
+            aria-label={
+              running
+                ? `Syncing ${syncing ?? 'sources'}`
+                : failed
+                  ? 'Sync failed. Sync now.'
+                  : lastSync
+                    ? `Sync now. Last synced ${time(lastSync)}`
+                    : 'Sync now'
+            }
           >
-            Sync
+            <span className="sync__dot" aria-hidden="true" />
+            <span className="sync__bar" aria-hidden="true">
+              <i style={{ width: `${running ? progress : fill}%` }} />
+            </span>
+            <span className="sync__text">
+              {running ? 'Syncing…' : failed ? 'Sync failed' : lastSync ? `Synced ${time(lastSync)}` : 'Sync now'}
+            </span>
           </button>
-          <button
-            ref={settingsButton}
-            className="ghost"
-            onClick={toggleSettings}
-            disabled={!settings}
-            title={settings ? undefined : 'Settings are available once the local server responds.'}
-          >
-            Settings
-          </button>
+          {window.dashboard && (
+            <div className="window-controls" role="group" aria-label="Window controls">
+              <button
+                type="button"
+                className="wincontrol"
+                aria-label="Minimize"
+                onClick={() => window.dashboard?.minimize()}
+              >
+                <svg className="od-icon" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <path d="M2 6h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="wincontrol"
+                aria-label="Maximize"
+                onClick={() => window.dashboard?.toggleMaximize()}
+              >
+                <svg className="od-icon" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <rect
+                    x="2.6"
+                    y="2.6"
+                    width="6.8"
+                    height="6.8"
+                    rx="1"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="wincontrol wincontrol--close"
+                aria-label="Close"
+                onClick={() => window.dashboard?.close()}
+              >
+                <svg className="od-icon" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <path
+                    d="M2.8 2.8l6.4 6.4M9.2 2.8L2.8 9.2"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
       </header>
+    )
+  }
 
-      <main>
-        <p className="sr-only" role="status">
-          {live}
-        </p>
+  if (showSettings && settings) {
+    return (
+      <div className="app app-enter">
+        {environment}
+        {topbar(true)}
+        {rail}
+        <main className="stage glass" id="stage" tabIndex={-1} aria-label="Main content">
+          <div className="route" role="region" aria-label="Settings">
+            <SettingsPanel settings={settings} onClose={closeSettings} onSaved={setSettings} />
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  return (
+    <div className="app app-enter">
+      {environment}
+      {topbar(false)}
+      {rail}
+      <main className="stage glass" id="stage" tabIndex={-1} aria-label="Main content">
+        <div className="route" role="region" aria-label="Dashboard">
+          <div className="page">
+            <p className="sr-only" role="status">
+              {live}
+            </p>
 
         {note && (
           <p className={`note ${note.tone}`} role="status" aria-live="polite">
             {note.text}
             {note.retry && (
               <button
-                className="mini"
+                className="btn btn--ghost btn--mini"
                 onClick={() => {
                   setNote(null)
                   void load()
@@ -903,341 +1262,271 @@ export function App() {
         )}
 
         {loaded && (
-          <div className="panel enter-item" style={{ '--i': 1 } as React.CSSProperties}>
-            <section className="start">
-              {start ? (
-                <>
-                  <p className="start-line">
-                    <span className="cue">Start here:</span>{' '}
-                    {start.num !== undefined && <b>{start.num.toLocaleString('en-GB')}</b>}{' '}
-                    {start.text}
-                  </p>
-                  <p className="start-meta">
-                    {start.href ? (
-                      <a
-                        href={start.href}
-                        target={start.href.startsWith('obsidian://') ? undefined : '_blank'}
-                        rel={start.href.startsWith('obsidian://') ? undefined : 'noreferrer'}
-                      >
-                        {start.meta}
-                      </a>
-                    ) : (
-                      start.meta
+          <div className="dashboard__top enter-item" style={{ '--i': 1 } as React.CSSProperties}>
+            <section className="panel hero" aria-labelledby="focus-label">
+              <div className="hero__top">
+                <div className="hero__labels">
+                  <span className="label" id="focus-label">
+                    Focus
+                  </span>
+                  <span className="hero__date">{date}</span>
+                </div>
+                <span className={`hero__synced${running ? ' is-syncing' : ''}`}>
+                  <span
+                    className={`status-dot status-dot--${anyError ? 'error' : 'ok'}`}
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {running
+                      ? `Syncing ${syncing ?? 'sources'}…`
+                      : lastSync
+                        ? `Synced ${time(lastSync)}`
+                        : 'Ready'}
+                  </span>
+                </span>
+              </div>
+
+              <div className="hero__main">
+                {start ? (
+                  <>
+                    {start.num !== undefined && (
+                      <span className="hero__number">{start.num.toLocaleString('en-GB')}</span>
                     )}
-                  </p>
-                </>
-              ) : (
-                attention !== null && <p className="start-line muted">Nothing needs attention.</p>
-              )}
+                    <p className="hero__sentence">{start.text}</p>
+                    <p className="hero__meta">
+                      {start.href ? (
+                        <a
+                          href={start.href}
+                          target={start.href.startsWith('obsidian://') ? undefined : '_blank'}
+                          rel={start.href.startsWith('obsidian://') ? undefined : 'noreferrer'}
+                        >
+                          {start.meta}
+                        </a>
+                      ) : (
+                        start.meta
+                      )}
+                    </p>
+                  </>
+                ) : (
+                  attention !== null && <p className="hero__sentence muted">Nothing needs attention.</p>
+                )}
+              </div>
+
+              <div className="hero__foot">
+                {start?.href ? (
+                  <a
+                    className="hero__arrow"
+                    href={start.href}
+                    target={start.href.startsWith('obsidian://') ? undefined : '_blank'}
+                    rel={start.href.startsWith('obsidian://') ? undefined : 'noreferrer'}
+                    aria-label={`Open ${start.meta}`}
+                  >
+                    <svg className="od-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path
+                        d="M5 12h13M13.5 6.5L20 12l-6.5 5.5"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </a>
+                ) : (
+                  <span />
+                )}
+                <svg className="hero__glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M12 2.6v18.8M2.6 12h18.8M5.4 5.4l13.2 13.2M18.6 5.4L5.4 18.6"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
             </section>
 
-          {today && settings && (
-            <section className="today">
-              <span className="section-label">Today</span>
-              {today.events.length === 0 && (
-                <p className="muted">
-                  {settings.calendarConnected ? 'No events' : 'Calendar not connected'}
-                </p>
-              )}
-              {today.events.slice(0, TODAY_EVENTS).map((event) => (
-                <p key={event.id} className="event" dir="auto">
-                  <b>{eventTime(event)}</b> {event.summary}
-                </p>
-              ))}
-              {today.events.length > TODAY_EVENTS && (
-                <p className="muted">
-                  <a href="https://calendar.google.com" target="_blank" rel="noreferrer">
+            {today && settings && (
+              <section className="panel today" aria-labelledby="today-label">
+                <div className="today__head">
+                  <span className="label" id="today-label">
+                    Today
+                  </span>
+                  <span className="today__date">
+                    {new Date().toLocaleDateString('en-GB', {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                    })}
+                  </span>
+                </div>
+                <div className="today__list">
+                  {today.events.length === 0 && (
+                    <p className="muted">
+                      {settings.calendarConnected ? 'No events' : 'Calendar not connected'}
+                    </p>
+                  )}
+                  {today.events.slice(0, TODAY_EVENTS).map((event) => (
+                    <div key={event.id} className="event" dir="auto">
+                      <span className="event__time">{eventTime(event)}</span>
+                      <span className="event__title">{event.summary}</span>
+                    </div>
+                  ))}
+                  {today.conflicts.length > 0 && (
+                    <p className="conflict">
+                      Conflict: {today.conflicts.slice(0, 3).join(', ')}
+                      {today.conflicts.length > 3 ? ` +${today.conflicts.length - 3}` : ''}
+                    </p>
+                  )}
+                  {settings.calendarConnected &&
+                    today.free.slice(0, 2).map((window) => (
+                      <span key={window.from} className="free-window">
+                        Free {time(window.from)}–{time(window.to)}
+                      </span>
+                    ))}
+                </div>
+                {today.events.length > TODAY_EVENTS && (
+                  <a
+                    className="today__more"
+                    href="https://calendar.google.com"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     +{today.events.length - TODAY_EVENTS} more today
                   </a>
-                </p>
-              )}
-              {today.conflicts.length > 0 && (
-                <p className="conflict">
-                  Conflict: {today.conflicts.slice(0, 3).join(', ')}
-                  {today.conflicts.length > 3 ? ` +${today.conflicts.length - 3}` : ''}
-                </p>
-              )}
-              {settings.calendarConnected &&
-                today.free.slice(0, 2).map((window) => (
-                  <p key={window.from} className="free">
-                    Free {time(window.from)}–{time(window.to)}
-                  </p>
-                ))}
-            </section>
-          )}
+                )}
+              </section>
+            )}
           </div>
         )}
 
-        <section
-          className={`network enter-item${syncOutcome ? ` outcome-${syncOutcome}` : ''}${
-            running ? ' running' : ''
-          }`}
-          style={{ '--i': 2 } as React.CSSProperties}
-          aria-label="Connected services and their last sync"
-        >
-          {stations.length > 0 && (
-            <span
-              className="rail"
-              aria-hidden={running ? undefined : true}
-              role={running ? 'progressbar' : undefined}
-              aria-label={running ? `Syncing ${syncing ?? 'sources'}` : undefined}
-              aria-valuemin={running ? 0 : undefined}
-              aria-valuemax={running ? 100 : undefined}
-              aria-valuenow={running ? progress : undefined}
-            >
-              <i style={{ width: `${fill}%` }} />
-            </span>
-          )}
-          {stations.length === 0 && status && (
-            <p className="muted">No sources connected yet.</p>
-          )}
-          {stations.map((station) => {
-            const name = SERVICE_LABELS[station.service] ?? station.service
-            const url = sourceUrl(station.service, vaultPath)
-            const state = station.error ? 'bad' : station.configured > 0 ? 'ok' : 'off'
-            const detail = station.error
-              ? friendlyError(station.error)
-              : station.lastSync
-                ? `Last synced ${time(station.lastSync)}`
-                : station.configured > 0
-                  ? 'Waiting for the first sync'
-                  : 'Not connected'
-            const body = (
-              <>
-                <span className="name">
-                  {name}
-                  {station.total > 1 && <span aria-hidden="true"> · {station.total}</span>}
-                  {/* The station's accessible name: service, state, and where the link goes. */}
-                  <span className="sr-only">
-                    {`, ${[
-                      station.total > 1 ? `${station.total} accounts` : null,
-                      detail,
-                      url ? (OPEN_LABELS[station.service] ?? 'opens the service') : null,
-                    ]
-                      .filter(Boolean)
-                      .join(', ')}`}
-                  </span>
-                </span>
-                <span className="mark" />
-                <span className={`at${station.error ? ' bad' : ''}`} aria-hidden="true">
-                  {station.error ? 'error' : station.lastSync ? time(station.lastSync) : '—'}
-                </span>
-              </>
-            )
-            return url ? (
-              <a
-                key={station.service}
-                className={`station ${station.service} ${state}${
-                  running && activeService === station.service ? ' active' : ''
-                }`}
-                href={url}
-                title={detail}
-                target={url.startsWith('obsidian://') ? undefined : '_blank'}
-                rel={url.startsWith('obsidian://') ? undefined : 'noreferrer'}
-              >
-                {body}
-              </a>
-            ) : (
-              <span
-                key={station.service}
-                className={`station ${station.service} ${state}${
-                  running && activeService === station.service ? ' active' : ''
-                }`}
-                title={detail}
-              >
-                {body}
-              </span>
-            )
-          })}
-        </section>
-
         {settings && status && !setupDone && (
-          <section className="setup enter-item" style={{ '--i': 3 } as React.CSSProperties}>
-            <span className="section-label">Get started</span>
-            <ul>
+          <section className="setup enter-item" aria-label="Setup progress">
+            <span className="label label--mint">Get started</span>
+            <div className="setup__steps">
               {setupSteps.map((step) => (
-                <li key={step.label} className={step.done ? 'done' : ''}>
-                  <span className="tick" aria-hidden="true" />
-                  <span>{step.label}</span>
-                </li>
+                <span key={step.label} className={`setup__step${step.done ? ' is-done' : ''}`}>
+                  <span
+                    className={`status-dot status-dot--${step.done ? 'ok' : 'hollow'}`}
+                    aria-hidden="true"
+                  />
+                  {step.label}
+                </span>
               ))}
-            </ul>
-            <button className="ghost mini" onClick={toggleSettings}>
+            </div>
+            <button className="btn btn--mini btn--ghost" onClick={toggleSettings}>
               Open settings
             </button>
           </section>
         )}
 
-        <form
-          className="search enter-item"
-          style={{ '--i': 3 } as React.CSSProperties}
-          onSubmit={(event) => void search(event)}
-        >
-          <div className="search-wrap">
-            <input
-              ref={searchRef}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={onSearchKey}
-              onBlur={() => setSuggestions(null)}
-              placeholder="Search notes, mail and Drive…"
-              autoComplete="off"
-              role="combobox"
-              aria-label="Search notes, mail and Drive"
-              aria-controls={items.length > 0 ? 'search-suggestions' : undefined}
-              aria-haspopup="listbox"
-              aria-autocomplete="list"
-              aria-expanded={items.length > 0}
-              aria-activedescendant={
-                items.length > 0 ? `search-option-${activeSuggestion}` : undefined
-              }
-            />
-            {items.length > 0 && (
-              <div className="suggest" id="search-suggestions" role="listbox">
-                {items.map((item, index) => (
-                  <Fragment key={`${item.kind}-${index}`}>
-                    {(index === 0 || items[index - 1]!.kind !== item.kind) && (
-                      <div className="group" aria-hidden="true">
-                        {item.kind === 'note' ? 'Notes' : item.kind === 'mail' ? 'Mail' : 'Drive'}
-                      </div>
-                    )}
-                    <div
-                      role="option"
-                      id={`search-option-${index}`}
-                      aria-selected={activeSuggestion === index}
-                      className={`item${activeSuggestion === index ? ' active' : ''}`}
-                      onMouseEnter={() => setActiveSuggestion(index)}
-                      onMouseDown={(event) => {
-                        event.preventDefault()
-                        choose(item)
-                      }}
-                    >
-                      <span className={`dot ${item.kind === 'note' ? 'vault' : item.kind}`} />
-                      <span className="sr-only">
-                        {item.kind === 'note' ? 'Note' : item.kind === 'mail' ? 'Mail' : 'Drive'}:{' '}
-                      </span>
-                      <span className="label">{item.label}</span>
-                      {item.detail && <span className="detail">{item.detail}</span>}
-                    </div>
-                  </Fragment>
-                ))}
-              </div>
-            )}
-          </div>
-          <button type="submit" className="ghost">
-            Search
-          </button>
-          {results && (
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => {
-                setQuery('')
-                setResults(null)
-                setResultsQuery('')
-                setSuggestions(null)
-              }}
-            >
-              Clear
-            </button>
-          )}
-        </form>
-
         {results && resultsQuery && (
-          <section className="results enter-item">
-            <p className="section-label">
-            Results for <span className="query">“{resultsQuery}”</span>
-          </p>
-            {results.notes.length === 0 && results.mail.length === 0 && results.drive.length === 0 && (
-              <p className="empty">Nothing found.</p>
-            )}
-            {results.notes.map((note) => (
-              <a
-                key={note.path}
-                className="result"
-                href={obsidianUrl(vaultPath, note.path)}
-                title="Open in Obsidian"
-              >
-                <span className="dot vault" />
-                <span className="label">{note.path}</span>
-              </a>
-            ))}
-            {results.mail.map((message, index) => (
-              <a
-                key={`mail-${index}`}
-                className="result"
-                href={mailUrl(message.messageId, message.subject)}
-                target="_blank"
-                rel="noreferrer"
-                title="Open in Gmail"
-              >
-                <span className="dot mail" />
-                <span className="label">{message.subject}</span>
-                <span className="detail">{message.sender}</span>
-              </a>
-            ))}
-            {results.drive.map((file, index) => (
-              <a
-                key={`drive-${index}`}
-                className="result"
-                href={driveUrl(file.id)}
-                target="_blank"
-                rel="noreferrer"
-                title="Open in Google Drive"
-              >
-                <span className="dot drive" />
-                <span className="label">{file.name}</span>
-              </a>
-            ))}
+          <section className="search-overlay" aria-label="Search results">
+            <div className="search-overlay__panel">
+              <header className="search-overlay__head">
+                <span className="label">Results for “{resultsQuery}”</span>
+                <button type="button" className="btn btn--ghost btn--mini" onClick={clearSearch}>
+                  Close
+                </button>
+              </header>
+              {results.notes.length === 0 && results.mail.length === 0 && results.drive.length === 0 && (
+                <p className="empty">Nothing found.</p>
+              )}
+              {results.notes.map((note) => (
+                <a
+                  key={note.path}
+                  className="result"
+                  href={obsidianUrl(vaultPath, note.path)}
+                  title="Open in Obsidian"
+                >
+                  <span className="dot vault" />
+                  <span className="label">{note.path}</span>
+                </a>
+              ))}
+              {results.mail.map((message, index) => (
+                <a
+                  key={`mail-${index}`}
+                  className="result"
+                  href={mailUrl(message.messageId, message.subject)}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Open in Gmail"
+                >
+                  <span className="dot mail" />
+                  <span className="label">{message.subject}</span>
+                  <span className="detail">{message.sender}</span>
+                </a>
+              ))}
+              {results.drive.map((file, index) => (
+                <a
+                  key={`drive-${index}`}
+                  className="result"
+                  href={driveUrl(file.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Open in Google Drive"
+                >
+                  <span className="dot drive" />
+                  <span className="label">{file.name}</span>
+                </a>
+              ))}
+            </div>
           </section>
         )}
 
         <article
           className={`briefing enter-item${glow ? ' glow' : ''}`}
           aria-labelledby="briefing-label"
-          style={{ '--i': 4 } as React.CSSProperties}
         >
-          <div className="briefing-margin">
-            <h2 className="section-label" id="briefing-label">
-              Briefing
-            </h2>
-            {latest && (
-              <time className="stamp" dateTime={latest.created_at}>
-                {new Date(latest.created_at).toLocaleString('en-GB', {
-                  day: 'numeric',
-                  month: 'short',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-                {` · ${latest.trigger}`}
-                {kindLabel(latest.kind)}
-                {briefingSpan(latest.digest_meta) ? ` · ${briefingSpan(latest.digest_meta)}` : ''}
-              </time>
-            )}
-            <button className="primary" onClick={() => void generate()} disabled={busy}>
+          <header className="briefing__head">
+            <div className="briefing__stamp-line">
+              <h2 className="label label--ink" id="briefing-label">
+                Briefing
+              </h2>
+              {latest && (
+                <span className="briefing__stamp stamp">
+                  {new Date(latest.created_at).toLocaleString('en-GB', {
+                    day: 'numeric',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                  {` · ${latest.trigger}`}
+                  {kindLabel(latest.kind)}
+                  {briefingSpan(latest.digest_meta)
+                    ? ` · ${briefingSpan(latest.digest_meta)}`
+                    : ''}
+                </span>
+              )}
+            </div>
+            <button
+              className="btn btn--primary btn--pill"
+              onClick={() => void generate()}
+              disabled={busy}
+            >
               {busy
                 ? 'Thinking…'
                 : ageHours >= 6
                   ? `Refresh · ${ageHours} h old`
                   : 'Briefing now'}
             </button>
-            {latest && status && !status.briefingToday && (
-              <span className="stamp missing">none for today yet</span>
-            )}
-            {status?.briefingError && (
-              <span className="stamp failed">
-                Briefing failed at {time(status.briefingError.at)}:{' '}
-                {friendlyError(status.briefingError.message)}
-              </span>
-            )}
-          </div>
+          </header>
 
-          <div className="briefing-body">
+          {latest && status && !status.briefingToday && (
+            <span className="briefing__stamp stamp missing">none for today yet</span>
+          )}
+          {status?.briefingError && (
+            <span className="briefing__stamp stamp failed">
+              Briefing failed at {time(status.briefingError.at)}:{' '}
+              {friendlyError(status.briefingError.message)}
+            </span>
+          )}
+
+          <div className="briefing__body">
             {busy ? (
-              <div className="skeleton" aria-hidden="true">
-                <span />
-                <span />
-                <span />
+              <div className="briefing__skeleton" aria-hidden="true">
+                <span className="skeleton" />
+                <span className="skeleton" />
+                <span className="skeleton" />
               </div>
             ) : latest ? (
               <BriefingBody briefing={latest} vaultPath={vaultPath} />
@@ -1253,81 +1542,99 @@ export function App() {
             )}
 
             {latest && !busy && (
-              <div className="feedback" role="group" aria-label="Was this briefing useful?">
-                <button
-                  type="button"
-                  className="mini"
-                  aria-pressed={latest.feedback === 'useful'}
-                  disabled={voting}
-                  onClick={() => void vote(latest.id, 'useful')}
-                >
-                  Useful
-                </button>
-                <button
-                  type="button"
-                  className="mini"
-                  aria-pressed={latest.feedback === 'miss'}
-                  disabled={voting}
-                  onClick={() => void vote(latest.id, 'miss')}
-                >
-                  Miss
-                </button>
+              <div className="briefing__verdict">
+                <div className="segmented" role="group" aria-label="Was this briefing useful?">
+                  <button
+                    type="button"
+                    className="segmented__btn"
+                    aria-pressed={latest.feedback === 'useful'}
+                    disabled={voting}
+                    onClick={() => void vote(latest.id, 'useful')}
+                  >
+                    Useful
+                  </button>
+                  <button
+                    type="button"
+                    className="segmented__btn"
+                    aria-pressed={latest.feedback === 'miss'}
+                    disabled={voting}
+                    onClick={() => void vote(latest.id, 'miss')}
+                  >
+                    Miss
+                  </button>
+                </div>
               </div>
             )}
 
             {latest && !busy && (
               <details className="ask">
-                <summary>Ask about this</summary>
-                <form onSubmit={(event) => void askAbout(event, latest.id)}>
-                  <input
-                    value={question}
-                    onChange={(event) => setQuestion(event.target.value)}
-                    placeholder="Why 47 mails?"
-                    maxLength={200}
-                    aria-label="Ask about this briefing"
-                  />
-                  <button
-                    type="submit"
-                    className="ghost mini"
-                    disabled={asking || !question.trim()}
-                  >
-                    {asking ? 'Thinking…' : 'Ask'}
-                  </button>
-                </form>
-                {answer && answer.id === latest.id && (
-                  <p className="answer" dir="auto">
-                    {answer.text}
-                  </p>
-                )}
+                <summary className="ask__toggle">Ask about this</summary>
+                <div className="ask__panel">
+                  <form className="ask__form" onSubmit={(event) => void askAbout(event, latest.id)}>
+                    <input
+                      value={question}
+                      onChange={(event) => setQuestion(event.target.value)}
+                      placeholder="Why 47 mails?"
+                      maxLength={200}
+                      aria-label="Ask about this briefing"
+                    />
+                    <button
+                      type="submit"
+                      className="btn btn--mini btn--ghost"
+                      disabled={asking || !question.trim()}
+                    >
+                      {asking ? 'Thinking…' : 'Ask'}
+                    </button>
+                  </form>
+                  <p className="ask__hint">Max 200 characters.</p>
+                  {answer && answer.id === latest.id && (
+                    <p className="ask__answer" dir="auto">
+                      {answer.text}
+                    </p>
+                  )}
+                </div>
               </details>
             )}
 
-            {(briefings?.length ?? 0) > 1 && (              <details className="earlier">
-                <summary>Earlier briefings</summary>
-                {(briefings ?? []).slice(1).map((briefing) => (
-                  <article key={briefing.id}>
-                    <h3>
-                      {new Date(briefing.created_at).toLocaleString('en-GB', {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })}
-                      {kindLabel(briefing.kind)}
-                      {briefing.opens > 0 ? ` · ${briefing.opens} opens` : ''}
-                    </h3>
-                    <BriefingBody briefing={briefing} vaultPath={vaultPath} />
-                  </article>
-                ))}
-              </details>
-            )}
+            <div className="briefing__disclosures">
+              {(briefings?.length ?? 0) > 1 && (
+                <details className="disclosure">
+                  <summary>
+                    <span>Earlier briefings</span>
+                  </summary>
+                  <div className="disclosure__body">
+                    {(briefings ?? []).slice(1).map((briefing) => (
+                      <article key={briefing.id} className="earlier">
+                        <span className="earlier__stamp">
+                          {new Date(briefing.created_at).toLocaleString('en-GB', {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          })}
+                          {kindLabel(briefing.kind)}
+                          {briefing.opens > 0 ? ` · ${briefing.opens} opens` : ''}
+                        </span>
+                        <BriefingBody briefing={briefing} vaultPath={vaultPath} />
+                      </article>
+                    ))}
+                  </div>
+                </details>
+              )}
 
-            {latest?.digest && (
-              <details className="earlier digest-read">
-                <summary>What it read</summary>
-                <pre>{latest.digest}</pre>
-              </details>
-            )}
+              {latest?.digest && (
+                <details className="disclosure">
+                  <summary>
+                    <span>What it read</span>
+                  </summary>
+                  <div className="disclosure__body">
+                    <pre className="digest">{latest.digest}</pre>
+                  </div>
+                </details>
+              )}
+            </div>
           </div>
         </article>
+          </div>
+        </div>
       </main>
 
       {welcome && settings && (
@@ -1352,7 +1659,7 @@ export function App() {
             </p>
             <div className="row">
               <button
-                className="primary"
+                className="btn btn--primary"
                 onClick={() =>
                   welcomeDialog.close(() => {
                     dismissWelcome()
@@ -1362,7 +1669,7 @@ export function App() {
               >
                 Set up sources
               </button>
-              <button className="ghost" onClick={() => welcomeDialog.close(dismissWelcome)}>
+              <button className="btn btn--ghost" onClick={() => welcomeDialog.close(dismissWelcome)}>
                 Explore first
               </button>
             </div>

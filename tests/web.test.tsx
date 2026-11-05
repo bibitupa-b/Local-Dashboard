@@ -41,7 +41,11 @@ const responses: Record<string, unknown> = {
     githubConfigured: false,
     githubConnected: false,
     digestWindowHours: 24,
+    briefingLanguage: 'auto',
+    briefingProfile: '',
+    eveningPass: false,
     enabledSources: [],
+    wallpaper: 'aurora',
     dataDir: 'C:/data',
   },
 }
@@ -720,7 +724,7 @@ test('the rail is the progressbar and the stations stay links while syncing', as
   expect(bar.tagName).toBe('SPAN')
   expect(bar.getAttribute('aria-valuenow')).toBe('0')
   expect(bar.getAttribute('aria-label')).toBe('Syncing vault')
-  expect(container.querySelector('.network')?.hasAttribute('role')).toBe(false)
+  expect(container.querySelector('.network')).toBeNull()
   expect(screen.getAllByRole('link').length).toBeGreaterThan(0)
   unmount()
 })
@@ -765,9 +769,9 @@ test('a station is named by its service, its state and where it goes', async () 
     screen.getByRole('link', { name: 'github, Not connected, opens GitHub notifications' }),
   ).toBeTruthy()
 
-  // The browser station has nowhere to go: it is a named row, not a nameless link.
+  // The browser station has nowhere to go: it is a named button that opens Settings.
   const browser = container.querySelector('.station.browser') as HTMLElement
-  expect(browser.tagName).toBe('SPAN')
+  expect(browser.tagName).toBe('BUTTON')
   expect(browser.textContent).toMatch(/browser.*Last synced/)
   expect(screen.queryByRole('link', { name: /^browser/ })).toBeNull()
   unmount()
@@ -1037,7 +1041,7 @@ test('the rail stays empty at rest, whatever the last sync cursor says', async (
   )
   const { container, unmount } = render(<App />)
   await waitFor(() => expect(container.querySelector('.station')).toBeTruthy())
-  const fill = container.querySelector('.network .rail i') as HTMLElement
+  const fill = container.querySelector('.rail__progress i') as HTMLElement
   expect(fill.style.width).toBe('0%')
   expect(screen.queryByRole('progressbar')).toBeNull()
   unmount()
@@ -1199,6 +1203,12 @@ test('preferences save themselves, and a number out of range never leaves the fi
   })
   await flush()
   expect(bodies).toHaveLength(1)
+  fireEvent.click(screen.getByRole('radio', { name: 'Pine Hollow' }))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500)
+  })
+  await flush()
+  expect(bodies).toContainEqual({ wallpaper: 'pine-hollow' })
   expect(screen.getByText('0–23')).toBeTruthy()
   unmount()
 })

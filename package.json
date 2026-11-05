@@ -27,7 +27,11 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "assets/**/*"
+      "assets/icon.png",
+      "assets/icon.ico",
+      "assets/icon-tray.png",
+      "assets/icon-transparent.png",
+      "assets/icon-transparent-96.png"
     ],
     "win": {
       "target": [

@@ -1,0 +1,15 @@
+{
+  "collection": "Local Dashboard wallpapers",
+  "canvas": "1920x1200",
+  "items": [
+    { "file": "blue-hour.jpg", "title": "Blue Hour", "origin": "cosmos_448109547.webp supplied by the project owner" },
+    { "file": "cinnabar-shore.jpg", "title": "Cinnabar Shore", "origin": "cosmos_771782949.webp supplied by the project owner" },
+    { "file": "still-sea.jpg", "title": "Still Sea", "origin": "cosmos_2143198920.webp supplied by the project owner" },
+    { "file": "dusk-ridge.jpg", "title": "Dusk Ridge", "origin": "cosmos_657276219.webp supplied by the project owner" },
+    { "file": "alpine-dawn.jpg", "title": "Alpine Dawn", "origin": "cosmos_441461654.webp supplied by the project owner" },
+    { "file": "salt-mirror.jpg", "title": "Salt Mirror", "origin": "Original composition for this project" },
+    { "file": "pine-hollow.jpg", "title": "Pine Hollow", "origin": "Original composition for this project" },
+    { "file": "amber-dunes.jpg", "title": "Amber Dunes", "origin": "Original composition for this project" },
+    { "file": "heather-moor.jpg", "title": "Heather Moor", "origin": "Original composition for this project" }
+  ]
+}

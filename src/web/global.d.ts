@@ -5,6 +5,9 @@ declare global {
     dashboard?: {
       quit: () => void
       openDataFolder: () => void
+      minimize: () => void
+      toggleMaximize: () => void
+      close: () => void
     }
   }
 }

@@ -18,6 +18,8 @@ import {
   getList,
   normalizeVaultPrefixes,
   setList,
+  wallpaper,
+  WALLPAPER_IDS,
 } from './settings.js'
 import type { ConnectionInput } from './connections.js'
 
@@ -405,6 +407,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       briefingProfile: briefingProfile(db),
       eveningPass: getSetting(db, 'evening_pass') === '1',
       enabledSources: getList(db, 'enabled_sources'),
+      wallpaper: wallpaper(db),
       dataDir: config.dataDir,
     }
   })
@@ -460,6 +463,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       briefingProfile?: string
       eveningPass?: boolean
       enabledSources?: string[]
+      wallpaper?: string
     }
     if (typeof body.briefingHour === 'number' && body.briefingHour >= 0 && body.briefingHour <= 23) {
       config.briefingHour = body.briefingHour
@@ -488,6 +492,9 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     }
     if (typeof body.eveningPass === 'boolean') {
       setSetting(db, 'evening_pass', body.eveningPass ? '1' : '0')
+    }
+    if (typeof body.wallpaper === 'string' && (WALLPAPER_IDS as readonly string[]).includes(body.wallpaper)) {
+      setSetting(db, 'wallpaper', body.wallpaper)
     }
     return { ok: true }
   })

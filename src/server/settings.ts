@@ -71,6 +71,27 @@ export function briefingProfile(db: DatabaseSync): string {
   return (getSetting(db, 'briefing_profile') ?? '').slice(0, MAX_PROFILE_CHARS)
 }
 
+export const WALLPAPER_IDS = [
+  'aurora',
+  'blue-hour',
+  'cinnabar-shore',
+  'still-sea',
+  'dusk-ridge',
+  'alpine-dawn',
+  'salt-mirror',
+  'pine-hollow',
+  'amber-dunes',
+  'heather-moor',
+] as const
+
+export type Wallpaper = (typeof WALLPAPER_IDS)[number]
+
+/** Unknown or missing values fall back to the aurora, never to an arbitrary path. */
+export function wallpaper(db: DatabaseSync): Wallpaper {
+  const value = getSetting(db, 'wallpaper')
+  return WALLPAPER_IDS.includes(value as Wallpaper) ? (value as Wallpaper) : 'aurora'
+}
+
 export function isSourceEnabled(db: DatabaseSync, id: string): boolean {
   const enabled = getList(db, 'enabled_sources')
   return enabled.length === 0 || enabled.includes(id.toLowerCase())

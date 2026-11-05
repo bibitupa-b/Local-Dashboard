@@ -80,12 +80,16 @@ function closeSplash() {
 }
 
 function createWindow() {
+  const saved = readWindowState()
   win = new BrowserWindow({
-    width: 1180,
-    height: 820,
-    minWidth: 900,
-    minHeight: 600,
-    backgroundColor: '#15191A',
+    width: saved.width ?? 1280,
+    height: saved.height ?? 860,
+    x: saved.x,
+    y: saved.y,
+    minWidth: 960,
+    minHeight: 640,
+    frame: false,
+    backgroundColor: '#05070D',
     icon: iconPath,
     autoHideMenuBar: true,
     show: false,
@@ -96,6 +100,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
     },
   })
+  win.setMenuBarVisibility(false)
+  if (saved.maximized) win.maximize()
   win.webContents.once('did-finish-load', () => {
     const wait = Math.max(0, 900 - (Date.now() - splashShownAt))
     setTimeout(() => {
@@ -113,6 +119,7 @@ function createWindow() {
     if (/^(https?|obsidian|mailto):/i.test(url)) void shell.openExternal(url)
   })
   win.on('close', (event) => {
+    writeWindowState()
     if (quitting) return
     event.preventDefault()
     win.hide()
@@ -124,6 +131,10 @@ function createWindow() {
       )
     }
   })
+  win.on('resize', saveWindowState)
+  win.on('move', saveWindowState)
+  win.on('maximize', saveWindowState)
+  win.on('unmaximize', saveWindowState)
 
   win.webContents.on('before-input-event', (event, input) => {
     if (input.control && input.key.toLowerCase() === 'q') {
@@ -132,6 +143,34 @@ function createWindow() {
     }
   })
   void win.loadURL(baseUrl)
+}
+
+function statePath() {
+  return path.join(dataDir, 'window-state.json')
+}
+
+function readWindowState() {
+  try {
+    return JSON.parse(fs.readFileSync(statePath(), 'utf8'))
+  } catch {
+    return {}
+  }
+}
+
+function writeWindowState() {
+  if (!win || win.isDestroyed()) return
+  try {
+    const bounds = win.getNormalBounds()
+    fs.writeFileSync(statePath(), JSON.stringify({ ...bounds, maximized: win.isMaximized() }))
+  } catch {
+    // A read-only or missing data folder must not keep the window from closing.
+  }
+}
+
+let saveTimer = null
+function saveWindowState() {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(writeWindowState, 300)
 }
 
 async function callApi(route, method = 'POST') {
@@ -228,6 +267,13 @@ ipcMain.on('app:quit', quitApp)
 ipcMain.on('app:open-data', () => {
   void shell.openPath(dataDir)
 })
+ipcMain.on('window:minimize', () => win?.minimize())
+ipcMain.on('window:toggle-maximize', () => {
+  if (!win) return
+  if (win.isMaximized()) win.unmaximize()
+  else win.maximize()
+})
+ipcMain.on('window:close', () => win?.close())
 
 async function probeDashboard(url) {
   try {

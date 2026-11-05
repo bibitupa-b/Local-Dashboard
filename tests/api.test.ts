@@ -272,6 +272,29 @@ test('the briefing language is saved through settings and junk is refused', asyn
   await app.close()
 })
 
+test('the wallpaper is saved through settings and unknown ids are refused', async () => {
+  const { app } = harness()
+  const initial = await app.inject({ method: 'GET', url: '/api/settings' })
+  expect(initial.json().wallpaper).toBe('aurora')
+
+  await app.inject({
+    method: 'PUT',
+    url: '/api/settings',
+    payload: { wallpaper: 'pine-hollow' },
+  })
+  const saved = await app.inject({ method: 'GET', url: '/api/settings' })
+  expect(saved.json().wallpaper).toBe('pine-hollow')
+
+  await app.inject({
+    method: 'PUT',
+    url: '/api/settings',
+    payload: { wallpaper: '../../etc/passwd' },
+  })
+  const after = await app.inject({ method: 'GET', url: '/api/settings' })
+  expect(after.json().wallpaper).toBe('pine-hollow')
+  await app.close()
+})
+
 test('source opens are counted and listed', async () => {
   const { app, db } = harness()
   db.prepare(
