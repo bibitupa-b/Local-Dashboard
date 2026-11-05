@@ -1,6 +1,6 @@
 # DESIGN — Local Dashboard
 
-**Status:** direction approved 2026-11-04; implementation in progress. This document supersedes the 0.8.0 "quiet instrument" visual language.
+**Status:** implemented 2026-11-05. This document describes the current interface and supersedes the 0.8.0 "quiet instrument" visual language.
 **Full screen-by-screen design:** `C:\references\local dashboard\LOCAL-DASHBOARD-OPEN-DESIGN-BRIEF.md` (external to the repo; use this file as the binding summary once it lands).
 **Scope:** the whole desktop app — window shell, dashboard, search overlay, settings, connection modal, confirm dialog, welcome dialog, splash.
 **Character:** one glass instrument in a dark room, lit by a slow aurora. Editorial type, precise metadata, warm light only where attention lives.
@@ -124,6 +124,12 @@ Fixed aurora behind everything:
 - 2% monochrome grain overlay to prevent banding.
 
 The layer is 140% oversized and drifts 3–5% over 48s, alternating. The amber light reads through the hero as a ≤16% bloom behind the number; it is one source, not a second glow.
+
+### 3.5 Wallpaper
+
+A wallpaper is optional and lives in the same environment layer, below the aurora: `background-size: cover`, centred, dimmed to a dark scrim so the glass and text keep their contrast. Choosing an image does not replace the aurora; the aurora drops to a low-opacity light on top. `Aurora` is the default and means no image.
+
+Nine images ship in `assets/wallpapers/` with 480×300 thumbnails in `assets/wallpapers/thumbs/`. The picker lives at **Settings → Preferences → App background**; the choice is stored through `/api/settings` and survives restarts. Images never enter a panel, never sit inside the stage, and are never used as content backgrounds.
 
 ---
 
@@ -314,7 +320,7 @@ Sentence case; plain and factual. Buttons say what happens. Times 24-hour, dates
 
 ## 15. Non-goals
 
-Light theme, theme toggle, photographic backgrounds, 3D renders, neon, particles, pointer-tracked tilt, charts, kanban, fake navigation, new sources, new data, mobile layout, anything that writes to a source. No activity feed or attention queue.
+Light theme, theme toggle, photographic backgrounds inside panels, 3D renders, neon, particles, pointer-tracked tilt, charts, kanban, fake navigation, new sources, new data, mobile layout, anything that writes to a source. No activity feed or attention queue. A wallpaper is allowed only as the environment layer (§3.5).
 
 ---
 
@@ -322,6 +328,7 @@ Light theme, theme toggle, photographic backgrounds, 3D renders, neon, particles
 
 - [ ] Tokens in `:root`; `color-scheme: dark`; no raw hex outside the token block.
 - [ ] Aurora + grain are CSS/SVG, static layer, drift only with motion allowed.
+- [ ] Wallpaper is optional, sits below the aurora, is dimmed behind the glass and falls back to Aurora.
 - [ ] Glass recipe shared; inner tiles flat; no nested blur; blur never animated.
 - [ ] Frameless window with custom title bar, drag, double-click maximize, labelled controls, persisted bounds.
 - [ ] Rail with five sources + settings; accessible names include state and destination.

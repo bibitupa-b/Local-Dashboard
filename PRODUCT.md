@@ -37,11 +37,11 @@ cloud account behind it.
 
 - Windows desktop first, used at the start of the workday: 08:00 briefing with catch-up on start,
   plus ad hoc glances when something feels unfiled.
-- Electron window with tray, native notifications and optional autostart. The Aurora Glass shell
-  (implementation in progress) is frameless with a custom title bar and remembers its size, position
-  and maximized state. Closing the window hides to the tray. Packaged data lives in
-  `%APPDATA%\Local Dashboard\data`; `.env` is optional and imported once, then connections are managed
-  in the settings screen.
+- Electron window with tray, native notifications and optional autostart. The Aurora Glass shell is
+  frameless with a custom title bar and remembers its size, position and maximized state. Nine
+  wallpapers can sit behind the glass; Aurora is the default. Closing the window hides to the tray.
+  Packaged data lives in `%APPDATA%\Local Dashboard\data`; `.env` is optional and imported once, then
+  connections are managed in the settings screen.
 - Sources are real, user-owned accounts: an Obsidian vault with non-ASCII folder names, Gmail over
   IMAP with an app password, a self-created Google Cloud OAuth desktop client kept in Production,
   a GitHub token with `notifications`, and a local Chrome/Edge/Helium history database.
@@ -74,9 +74,9 @@ IDLE, weekly review and vault write-back are roadmap items, not current behaviou
 ## Brand Commitments
 
 - Name: **Local Dashboard** (product name, appId `com.bibitupa.localdashboard`), MIT.
-- Visual language is pinned in `DESIGN.md`: **Aurora Glass** — dark only, glass shell, an aurora
-  environment, amber/mint/ice/coral semantics, motion that reports state. Approved as a replacement
-  world on 2026-11-04; treat it as binding for refinements.
+- Visual language is pinned in `DESIGN.md`: **Aurora Glass** - dark only, glass shell, an aurora
+  environment, amber/mint/ice/coral semantics, motion that reports state, and an optional wallpaper
+  behind the glass. Implemented on 2026-11-05; treat it as binding for refinements.
 - Typography: Unbounded for display, Onest for body, both self-hosted in `src/web/fonts` under the
   SIL Open Font License. Cyrillic coverage is required.
 - Voice in the interface is plain and factual — statuses, counts, timestamps, no marketing tone.
@@ -84,8 +84,8 @@ IDLE, weekly review and vault write-back are roadmap items, not current behaviou
 ## Evidence on Hand
 
 - `README.md` — product claims, install paths, source table, privacy section, troubleshooting table.
-- `docs/screenshots/current/` — real captures of dashboard, activity, diff, search, settings,
-  connection modal, confirm dialog, with `index.html` as the gallery.
+- `docs/screenshots/current/` - real captures of the dashboard, search, settings and the welcome
+  dialog, with `index.html` as the gallery.
 - `DESIGN.md` (visual language), `SECURITY.md`, `CHANGELOG.md`, `AGENTS.md`, `LICENSE`.
 - `docs/superpowers/plans/` — the build plan and the 0.8.0 redesign plan.
 - Public repo `bibitupa-b/Local-Dashboard` with tagged releases.

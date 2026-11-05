@@ -75,9 +75,10 @@ These were agreed with the user; do not re-litigate them without asking.
 - Attention queue rules: open tasks grouped by tag (recurring tags such as `#vitamins` collapse into one row with a count), notes with frontmatter `status: Undone` untouched for 14+ days, notes sitting in `Inbox` for 3+ days, unread mail from the last 30 days and the next calendar event.
 - Autostart is managed by Electron (`app.setLoginItemSettings`), toggled from the tray.
 - Visual language follows `DESIGN.md`: **Aurora Glass** — dark only, a frameless glass shell on a
-  slowly drifting aurora, amber/mint/ice/coral semantics, motion that reports state. Onest carries
-  reading and display, Unbounded is the brand/number face, mono is the system stack; Onest and
-  Unbounded are self-hosted in `src/web/fonts` (OFL).
+  slowly drifting aurora, amber/mint/ice/coral semantics, motion that reports state, and an optional
+  wallpaper behind the glass (Aurora is the default). Onest carries reading and display, Unbounded is
+  the brand/number face, mono is the system stack; Onest and Unbounded are self-hosted in
+  `src/web/fonts` (OFL).
 
 ## Data model
 

@@ -16,18 +16,22 @@ briefing is generated.
 - **Start here** — one number and one sentence chosen from the attention rules: mail awaiting your
   reply, unread mail, open tasks, GitHub review requests, Inbox backlog, stale projects or Drive
   changes. The backlog stays in your services; the dashboard never becomes a second inbox.
-- **Services line** — every connected service as one line, which is also the sync progress. Click a
-  station to open that service; the tooltip says when it last synced or what failed.
-- **Today** — the day's calendar events, free windows and conflicts beside the start line.
-- **Daily briefing** — 5–7 bullets covering what moved, what is stuck and one suggestion for
-  today. Runs at 08:00, on demand, or on the first start after a missed day. Bullets are set as a
-  reading column; a Sand tick follows the line you are reading.
-- **Search** — one query across note text, mail, Drive file names and Google Docs content.
+- **Source rail** — every connected service as a vertical rail, which is also the sync progress. Click
+  a station to open that service; its tooltip says when it last synced or what failed.
+- **Today** — the day's calendar events, free windows and conflicts beside the focus panel.
+- **Daily briefing** — 5–7 points covering what moved, what is stuck and one suggestion for today.
+  Runs at 08:00, on demand, or on the first start after a missed day. Points are set as a reading
+  column with an amber line that follows the point you are reading.
+- **Search** — one command field over note text, mail, Drive file names and Google Docs content,
+  with suggestions in place and results in a glass overlay.
 - **Mail** — read-only Gmail over IMAP: senders, subjects and the last 90 days of message text.
   Attachments are indexed by name only and never downloaded.
 - **Browser history** — Chrome, Edge or Helium domains; only aggregate counts reach the briefing.
 - **GitHub** — unread notifications and review requests.
-- **Desktop shell** — Electron window, tray, native notifications and optional autostart.
+- **Desktop shell** — a frameless Electron window on a slow aurora, with a custom title bar, tray,
+  native notifications, optional autostart and remembered size and position.
+- **Wallpapers** — nine images ship with the app; pick one under **Settings → Preferences → App
+  background** and it sits behind the glass. Aurora remains the default.
 - **Settings** — connections with a hint per service. Preferences save as you edit; each field shows
   its own `Saving…` / `Saved 09:14` receipt, and a failed write keeps your text with `Retry`.
 
@@ -97,9 +101,9 @@ telemetry, no analytics and no cloud account.
 | | |
 | --- | --- |
 | ![Dashboard](docs/screenshots/current/dashboard.jpeg) | ![Welcome](docs/screenshots/current/welcome.jpeg) |
-| Start here, services, today and the briefing | First run says what stays local |
+| Focus, source rail, today and the briefing inside the glass stage | First run says what stays local |
 | ![Search](docs/screenshots/current/search-suggestions.jpeg) | ![Settings](docs/screenshots/current/settings.jpeg) |
-| Search across notes, mail and Drive | Connections with per-service hints |
+| Search in the command field, grouped suggestions | Connections, preferences and the wallpaper picker |
 
 More screens: [`docs/screenshots/current/index.html`](docs/screenshots/current/index.html).
 
