@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.6.0
+
+The interface becomes an Aurora Glass shell: one frameless window on a slow aurora, a source rail
+instead of a services line, a command field that owns search, and a wallpaper picker behind the
+glass. Briefing data, sources and privacy are unchanged.
+
+- **Aurora Glass** — dark indigo/teal/amber light behind a glass stage, a top bar with brand, date,
+  command field, sync and window controls, a vertical source rail with health dots, and settings in
+  the same shell.
+- **Frameless window** — custom title bar, remembered size, position and maximized state. Closing
+  still hides to the tray.
+- **Wallpapers** — nine images (Blue Hour, Cinnabar Shore, Still Sea, Dusk Ridge, Alpine Dawn,
+  Salt Mirror, Pine Hollow, Amber Dunes, Heather Moor) ship with the app. Pick one under
+  **Settings → Preferences → App background**; Aurora stays the default. The choice is stored in the
+  local database through `/api/settings`.
+- **Search** — the command field keeps grouped suggestions in place; full results open in a glass
+  overlay instead of a page section.
+- **Settings** — section navigation with scrollspy, quiet service hints that no longer push the
+  rows, and the same autosaving receipts.
+- **Splash and tray** — the splash follows the new palette and the tray keeps its briefing and sync
+  actions.
+- The design documents (`DESIGN.md`, `PRODUCT.md`, `AGENTS.md`) now describe Aurora Glass; the old
+  0.8.0 surface brief is marked superseded.
+
 ## 1.5.0
 
 The briefing closes the day as well as opening it, reads a meeting's mail before you walk into it,
