@@ -12,7 +12,7 @@ import {
 } from './api.js'
 import { SettingsPanel } from './Settings.js'
 import { friendlyError } from './errors.js'
-import { briefingLang } from './lang.js'
+import { contentLang } from './lang.js'
 import { driveUrl, mailUrl, obsidianUrl, sourceUrl } from './links.js'
 import { dialogOpen, useDialog, useLeaving } from './useDialog.js'
 import { wallpaperById } from './wallpapers.js'
@@ -206,7 +206,7 @@ function BriefingPoints({
   return (
     <div
       className="markdown"
-      lang={briefingLang(`${body.headline} ${body.bullets.map((b) => b.text).join(' ')}`)}
+      lang={contentLang(`${body.headline} ${body.bullets.map((b) => b.text).join(' ')}`)}
     >
       {body.headline && (
         <h3 className="briefing__headline headline" dir="auto">
@@ -232,6 +232,7 @@ function BriefingPoints({
                           key={at}
                           className="chip ref"
                           href={href}
+                          lang={contentLang(ref.label)}
                           target={href.startsWith('obsidian://') ? undefined : '_blank'}
                           rel={href.startsWith('obsidian://') ? undefined : 'noreferrer'}
                           onClick={() => void api.opened(id)}
@@ -244,7 +245,7 @@ function BriefingPoints({
                           {ref.label}
                         </a>
                       ) : (
-                        <span key={at} className="chip chip--dead ref text">
+                        <span key={at} className="chip chip--dead ref text" lang={contentLang(ref.label)}>
                           <span
                             className="status-dot"
                             style={{ '--dot': `var(${refTint(ref.kind)})` } as React.CSSProperties}
@@ -260,7 +261,9 @@ function BriefingPoints({
                       <summary>Why</summary>
                       <div className="why-panel">
                         {why.map((line) => (
-                          <span key={line}>{line}</span>
+                          <span key={line} lang={contentLang(line)}>
+                            {line}
+                          </span>
                         ))}
                       </div>
                     </details>
@@ -350,7 +353,7 @@ function LegacyBriefingBody({ markdown }: { markdown: string }) {
   }
 
   return (
-    <div className="markdown" lang={briefingLang(markdown)}>
+    <div className="markdown" lang={contentLang(markdown)}>
       <ul className="briefing__reading">
         {entries.map((text, index) => {
           // The closing entry is the suggestion — but a one-line briefing has no closing entry.
@@ -638,10 +641,14 @@ export function App() {
   }
 
   function toggleSettings(): void {
+    const stage = document.getElementById('stage')
+    if (stage) stage.scrollTop = 0
     withViewTransition(() => setShowSettings((value) => !value))
   }
 
   function closeSettings(): void {
+    const stage = document.getElementById('stage')
+    if (stage) stage.scrollTop = 0
     withViewTransition(() => setShowSettings(false))
   }
 
@@ -742,8 +749,7 @@ export function App() {
     }
   }
 
-  async function search(event: React.FormEvent) {
-    event.preventDefault()
+  async function search() {
     const term = query.trim()
     if (term.length < 2) {
       setResults(null)
@@ -751,6 +757,7 @@ export function App() {
       setNote({ text: 'Type at least 2 characters to search.', tone: 'info' })
       return
     }
+    setSuggestions(null)
     try {
       const found = await api.search(term)
       setResults(found)
@@ -815,19 +822,33 @@ export function App() {
     open(target.url)
   }
 
+  // The search-all row is one more option after the suggestions, so arrows reach it too.
+  const activeOption = Math.min(activeSuggestion, items.length)
+  const suggestionOpen =
+    query.trim().length >= 2 && suggestions !== null && !(results && resultsQuery)
+  const optionCount = items.length + 1
+
   function onSearchKey(event: React.KeyboardEvent<HTMLInputElement>) {
-    if (items.length === 0) return
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault()
+      void search()
+      return
+    }
+    if (event.key === 'Escape') {
+      setSuggestions(null)
+      return
+    }
+    if (!suggestionOpen) return
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      setActiveSuggestion((index) => (index + 1) % items.length)
+      setActiveSuggestion((activeOption + 1) % optionCount)
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
-      setActiveSuggestion((index) => (index - 1 + items.length) % items.length)
-    } else if (event.key === 'Escape') {
-      setSuggestions(null)
+      setActiveSuggestion((activeOption - 1 + optionCount) % optionCount)
     } else if (event.key === 'Enter') {
       event.preventDefault()
-      choose()
+      if (activeOption === items.length) void search()
+      else choose(items[activeOption])
     }
   }
 
@@ -1035,21 +1056,30 @@ export function App() {
 
   function topbar(isSettings: boolean) {
     const failed = stations.some((station) => station.error)
+    const brand = (
+      <>
+        <img className="brand__mark" src="/icon-transparent-96.png" alt="" />
+        <span className="brand__text">
+          <span className="brand__name">Local Dashboard</span>
+          <span className="brand__date">{date}</span>
+        </span>
+      </>
+    )
     return (
       <header className="topbar">
         <div className="topbar__left">
-          <button
-            type="button"
-            className="brand"
-            onClick={isSettings ? closeSettings : undefined}
-            aria-label="Local Dashboard"
-          >
-            <img className="brand__mark" src="/icon-transparent-96.png" alt="" />
-            <span className="brand__text">
-              <span className="brand__name">Local Dashboard</span>
-              <span className="brand__date">{date}</span>
-            </span>
-          </button>
+          {isSettings ? (
+            <button
+              type="button"
+              className="brand"
+              onClick={closeSettings}
+              aria-label="Local Dashboard"
+            >
+              {brand}
+            </button>
+          ) : (
+            <div className="brand">{brand}</div>
+          )}
         </div>
 
         <div className="topbar__center">
@@ -1060,7 +1090,10 @@ export function App() {
           ) : (
             <form
               className="command search-wrap"
-              onSubmit={(event) => void search(event)}
+              onSubmit={(event) => {
+                event.preventDefault()
+                void search()
+              }}
               role="search"
             >
               <svg
@@ -1080,28 +1113,31 @@ export function App() {
               <input
                 ref={searchRef}
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setActiveSuggestion(0)
+                  setQuery(event.target.value)
+                }}
                 onKeyDown={onSearchKey}
                 onBlur={() => setSuggestions(null)}
                 placeholder="Search notes, mail and Drive…"
                 autoComplete="off"
                 role="combobox"
                 aria-label="Search notes, mail and Drive"
-                aria-controls={items.length > 0 ? 'search-suggestions' : undefined}
+                aria-controls={suggestionOpen ? 'search-suggestions' : undefined}
                 aria-haspopup="listbox"
                 aria-autocomplete="list"
-                aria-expanded={items.length > 0}
+                aria-expanded={suggestionOpen}
                 aria-activedescendant={
-                  items.length > 0 ? `search-option-${activeSuggestion}` : undefined
+                  suggestionOpen ? `search-option-${activeOption}` : undefined
                 }
               />
               <kbd className="command__key" aria-hidden="true">
                 /
               </kbd>
-              <button type="submit" className="sr-only">
+              <button type="submit" className="sr-only" tabIndex={-1}>
                 Search
               </button>
-              {items.length > 0 && (
+              {suggestionOpen && (
                 <div className="suggest" id="search-suggestions" role="listbox">
                   {items.map((item, index) => (
                     <Fragment key={`${item.kind}-${index}`}>
@@ -1113,8 +1149,8 @@ export function App() {
                       <div
                         role="option"
                         id={`search-option-${index}`}
-                        aria-selected={activeSuggestion === index}
-                        className={`item${activeSuggestion === index ? ' active' : ''}`}
+                        aria-selected={activeOption === index}
+                        className={`item${activeOption === index ? ' active' : ''}`}
                         onMouseEnter={() => setActiveSuggestion(index)}
                         onMouseDown={(event) => {
                           event.preventDefault()
@@ -1130,11 +1166,35 @@ export function App() {
                               : 'Drive'}
                           :{' '}
                         </span>
-                        <span className="label">{item.label}</span>
-                        {item.detail && <span className="detail">{item.detail}</span>}
+                        <span className="label" lang={contentLang(item.label)}>
+                          {item.label}
+                        </span>
+                        {item.detail && (
+                          <span className="detail" lang={contentLang(item.detail)}>
+                            {item.detail}
+                          </span>
+                        )}
                       </div>
                     </Fragment>
                   ))}
+                  <div className="search-foot">
+                    <div
+                      role="option"
+                      id={`search-option-${items.length}`}
+                      aria-selected={activeOption === items.length}
+                      className={`search-all${activeOption === items.length ? ' active' : ''}`}
+                      onMouseEnter={() => setActiveSuggestion(items.length)}
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        void search()
+                      }}
+                    >
+                      <span>Search all for “{query.trim()}”</span>
+                      <kbd className="command__key" aria-hidden="true">
+                        Ctrl ↵
+                      </kbd>
+                    </div>
+                  </div>
                 </div>
               )}
             </form>
@@ -1147,6 +1207,7 @@ export function App() {
             className={`sync${running ? ' is-running' : ''}${failed ? ' is-failed' : ''}`}
             disabled={running}
             onClick={doSync}
+            title={running ? `Syncing ${syncing ?? 'sources'}` : failed ? 'Sync failed. Sync now.' : 'Sync now'}
             aria-label={
               running
                 ? `Syncing ${syncing ?? 'sources'}`
@@ -1157,6 +1218,11 @@ export function App() {
                     : 'Sync now'
             }
           >
+            <svg className="od-icon sync__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M8 16H3v5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             <span className="sync__dot" aria-hidden="true" />
             <span className="sync__bar" aria-hidden="true">
               <i style={{ width: `${running ? progress : fill}%` }} />
@@ -1240,6 +1306,7 @@ export function App() {
       <main className="stage glass" id="stage" tabIndex={-1} aria-label="Main content">
         <div className="route" role="region" aria-label="Dashboard">
           <div className="page">
+            <h1 className="sr-only">Dashboard</h1>
             <p className="sr-only" role="status">
               {live}
             </p>
@@ -1266,9 +1333,9 @@ export function App() {
             <section className="panel hero" aria-labelledby="focus-label">
               <div className="hero__top">
                 <div className="hero__labels">
-                  <span className="label" id="focus-label">
+                  <h2 className="label" id="focus-label">
                     Focus
-                  </span>
+                  </h2>
                   <span className="hero__date">{date}</span>
                 </div>
                 <span className={`hero__synced${running ? ' is-syncing' : ''}`}>
@@ -1292,8 +1359,10 @@ export function App() {
                     {start.num !== undefined && (
                       <span className="hero__number">{start.num.toLocaleString('en-GB')}</span>
                     )}
-                    <p className="hero__sentence">{start.text}</p>
-                    <p className="hero__meta">
+                    <p className="hero__sentence" lang={contentLang(start.text)}>
+                      {start.text}
+                    </p>
+                    <p className="hero__meta" lang={contentLang(start.meta)}>
                       {start.href ? (
                         <a
                           href={start.href}
@@ -1348,9 +1417,9 @@ export function App() {
             {today && settings && (
               <section className="panel today" aria-labelledby="today-label">
                 <div className="today__head">
-                  <span className="label" id="today-label">
+                  <h2 className="label" id="today-label">
                     Today
-                  </span>
+                  </h2>
                   <span className="today__date">
                     {new Date().toLocaleDateString('en-GB', {
                       weekday: 'short',
@@ -1368,12 +1437,17 @@ export function App() {
                   {today.events.slice(0, TODAY_EVENTS).map((event) => (
                     <div key={event.id} className="event" dir="auto">
                       <span className="event__time">{eventTime(event)}</span>
-                      <span className="event__title">{event.summary}</span>
+                      <span className="event__title" lang={contentLang(event.summary)}>
+                        {event.summary}
+                      </span>
                     </div>
                   ))}
                   {today.conflicts.length > 0 && (
                     <p className="conflict">
-                      Conflict: {today.conflicts.slice(0, 3).join(', ')}
+                      Conflict:{' '}
+                      <span lang={contentLang(today.conflicts.join(', '))}>
+                        {today.conflicts.slice(0, 3).join(', ')}
+                      </span>
                       {today.conflicts.length > 3 ? ` +${today.conflicts.length - 3}` : ''}
                     </p>
                   )}
@@ -1439,7 +1513,9 @@ export function App() {
                   title="Open in Obsidian"
                 >
                   <span className="dot vault" />
-                  <span className="label">{note.path}</span>
+                  <span className="label" lang={contentLang(note.path)}>
+                    {note.path}
+                  </span>
                 </a>
               ))}
               {results.mail.map((message, index) => (
@@ -1452,8 +1528,12 @@ export function App() {
                   title="Open in Gmail"
                 >
                   <span className="dot mail" />
-                  <span className="label">{message.subject}</span>
-                  <span className="detail">{message.sender}</span>
+                  <span className="label" lang={contentLang(message.subject)}>
+                    {message.subject}
+                  </span>
+                  <span className="detail" lang={contentLang(message.sender)}>
+                    {message.sender}
+                  </span>
                 </a>
               ))}
               {results.drive.map((file, index) => (
@@ -1466,7 +1546,9 @@ export function App() {
                   title="Open in Google Drive"
                 >
                   <span className="dot drive" />
-                  <span className="label">{file.name}</span>
+                  <span className="label" lang={contentLang(file.name)}>
+                    {file.name}
+                  </span>
                 </a>
               ))}
             </div>
@@ -1588,7 +1670,7 @@ export function App() {
                   </form>
                   <p className="ask__hint">Max 200 characters.</p>
                   {answer && answer.id === latest.id && (
-                    <p className="ask__answer" dir="auto">
+                    <p className="ask__answer" dir="auto" lang={contentLang(answer.text)}>
                       {answer.text}
                     </p>
                   )}
@@ -1626,7 +1708,7 @@ export function App() {
                     <span>What it read</span>
                   </summary>
                   <div className="disclosure__body">
-                    <pre className="digest">{latest.digest}</pre>
+                    <pre className="digest" lang={contentLang(latest.digest)}>{latest.digest}</pre>
                   </div>
                 </details>
               )}

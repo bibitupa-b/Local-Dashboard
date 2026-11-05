@@ -8,6 +8,7 @@ import {
   type Settings,
 } from './api.js'
 import { friendlyError } from './errors.js'
+import { contentLang } from './lang.js'
 import { useDialog, useLeaving } from './useDialog.js'
 import { WALLPAPERS } from './wallpapers.js'
 
@@ -369,9 +370,15 @@ export function SettingsPanel({
     if (!root || sections.length === 0) return undefined
     const update = () => {
       const line = root.getBoundingClientRect().top + 96
-      const current = sections.filter((section) => section.getBoundingClientRect().top <= line).at(-1)
+      // Above the first card nothing has crossed the line yet; keep the first section current.
+      const current =
+        sections.filter((section) => section.getBoundingClientRect().top <= line).at(-1) ??
+        sections[0]
       for (const link of links) {
-        link.classList.toggle('is-active', link.getAttribute('href') === `#${current?.id}`)
+        const active = link.getAttribute('href') === `#${current?.id}`
+        link.classList.toggle('is-active', active)
+        if (active) link.setAttribute('aria-current', 'location')
+        else link.removeAttribute('aria-current')
       }
     }
     update()
@@ -495,8 +502,12 @@ export function SettingsPanel({
                       className={`dot ${row.lastError ? 'bad' : isHealthy(row) ? 'ok' : ''}`}
                       title={row.lastError ?? (isHealthy(row) ? 'enabled' : 'needs attention')}
                     />
-                    <span className="label">{row.label}</span>
-                    <span className="detail">{detailOf(row)}</span>
+                    <span className="label" lang={contentLang(row.label)}>
+                      {row.label}
+                    </span>
+                    <span className="detail" lang={contentLang(detailOf(row))}>
+                      {detailOf(row)}
+                    </span>
                     <span className="conn-actions">
                       <button type="button" className="btn btn--ghost btn--mini" onClick={() => void test(row)}>
                         Test
@@ -552,7 +563,8 @@ export function SettingsPanel({
       <section className="card" id="section-application">
         <h2 className="card__title">Application</h2>
         <p className="card__sub">
-          Database, logs and backups live in <span className="detail">{settings.dataDir}</span>.
+          Database, logs and backups live in{' '}
+          <span className="detail" lang={contentLang(settings.dataDir)}>{settings.dataDir}</span>.
         </p>
         <div className="row">
           {window.dashboard && (
@@ -898,6 +910,7 @@ function ConnectionForm({
   const [error, setError] = useState<string | null>(null)
   const { leaving, close } = useLeaving()
   const dialogRef = useDialog<HTMLFormElement>(true, () => close(onClose))
+  const formId = useId()
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -925,50 +938,67 @@ function ConnectionForm({
         onSubmit={(event) => void submit(event)}
       >
         <h2>{connection ? 'Edit connection' : `Connect ${definition.name}`}</h2>
-        <label>
-          Label
-          <input value={label} onChange={(event) => setLabel(event.target.value)} />
-        </label>
-        {definition.fields.map((field) => (
-          <label key={field.key}>
-            {field.label}
-            {field.optional ? ' (optional)' : ''}
+        <div className="modal__body">
+          <div className="modal-field">
+            <label htmlFor={`${formId}-label`}>Label</label>
             <input
-              type={field.secret ? 'password' : 'text'}
-              placeholder={field.placeholder}
-              value={field.secret ? (secret[field.key] ?? '') : (config[field.key] ?? '')}
-              onChange={(event) =>
-                field.secret
-                  ? setSecret((current) => ({ ...current, [field.key]: event.target.value }))
-                  : setConfig((current) => ({ ...current, [field.key]: event.target.value }))
-              }
+              id={`${formId}-label`}
+              value={label}
+              onChange={(event) => setLabel(event.target.value)}
             />
-            {field.secret && connection?.secretsSet.includes(field.key) && (
-              <span className="sub">already saved — leave empty to keep it</span>
-            )}
-          </label>
-        ))}
-        {connection && (
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(event) => setEnabled(event.target.checked)}
-            />
-            Enabled
-          </label>
-        )}
-        {error && (
-          <p className="note error" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="row">
-          <button type="submit" className="btn btn--primary">
-            {connection ? 'Save changes' : 'Add connection'}
-          </button>
+          </div>
+          {definition.fields.map((field) => {
+            const fieldId = `${formId}-${field.key}`
+            const noteId = `${fieldId}-note`
+            const saved = field.secret && connection?.secretsSet.includes(field.key)
+            return (
+              <div className="modal-field" key={field.key}>
+                <label htmlFor={fieldId}>
+                  {field.label}
+                  {field.optional ? ' (optional)' : ''}
+                </label>
+                <input
+                  id={fieldId}
+                  type={field.secret ? 'password' : 'text'}
+                  placeholder={field.placeholder}
+                  aria-describedby={saved ? noteId : undefined}
+                  value={field.secret ? (secret[field.key] ?? '') : (config[field.key] ?? '')}
+                  onChange={(event) =>
+                    field.secret
+                      ? setSecret((current) => ({ ...current, [field.key]: event.target.value }))
+                      : setConfig((current) => ({ ...current, [field.key]: event.target.value }))
+                  }
+                />
+                {saved && (
+                  <span className="hint-text" id={noteId}>
+                    already saved — leave empty to keep it
+                  </span>
+                )}
+              </div>
+            )
+          })}
+          {connection && (
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={enabled}
+                onChange={(event) => setEnabled(event.target.checked)}
+              />
+              Enabled
+            </label>
+          )}
+          {error && (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+        <div className="modal__actions">
           <button type="button" className="btn btn--ghost" onClick={() => close(onClose)}>
             Cancel
+          </button>
+          <button type="submit" className="btn btn--primary">
+            {connection ? 'Save changes' : 'Add connection'}
           </button>
         </div>
       </form>

@@ -99,6 +99,7 @@
 }
 
 :root {
+  color-scheme: dark;
   --void: #05070D;
   --ink: #F4F6FB;
   --mist: #AEB6C8;
@@ -188,11 +189,7 @@ a {
   color: var(--ink);
 }
 
-:focus {
-  outline: none;
-}
-
-:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+:focus-visible {
   outline: 2px solid var(--ice);
   outline-offset: 2px;
 }
@@ -407,7 +404,7 @@ a {
   transition: background-color 120ms ease;
 }
 
-.brand:hover {
+button.brand:hover {
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -945,6 +942,11 @@ a {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.hero__labels .label,
+.today__head .label {
+  margin: 0;
 }
 
 .hero__date {
@@ -2648,7 +2650,7 @@ button.chip:hover {
 }
 
 .form-error {
-  margin-top: 16px;
+  margin: 0;
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid rgba(240, 138, 138, 0.32);
@@ -3072,7 +3074,21 @@ button.chip:hover {
 
   .sync__icon {
     display: block;
+    width: 18px;
+    height: 18px;
     color: var(--mist);
+  }
+
+  .sync.is-running .sync__icon {
+    color: var(--amber);
+  }
+
+  .sync.is-failed .sync__icon {
+    color: var(--coral);
+  }
+
+  .sync__bar {
+    display: none;
   }
 
   .sync__dot {
@@ -3416,7 +3432,7 @@ button.chip:hover {
   -webkit-app-region: no-drag;
 }
 
-.brand {
+button.brand {
   border: 0;
   background: transparent;
   cursor: pointer;
@@ -3599,6 +3615,24 @@ button.chip:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: right;
+}
+
+.command .suggest .search-all {
+  min-height: 40px;
+  border-radius: 9px;
+}
+
+.command .suggest .search-all.active {
+  background: var(--raised-2);
+  box-shadow: inset 2px 0 0 var(--ice);
+}
+
+/* Keep the full-search row on screen even when the suggestion list scrolls. */
+.command .suggest .search-foot {
+  position: sticky;
+  bottom: -8px;
+  padding-bottom: 8px;
+  background: rgba(15, 21, 34, 0.97);
 }
 
 .search-overlay {
@@ -4182,7 +4216,7 @@ li.point {
   letter-spacing: -0.01em;
 }
 
-.modal.card p {
+.modal.card > p {
   margin: 0 0 16px;
   color: var(--mist);
   font-size: 15px;

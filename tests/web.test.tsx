@@ -72,10 +72,16 @@ test('renders the briefing, the services line and their empty states', async () 
   // The article carries the label so a screen reader announces it as the briefing, not as loose text.
   expect(screen.getByRole('article', { name: 'Briefing' })).toBeTruthy()
   expect(screen.getByRole('main')).toBeTruthy()
+  // One h1 for the route, then the visible section labels as h2s.
+  expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeTruthy()
+  expect(screen.getByRole('heading', { level: 2, name: 'Briefing' })).toBeTruthy()
+  // The submit button is a keyboard shortcut only; it must not be a tab stop nobody can see.
+  expect(screen.getByRole('button', { name: 'Search' }).getAttribute('tabindex')).toBe('-1')
 
   await waitFor(() => {
     expect(screen.getByText('Nothing needs attention.')).toBeTruthy()
     expect(screen.getByText('Add a DeepSeek key to get your first briefing.')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: 'Focus' })).toBeTruthy()
     expect(container.querySelector('.station')?.getAttribute('title')).toBe(
       'Waiting for the first sync',
     )
@@ -586,7 +592,7 @@ test('search input exposes the active suggestion to assistive tech', async () =>
   const input = screen.getByRole('combobox')
   fireEvent.change(input, { target: { value: 'zen' } })
   await waitFor(() => expect(screen.getByText('Zen.md')).toBeTruthy())
-  const option = screen.getByRole('option')
+  const option = screen.getByRole('option', { name: /Zen\.md/ })
   expect(option.id).toBe('search-option-0')
   expect(input.getAttribute('aria-activedescendant')).toBe('search-option-0')
   // Pressing elsewhere closes the popup; it must not sit over the briefing while reading.
@@ -594,9 +600,42 @@ test('search input exposes the active suggestion to assistive tech', async () =>
   expect(screen.queryByRole('option')).toBeNull()
   // Leaving the field with the keyboard closes it too.
   fireEvent.change(input, { target: { value: 'zeno' } })
-  await waitFor(() => expect(screen.getByRole('option')).toBeTruthy())
+  await waitFor(() => expect(screen.getByRole('option', { name: /Zen\.md/ })).toBeTruthy())
   fireEvent.blur(input)
   expect(screen.queryByRole('option')).toBeNull()
+  unmount()
+})
+
+test('the last suggestion row and Ctrl/Cmd+Enter both run the full search', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const search = { notes: [{ path: 'Zen.md', snippet: 'zen' }], mail: [], drive: [] }
+  const empty = { notes: [], mail: [], drive: [] }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => {
+        if (url.includes('q=zzz')) return empty
+        return url.startsWith('/api/search') ? search : responses[url] ?? {}
+      },
+    })),
+  )
+  const { container, unmount } = render(<App />)
+  await waitFor(() => expect(screen.getByText('Briefing')).toBeTruthy())
+  const input = screen.getByRole('combobox')
+
+  fireEvent.change(input, { target: { value: 'zen' } })
+  const all = await screen.findByRole('option', { name: /Search all for “zen”/ })
+  expect(all.id).toBe('search-option-1')
+  fireEvent.mouseDown(all)
+  await waitFor(() => expect(container.querySelector('.search-overlay')).toBeTruthy())
+
+  // With no suggestions at all the row is the only visible control, and Enter runs it.
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  fireEvent.change(input, { target: { value: 'zzz' } })
+  await waitFor(() => expect(screen.getByRole('option', { name: /Search all for “zzz”/ })).toBeTruthy())
+  fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+  await waitFor(() => expect(screen.getByText('Nothing found.')).toBeTruthy())
   unmount()
 })
 
@@ -965,6 +1004,9 @@ test('all-day events read as a day and unreadable dates never print “Invalid D
   const { unmount } = render(<App />)
   await waitFor(() => expect(screen.getByText('Конференция')).toBeTruthy())
   expect(screen.getByText('All day')).toBeTruthy()
+  // User content carries its own language, so a Russian summary is not read with English phonetics.
+  expect(screen.getByText('Конференция').getAttribute('lang')).toBe('ru')
+  expect(screen.getByText('Broken event').getAttribute('lang')).toBeNull()
   expect(screen.queryByText('Invalid Date')).toBeNull()
   expect(screen.getByText('Broken event').closest('.event')?.textContent).toContain('—')
   unmount()
