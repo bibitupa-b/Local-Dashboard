@@ -10,6 +10,7 @@ export type SourceKind =
   | 'weather'
   | 'rss'
   | 'tasks'
+  | 'slack'
 export type SourceService =
   | 'vault'
   | 'google'
@@ -18,6 +19,7 @@ export type SourceService =
   | 'browser'
   | 'weather'
   | 'rss'
+  | 'slack'
 
 export type SourceMeta = {
   id: string

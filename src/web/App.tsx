@@ -64,6 +64,12 @@ function SourceGlyph({ service }: { service: string }) {
           <path d="M7 18.5h9a3 3 0 0 0 .2-6 4.4 4.4 0 0 0-8.4-.8A3.4 3.4 0 0 0 7 18.5z" {...common} />
         </>
       )}
+      {service === 'slack' && (
+        <>
+          <path d="M9 3.8v6.4M15 3.8v16.4M3.8 9h16.4M3.8 15h16.4" {...common} />
+          <path d="M7.2 6.4h3.6v3.6H7.2zM13.2 6.4h3.6v3.6h-3.6zM7.2 13.6h3.6v3.6H7.2zM13.2 13.6h3.6v3.6h-3.6z" {...common} />
+        </>
+      )}
       {service === 'rss' && (
         <>
           <rect x="4" y="4.5" width="16" height="15" rx="1.6" {...common} />
@@ -94,6 +100,7 @@ const SERVICE_LABELS: Record<string, string> = {
   browser: 'browser',
   weather: 'weather',
   rss: 'news',
+  slack: 'slack',
 }
 
 // A station link is named by what it opens, not only by its state.
@@ -110,6 +117,7 @@ const START_ORDER: AttentionItem['kind'][] = [
   'mail',
   'task',
   'google-task',
+  'slack',
   'github',
   'inbox',
   'stale-project',
@@ -1232,7 +1240,7 @@ export function App() {
   )
 
   const stations = (() => {
-    const order = ['vault', 'google', 'imap', 'github', 'weather', 'rss', 'browser']
+    const order = ['vault', 'google', 'imap', 'github', 'weather', 'rss', 'slack', 'browser']
     const map = new Map<
       string,
       { service: string; total: number; configured: number; error: string | null; lastSync: string | null }

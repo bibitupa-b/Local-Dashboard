@@ -52,6 +52,7 @@ export type AttentionItem = {
     | 'inbox'
     | 'drive'
     | 'google-task'
+    | 'slack'
   label: string
   detail: string
   count?: number
@@ -165,6 +166,7 @@ export type Service =
   | 'browser'
   | 'weather'
   | 'rss'
+  | 'slack'
   | 'deepseek'
 
 export type Connection = {

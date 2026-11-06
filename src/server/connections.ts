@@ -14,6 +14,7 @@ export type Service =
   | 'browser'
   | 'weather'
   | 'rss'
+  | 'slack'
   | 'deepseek'
 export const SERVICES: Service[] = [
   'vault',
@@ -23,6 +24,7 @@ export const SERVICES: Service[] = [
   'browser',
   'weather',
   'rss',
+  'slack',
   'deepseek',
 ]
 
@@ -230,6 +232,7 @@ export function purgeConnectionData(db: DatabaseSync, connectionId: string): voi
     'weather_daily',
     'rss_items',
     'google_tasks',
+    'slack_mentions',
     'calendar_events',
     'browser_visits',
     'github_items',

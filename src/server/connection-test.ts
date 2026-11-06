@@ -76,6 +76,17 @@ export async function testConnection(connection: Connection): Promise<TestResult
           ? { ok: true }
           : { ok: false, error: 'Add at least one RSS or Atom URL' }
       }
+      case 'slack': {
+        const token = connection.secret?.token
+        if (!token) return { ok: false, error: 'Slack token is missing' }
+        const response = await fetch('https://slack.com/api/auth.test', {
+          headers: { authorization: `Bearer ${token}` },
+        })
+        const data = (await response.json()) as { ok?: boolean; error?: string }
+        return data.ok
+          ? { ok: true }
+          : { ok: false, error: `Slack responded ${data.error ?? response.status}` }
+      }
       case 'deepseek': {
         const key = connection.secret?.key
         if (!key) return { ok: false, error: 'API key is missing' }

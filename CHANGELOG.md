@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.14.0
+
+Work chat joins the morning screen.
+
+- **Slack** — a user or bot token reads mentions and DMs from the last 24 hours. A `Slack: N
+  mentions` item appears in attention, and the briefing sees channel names and counts only; message
+  text stays local.
+- Settings has a Slack connection with the required read scopes and an optional user id for bot
+  tokens.
+- Slack token testing uses `auth.test`; health and the connection receipt work like the other
+  sources.
+
 ## 1.13.0
 
 The first Phase 3 sources: weather, RSS and Google Tasks.

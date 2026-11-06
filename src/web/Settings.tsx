@@ -132,6 +132,24 @@ Only titles and short summaries reach the briefing; the feed is fetched on this 
     ],
   },
   {
+    service: 'slack',
+    name: 'Slack',
+    description: 'Mentions and DMs from the last 24 hours.',
+    hint: `1. Create a Slack app at api.slack.com/apps.
+2. Give it read scopes: channels:history, groups:history, im:history, mpim:history, users:read.
+3. Install it and paste the user or bot token.
+4. Leave User ID empty to use the token owner; set it when a bot token should watch a person.`,
+    fields: [
+      { key: 'token', label: 'Token', secret: true, placeholder: 'xoxp-... or xoxb-...' },
+      {
+        key: 'userId',
+        label: 'User ID',
+        optional: true,
+        placeholder: 'U01234567',
+      },
+    ],
+  },
+  {
     service: 'deepseek',
     name: 'DeepSeek API',
     description: 'Powers the daily briefing.',
@@ -153,6 +171,7 @@ const SOURCE_LABELS: Record<string, string> = {
   weather: 'weather',
   rss: 'rss',
   tasks: 'google tasks',
+  slack: 'slack',
 }
 
 type Notice = { text: string; tone: 'info' | 'success' | 'error' }
@@ -1585,6 +1604,8 @@ function isHealthy(connection: Connection): boolean {
       return Boolean(connection.config.latitude && connection.config.longitude)
     case 'rss':
       return Boolean(connection.config.feeds?.trim())
+    case 'slack':
+      return connection.secretsSet.includes('token')
     default:
       return false
   }
@@ -1608,6 +1629,8 @@ function detailOf(connection: Connection): string {
         : 'coordinates missing'
     case 'rss':
       return connection.config.feeds ? `${connection.config.feeds.split(',').length} feeds` : 'no feeds'
+    case 'slack':
+      return connection.secretsSet.includes('token') ? 'token set' : 'no token'
     case 'deepseek':
       return connection.secretsSet.includes('key') ? 'key saved' : 'no key'
     default:

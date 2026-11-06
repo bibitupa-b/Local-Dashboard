@@ -21,6 +21,7 @@ import { createDriveSource, createGoogleDriveApi } from './sources/drive.js'
 import { createOpenMeteoApi, createWeatherSource } from './sources/weather.js'
 import { createRssApi, createRssSource } from './sources/rss.js'
 import { createGoogleTasksApi, createGoogleTasksSource } from './sources/google-tasks.js'
+import { createSlackApi, createSlackSource } from './sources/slack.js'
 import {
   createCalendarSource,
   createGoogleCalendarApi,
@@ -102,6 +103,14 @@ export function buildSources(deps: RegistryDeps): Source[] {
           createRssSource(
             createRssApi((connection.config.feeds ?? '').split(/[\n,]+/)),
             meta('rss'),
+          ),
+        )
+        break
+      case 'slack':
+        sources.push(
+          createSlackSource(
+            createSlackApi(connection.secret?.token ?? null, connection.config.userId),
+            meta('slack'),
           ),
         )
         break

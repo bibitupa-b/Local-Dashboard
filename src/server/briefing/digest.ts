@@ -171,6 +171,8 @@ export function buildDigest(input: DigestInput): DigestResult {
   if (calendar.length > 0) sections.push({ title: 'Calendar', lines: calendar })
   const googleTasks = extraLines('Google Tasks')
   if (googleTasks.length > 0) sections.push({ title: 'Google Tasks', lines: googleTasks })
+  const slack = extraLines('Slack')
+  if (slack.length > 0) sections.push({ title: 'Slack', lines: slack })
   const news = extraLines('News')
   if (news.length > 0) sections.push({ title: 'News', lines: news })
 

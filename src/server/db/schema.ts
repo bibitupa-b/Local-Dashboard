@@ -156,6 +156,16 @@ CREATE TABLE IF NOT EXISTS rss_items (
 
 CREATE INDEX IF NOT EXISTS rss_items_published ON rss_items (published);
 
+CREATE TABLE IF NOT EXISTS slack_mentions (
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
+  channel_id TEXT NOT NULL,
+  ts TEXT NOT NULL,
+  channel_name TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  is_dm INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (connection_id, channel_id, ts)
+);
+
 CREATE TABLE IF NOT EXISTS google_tasks (
   connection_id TEXT NOT NULL DEFAULT 'legacy',
   id TEXT NOT NULL,

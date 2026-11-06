@@ -200,6 +200,7 @@ const DATA_TABLES = [
   'weather_daily',
   'rss_items',
   'google_tasks',
+  'slack_mentions',
   'calendar_events',
   'browser_visits',
   'github_items',

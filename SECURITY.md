@@ -12,7 +12,7 @@ This is a personal project. Open an issue or message the maintainer privately if
 - Responses carry CSP, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`.
 - The Electron window has `contextIsolation`, `sandbox` and no Node integration. Navigation away from the app is blocked; external links open in the system browser.
 - Access to services is read-only: notes, mail, calendar and Drive are never modified.
-- The briefing sends a compact digest to `https://api.deepseek.com` (`deepseek-flash`). The digest carries note paths, five short excerpts (up to 200 characters) from changed notes, mail subjects/senders with the first ~200 characters of unread messages, calendar events, due Google Tasks, weather values, RSS headlines/summaries and domain counts. Whole notes, full mail bodies, attachments, browser URLs, page titles and feed URLs are never included. A strict check re-reads every point against the digest.
+- The briefing sends a compact digest to `https://api.deepseek.com` (`deepseek-flash`). The digest carries note paths, five short excerpts (up to 200 characters) from changed notes, mail subjects/senders with the first ~200 characters of unread messages, calendar events, due Google Tasks, weather values, RSS headlines/summaries, Slack channel names/counts and domain counts. Whole notes, full mail bodies, attachments, browser URLs, page titles, feed URLs and Slack message text are never included. A strict check re-reads every point against the digest.
 - Weather coordinates go only to `api.open-meteo.com`; RSS feed URLs are fetched directly from the configured addresses. Neither goes to DeepSeek.
 
 ## Secrets
