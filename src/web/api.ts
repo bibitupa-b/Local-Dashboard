@@ -51,6 +51,7 @@ export type AttentionItem = {
     | 'stale-project'
     | 'inbox'
     | 'drive'
+    | 'google-task'
   label: string
   detail: string
   count?: number
@@ -156,7 +157,15 @@ export type Settings = {
   dataDir: string
 }
 
-export type Service = 'vault' | 'google' | 'imap' | 'github' | 'browser' | 'deepseek'
+export type Service =
+  | 'vault'
+  | 'google'
+  | 'imap'
+  | 'github'
+  | 'browser'
+  | 'weather'
+  | 'rss'
+  | 'deepseek'
 
 export type Connection = {
   id: string

@@ -6,8 +6,25 @@ import { getSetting, setSetting } from './db/index.js'
 import type { Config } from './config.js'
 import type { SecretBox } from './secrets.js'
 
-export type Service = 'vault' | 'google' | 'imap' | 'github' | 'browser' | 'deepseek'
-export const SERVICES: Service[] = ['vault', 'google', 'imap', 'github', 'browser', 'deepseek']
+export type Service =
+  | 'vault'
+  | 'google'
+  | 'imap'
+  | 'github'
+  | 'browser'
+  | 'weather'
+  | 'rss'
+  | 'deepseek'
+export const SERVICES: Service[] = [
+  'vault',
+  'google',
+  'imap',
+  'github',
+  'browser',
+  'weather',
+  'rss',
+  'deepseek',
+]
 
 export type Connection = {
   id: string
@@ -210,6 +227,9 @@ export function purgeConnectionData(db: DatabaseSync, connectionId: string): voi
     'drive_files',
     'drive_changes',
     'drive_doc_text',
+    'weather_daily',
+    'rss_items',
+    'google_tasks',
     'calendar_events',
     'browser_visits',
     'github_items',

@@ -14,9 +14,13 @@ import {
   hasScope,
   CALENDAR_SCOPE,
   DRIVE_SCOPE,
+  TASKS_SCOPE,
   type GoogleCreds,
 } from './google.js'
 import { createDriveSource, createGoogleDriveApi } from './sources/drive.js'
+import { createOpenMeteoApi, createWeatherSource } from './sources/weather.js'
+import { createRssApi, createRssSource } from './sources/rss.js'
+import { createGoogleTasksApi, createGoogleTasksSource } from './sources/google-tasks.js'
 import {
   createCalendarSource,
   createGoogleCalendarApi,
@@ -88,6 +92,19 @@ export function buildSources(deps: RegistryDeps): Source[] {
           ),
         )
         break
+      case 'weather':
+        sources.push(
+          createWeatherSource(createOpenMeteoApi(connection.config), meta('weather')),
+        )
+        break
+      case 'rss':
+        sources.push(
+          createRssSource(
+            createRssApi((connection.config.feeds ?? '').split(/[\n,]+/)),
+            meta('rss'),
+          ),
+        )
+        break
       case 'deepseek':
         break
       case 'google': {
@@ -106,6 +123,8 @@ export function buildSources(deps: RegistryDeps): Source[] {
             meta('calendar'),
           ),
         )
+        const tasksClient = hasScope(creds.tokens, TASKS_SCOPE) ? authorizedClient(creds) : null
+        sources.push(createGoogleTasksSource(createGoogleTasksApi(tasksClient), meta('tasks')))
         break
       }
     }

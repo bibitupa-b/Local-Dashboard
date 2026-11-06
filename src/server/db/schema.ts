@@ -132,6 +132,42 @@ CREATE TABLE IF NOT EXISTS mail_messages (
 CREATE INDEX IF NOT EXISTS mail_messages_recent ON mail_messages (folder, date);
 CREATE INDEX IF NOT EXISTS mail_messages_unread ON mail_messages (seen, folder);
 
+CREATE TABLE IF NOT EXISTS weather_daily (
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
+  date TEXT NOT NULL,
+  min REAL NOT NULL,
+  max REAL NOT NULL,
+  precipitation INTEGER NOT NULL DEFAULT 0,
+  code INTEGER NOT NULL DEFAULT 0,
+  fetched_at TEXT NOT NULL,
+  PRIMARY KEY (connection_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS rss_items (
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
+  id TEXT NOT NULL,
+  feed TEXT NOT NULL,
+  title TEXT NOT NULL,
+  link TEXT NOT NULL,
+  published TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (connection_id, id)
+);
+
+CREATE INDEX IF NOT EXISTS rss_items_published ON rss_items (published);
+
+CREATE TABLE IF NOT EXISTS google_tasks (
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
+  id TEXT NOT NULL,
+  list_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  due TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (connection_id, id)
+);
+
+CREATE INDEX IF NOT EXISTS google_tasks_due ON google_tasks (due);
+
 CREATE TABLE IF NOT EXISTS calendar_events (
   connection_id TEXT NOT NULL DEFAULT 'legacy',
   id TEXT NOT NULL,

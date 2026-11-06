@@ -3,7 +3,8 @@ import type { OAuth2Client } from 'google-auth-library'
 
 export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
 export const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly'
-export const GOOGLE_SCOPES = [DRIVE_SCOPE, CALENDAR_SCOPE]
+export const TASKS_SCOPE = 'https://www.googleapis.com/auth/tasks.readonly'
+export const GOOGLE_SCOPES = [DRIVE_SCOPE, CALENDAR_SCOPE, TASKS_SCOPE]
 
 /** Credentials of a single Google connection; tokens are a JSON string stored encrypted. */
 export type GoogleCreds = {

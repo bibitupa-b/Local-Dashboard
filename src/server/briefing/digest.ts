@@ -165,8 +165,14 @@ export function buildDigest(input: DigestInput): DigestResult {
   }
 
   // Today first: the day is the thing a briefing is for.
+  const weather = extraLines('Weather')
+  if (weather.length > 0) sections.push({ title: 'Weather', lines: weather })
   const calendar = extraLines('Calendar')
   if (calendar.length > 0) sections.push({ title: 'Calendar', lines: calendar })
+  const googleTasks = extraLines('Google Tasks')
+  if (googleTasks.length > 0) sections.push({ title: 'Google Tasks', lines: googleTasks })
+  const news = extraLines('News')
+  if (news.length > 0) sections.push({ title: 'News', lines: news })
 
   if (input.meetings && input.meetings.length > 0) {
     sections.push({

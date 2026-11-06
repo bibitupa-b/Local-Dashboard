@@ -40,13 +40,22 @@ type Options = {
 }
 
 /** One digest section per source kind, however many accounts feed it. */
-const EXTRA_TITLES = { calendar: 'Calendar', mail: 'Mail', github: 'GitHub', browser: 'Browser' }
+const EXTRA_TITLES = {
+  weather: 'Weather',
+  calendar: 'Calendar',
+  tasks: 'Google Tasks',
+  rss: 'News',
+  mail: 'Mail',
+  github: 'GitHub',
+  browser: 'Browser',
+}
 
 /** Which pile comes first, in the same order the page uses. */
 const START_ORDER: AttentionItem['kind'][] = [
   'reply',
   'mail',
   'task',
+  'google-task',
   'github',
   'inbox',
   'stale-project',

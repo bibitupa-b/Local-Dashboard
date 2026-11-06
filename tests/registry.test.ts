@@ -40,10 +40,21 @@ test('builds one source per connection, google yields drive and calendar', () =>
 
     const sources = buildSources({ db, box, config, dataDir: dir })
     const kinds = sources.map((source) => source.kind).sort()
-    expect(kinds).toEqual(['browser', 'calendar', 'drive', 'github', 'mail', 'vault', 'vault'])
+    expect(kinds).toEqual([
+      'browser',
+      'calendar',
+      'drive',
+      'github',
+      'mail',
+      'tasks',
+      'vault',
+      'vault',
+    ])
     expect(new Set(sources.map((source) => source.id)).size).toBe(sources.length)
     expect(sources.find((source) => source.kind === 'drive')?.configured()).toBe(true)
     expect(sources.find((source) => source.kind === 'calendar')?.configured()).toBe(true)
+    // The test token was granted before the Tasks scope existed.
+    expect(sources.find((source) => source.kind === 'tasks')?.configured()).toBe(false)
 
     const disabled = saveConnection(db, box, {
       service: 'github',
@@ -53,7 +64,7 @@ test('builds one source per connection, google yields drive and calendar', () =>
       enabled: false,
     })
     expect(disabled.enabled).toBe(false)
-    expect(buildSources({ db, box, config, dataDir: dir })).toHaveLength(7)
+    expect(buildSources({ db, box, config, dataDir: dir })).toHaveLength(8)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

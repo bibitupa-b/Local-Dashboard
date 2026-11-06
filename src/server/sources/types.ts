@@ -1,7 +1,23 @@
 import type { DatabaseSync } from 'node:sqlite'
 
-export type SourceKind = 'vault' | 'drive' | 'mail' | 'calendar' | 'browser' | 'github'
-export type SourceService = 'vault' | 'google' | 'imap' | 'github' | 'browser'
+export type SourceKind =
+  | 'vault'
+  | 'drive'
+  | 'mail'
+  | 'calendar'
+  | 'browser'
+  | 'github'
+  | 'weather'
+  | 'rss'
+  | 'tasks'
+export type SourceService =
+  | 'vault'
+  | 'google'
+  | 'imap'
+  | 'github'
+  | 'browser'
+  | 'weather'
+  | 'rss'
 
 export type SourceMeta = {
   id: string

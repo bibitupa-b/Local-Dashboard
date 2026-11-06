@@ -9,7 +9,14 @@ briefing is generated.
 
 ![Dashboard](docs/screenshots/current/dashboard.jpeg)
 
-`Windows` · `Local-first` · `Read-only` · `Single user` · `MIT` · `v1.12.0`
+`Windows` · `Local-first` · `Read-only` · `Single user` · `MIT` · `v1.13.0`
+
+## What's new in 1.13.0
+
+- **Weather** — today's range, conditions and rain chance from Open-Meteo, with no API key.
+- **RSS / News** — a few headlines from your feeds, with titles and short summaries.
+- **Google Tasks** — due tasks join the briefing and "Start here" when the Google token has the
+  `tasks.readonly` scope.
 
 ## What's new in 1.12.0
 
@@ -95,9 +102,11 @@ steps. Multiple accounts per service are supported.
 | Source | What you get | What it needs |
 | --- | --- | --- |
 | Obsidian vault | Open tasks, stale projects, Inbox backlog (feeds Start here) | One or more vault folders |
-| Google Drive & Calendar | Drive changes, Docs text, today's events | OAuth **Desktop app** client, published to Production |
+| Google Drive, Calendar & Tasks | Drive changes, Docs text, events, due tasks | OAuth **Desktop app** client, published to Production; enable Drive, Calendar and Tasks APIs |
 | Gmail | Unread mail, awaiting reply, search | Gmail address + app password (2-Step Verification) |
 | GitHub | Notifications and review requests | Personal access token with `notifications` |
+| Weather | Today's range, conditions and rain chance | Latitude + longitude; Open-Meteo needs no key |
+| RSS / News | A few headlines for the briefing | One or more RSS/Atom URLs |
 | Browser history | Domain aggregates | Auto-detected Chrome, Edge or Helium |
 | DeepSeek | Daily briefing | API key from platform.deepseek.com |
 
@@ -114,13 +123,15 @@ available keys: `PORT`, `VAULT_PATH`, `DEEPSEEK_API_KEY`, Google credentials, `G
 
 1. The digest contains note paths with line counts and up to 200 characters from the changed part of
    the five most-changed notes, task titles, project names, Drive file names, today's calendar,
-   unread mail subjects/senders and the first ~200 characters of unread mail.
+   due Google Tasks, weather values, RSS headlines/summaries, unread mail subjects/senders and the
+   first ~200 characters of unread mail.
 2. It is sent to `https://api.deepseek.com` (`deepseek-flash`) only when a briefing is generated.
 3. The reply is stored in the local database and shown on the page. Earlier briefings stay available.
 
-**Never sent:** whole vault notes, full mail bodies, attachments, browser URLs or page titles,
-OAuth tokens, passwords. Browser history reaches the model as domain counts only. There is no
-telemetry, no analytics and no cloud account.
+**Never sent:** whole vault notes, full mail bodies, attachments, browser URLs, page titles, feed
+URLs, OAuth tokens, passwords. Weather coordinates go only to Open-Meteo; RSS feeds are fetched
+directly from the addresses you configure. Browser history reaches the model as domain counts only.
+There is no telemetry, no analytics and no cloud account.
 
 ## Screens
 
@@ -133,7 +144,7 @@ telemetry, no analytics and no cloud account.
 
 More screens: [`docs/screenshots/current/index.html`](docs/screenshots/current/index.html).
 
-Release notes: [`docs/releases/1.12.0.md`](docs/releases/1.12.0.md).
+Release notes: [`docs/releases/1.13.0.md`](docs/releases/1.13.0.md).
 
 ## Troubleshooting
 

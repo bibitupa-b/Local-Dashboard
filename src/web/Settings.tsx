@@ -52,7 +52,7 @@ Only .md files are read; the app never writes to the vault.`,
     name: 'Google Drive & Calendar',
     description: 'Read-only access to Drive files and the primary calendar.',
     hint: `1. console.cloud.google.com -> create a project.
-2. Enable "Google Drive API" and "Google Calendar API" in Library.
+2. Enable "Google Drive API", "Google Calendar API" and "Google Tasks API" in Library.
 3. OAuth consent screen: External; publish to Production (Testing expires tokens in 7 days).
 4. Credentials -> Create credentials -> OAuth client ID -> Desktop app.
 5. Paste Client ID and Client secret, save, then press Connect.`,
@@ -107,6 +107,31 @@ Excluded domains are listed under Preferences.`,
     ],
   },
   {
+    service: 'weather',
+    name: 'Weather',
+    description: 'Today’s forecast from Open-Meteo.',
+    hint: `Find your coordinates at openstreetmap.org (right-click → Show address).
+Open-Meteo needs no API key. The briefing gets today's range, conditions and rain chance.`,
+    fields: [
+      { key: 'latitude', label: 'Latitude', placeholder: '55.7558' },
+      { key: 'longitude', label: 'Longitude', placeholder: '37.6173' },
+    ],
+  },
+  {
+    service: 'rss',
+    name: 'RSS / News',
+    description: 'A few feeds for the morning headlines.',
+    hint: `Paste one or more RSS/Atom URLs, separated by commas.
+Only titles and short summaries reach the briefing; the feed is fetched on this machine.`,
+    fields: [
+      {
+        key: 'feeds',
+        label: 'Feed URLs',
+        placeholder: 'https://example.com/rss.xml, https://example.com/atom.xml',
+      },
+    ],
+  },
+  {
     service: 'deepseek',
     name: 'DeepSeek API',
     description: 'Powers the daily briefing.',
@@ -125,6 +150,9 @@ const SOURCE_LABELS: Record<string, string> = {
   calendar: 'calendar',
   browser: 'browser',
   github: 'github',
+  weather: 'weather',
+  rss: 'rss',
+  tasks: 'google tasks',
 }
 
 type Notice = { text: string; tone: 'info' | 'success' | 'error' }
@@ -1553,6 +1581,10 @@ function isHealthy(connection: Connection): boolean {
       return connection.secretsSet.includes('password')
     case 'github':
       return connection.secretsSet.includes('token')
+    case 'weather':
+      return Boolean(connection.config.latitude && connection.config.longitude)
+    case 'rss':
+      return Boolean(connection.config.feeds?.trim())
     default:
       return false
   }
@@ -1570,6 +1602,12 @@ function detailOf(connection: Connection): string {
       return connection.secretsSet.includes('tokens') ? 'connected' : 'not connected'
     case 'github':
       return connection.secretsSet.includes('token') ? 'token set' : 'no token'
+    case 'weather':
+      return connection.config.latitude && connection.config.longitude
+        ? `${connection.config.latitude}, ${connection.config.longitude}`
+        : 'coordinates missing'
+    case 'rss':
+      return connection.config.feeds ? `${connection.config.feeds.split(',').length} feeds` : 'no feeds'
     case 'deepseek':
       return connection.secretsSet.includes('key') ? 'key saved' : 'no key'
     default:

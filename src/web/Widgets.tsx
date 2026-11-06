@@ -110,6 +110,7 @@ const LOOP_ORDER: AttentionItem['kind'][] = [
   'reply',
   'mail',
   'task',
+  'google-task',
   'stale-project',
   'inbox',
   'github',

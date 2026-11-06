@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.13.0
+
+The first Phase 3 sources: weather, RSS and Google Tasks.
+
+- **Weather** — Open-Meteo needs only latitude and longitude; today's range, conditions and rain
+  chance lead the briefing. No key, no account, no location beyond those coordinates.
+- **RSS / News** — one or more RSS/Atom feeds, parsed locally; only titles and short summaries reach
+  the digest.
+- **Google Tasks** — the existing Google OAuth connection now requests `tasks.readonly`; due tasks
+  appear in `Google Tasks` and as `google-task` attention items. Reconnect Google once to grant the
+  new scope.
+- **Google Tasks API** is listed in the Google connection hint; tokens without the scope keep the
+  app working, they simply have no task source.
+- `fast-xml-parser` is the one new dependency, used only by the RSS source.
+
 ## 1.12.0
 
 The first pass over the gap-closure plan: reply triage, honest source visibility, and a quieter

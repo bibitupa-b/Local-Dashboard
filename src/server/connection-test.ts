@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { ImapFlow } from 'imapflow'
-import { hasScope, DRIVE_SCOPE, CALENDAR_SCOPE } from './google.js'
+import { hasScope, DRIVE_SCOPE, CALENDAR_SCOPE, TASKS_SCOPE } from './google.js'
 import type { Connection } from './connections.js'
 
 export type TestResult = { ok: boolean; error?: string }
@@ -56,6 +56,26 @@ export async function testConnection(connection: Connection): Promise<TestResult
           await client.logout().catch(() => {})
         }
       }
+      case 'weather': {
+        const latitude = Number(connection.config.latitude)
+        const longitude = Number(connection.config.longitude)
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          return { ok: false, error: 'Latitude and longitude are required' }
+        }
+        if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+          return { ok: false, error: 'Coordinates are out of range' }
+        }
+        return { ok: true }
+      }
+      case 'rss': {
+        const feeds = (connection.config.feeds ?? '')
+          .split(/[\n,]+/)
+          .map((feed) => feed.trim())
+          .filter(Boolean)
+        return feeds.length > 0
+          ? { ok: true }
+          : { ok: false, error: 'Add at least one RSS or Atom URL' }
+      }
       case 'deepseek': {
         const key = connection.secret?.key
         if (!key) return { ok: false, error: 'API key is missing' }
@@ -67,8 +87,12 @@ export async function testConnection(connection: Connection): Promise<TestResult
       case 'google': {
         const tokens = connection.secret?.tokens
         if (!tokens) return { ok: false, error: 'Google account is not connected yet' }
-        if (!hasScope(tokens, DRIVE_SCOPE) && !hasScope(tokens, CALENDAR_SCOPE)) {
-          return { ok: false, error: 'Token has no Drive or Calendar scope' }
+        if (
+          !hasScope(tokens, DRIVE_SCOPE) &&
+          !hasScope(tokens, CALENDAR_SCOPE) &&
+          !hasScope(tokens, TASKS_SCOPE)
+        ) {
+          return { ok: false, error: 'Token has no Drive, Calendar or Tasks scope' }
         }
         return { ok: true }
       }

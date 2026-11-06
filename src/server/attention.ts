@@ -13,6 +13,7 @@ export type AttentionItem = {
     | 'stale-project'
     | 'inbox'
     | 'drive'
+    | 'google-task'
   label: string
   detail: string
   count?: number
@@ -31,6 +32,8 @@ export function sourceForKind(kind: AttentionItem['kind']): string {
     case 'inbox':
     case 'stale-project':
       return 'vault'
+    case 'google-task':
+      return 'tasks'
     case 'mail':
     case 'reply':
       return 'mail'
@@ -109,6 +112,21 @@ export function buildAttention(
       detail: `${group.count} open in ${group.paths.size} note${group.paths.size === 1 ? '' : 's'}`,
       count: group.count,
       path,
+    })
+  }
+
+  const today = now.toLocaleDateString('en-CA')
+  const googleTasks = db
+    .prepare(
+      `SELECT id, title, due FROM google_tasks
+       WHERE due IS NOT NULL AND due <= ? ORDER BY due ASC LIMIT 10`,
+    )
+    .all(today) as Array<{ id: string; title: string; due: string }>
+  for (const task of googleTasks) {
+    items.push({
+      kind: 'google-task',
+      label: task.title,
+      detail: `Google Tasks · due ${task.due}`,
     })
   }
 
@@ -277,6 +295,7 @@ export function buildAttention(
 
   const order = {
     task: 0,
+    'google-task': 0,
     mail: 1,
     reply: 2,
     browser: 3,

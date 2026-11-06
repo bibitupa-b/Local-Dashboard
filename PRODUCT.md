@@ -44,8 +44,8 @@ cloud account behind it.
   connections are managed in the settings screen.
 - Sources are real, user-owned accounts: an Obsidian vault with non-ASCII folder names, Gmail over
   IMAP with an app password, a self-created Google Cloud OAuth desktop client kept in Production
-  (one or more calendars can be listed per connection), a GitHub token with `notifications`, and a
-  local Chrome/Edge/Helium history database.
+  (one or more calendars and optional Google Tasks), a GitHub token with `notifications`, a local
+  Chrome/Edge/Helium history database, Open-Meteo coordinates, and optional RSS/Atom feeds.
 - Keyboard: `/` focuses search, `b` generates a briefing, `Esc` clears results.
 - Recovery tools the user is expected to use: **Copy diagnostics**, `data/server.log`, daily
   backups in `data/backups/`.

@@ -57,6 +57,19 @@ function SourceGlyph({ service }: { service: string }) {
           <path d="M15.6 8.4l-1.9 5.3-5.3 1.9 1.9-5.3 5.3-1.9z" {...common} />
         </>
       )}
+      {service === 'weather' && (
+        <>
+          <circle cx="8.5" cy="9" r="3.2" {...common} />
+          <path d="M8.5 3.8V2.5M4.4 5.2L3.5 4.3M12.6 5.2l.9-.9M3.8 9H2.5M14.5 9h-1.3" {...common} />
+          <path d="M7 18.5h9a3 3 0 0 0 .2-6 4.4 4.4 0 0 0-8.4-.8A3.4 3.4 0 0 0 7 18.5z" {...common} />
+        </>
+      )}
+      {service === 'rss' && (
+        <>
+          <rect x="4" y="4.5" width="16" height="15" rx="1.6" {...common} />
+          <path d="M7 8h10M7 11.5h10M7 15h6" {...common} />
+        </>
+      )}
       {service === 'calendar' && (
         <>
           <rect x="3.5" y="5.5" width="17" height="15" rx="2" {...common} />
@@ -79,6 +92,8 @@ const SERVICE_LABELS: Record<string, string> = {
   imap: 'mail',
   github: 'github',
   browser: 'browser',
+  weather: 'weather',
+  rss: 'news',
 }
 
 // A station link is named by what it opens, not only by its state.
@@ -94,6 +109,7 @@ const START_ORDER: AttentionItem['kind'][] = [
   'reply',
   'mail',
   'task',
+  'google-task',
   'github',
   'inbox',
   'stale-project',
@@ -1216,7 +1232,7 @@ export function App() {
   )
 
   const stations = (() => {
-    const order = ['vault', 'google', 'imap', 'github', 'browser']
+    const order = ['vault', 'google', 'imap', 'github', 'weather', 'rss', 'browser']
     const map = new Map<
       string,
       { service: string; total: number; configured: number; error: string | null; lastSync: string | null }
