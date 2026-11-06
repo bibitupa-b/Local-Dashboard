@@ -20,7 +20,7 @@ One Node process:
 - **Mail source** — `imapflow` + `mailparser` over Gmail IMAP: all folders except All Mail, incremental by UID, bodies kept for 90 days, attachments by name only.
 - **Calendar source** — `googleapis` Calendar API, primary calendar, window of −1 to +7 days.
 - **Scheduler** — `node-cron`, daily briefing at 08:00 with catch-up on start and retry every 15 minutes until today's briefing exists.
-- **Briefing** — POST to `https://api.deepseek.com/chat/completions`, model `deepseek-chat`.
+- **Briefing** — POST to `https://api.deepseek.com/chat/completions`, model `deepseek-flash` (V4.1 Flash, thinking off). Strict grounding is on by default: bullets must cite a digest line, numbers must appear on that line or in the authoritative facts, and a second pass drops what the digest cannot support.
 
 ### Planned layout
 
@@ -55,6 +55,9 @@ npm start              # server only, no desktop shell
 npm test               # vitest
 ```
 
+Every source change ships a new installer: bump the patch version, add a `CHANGELOG.md` entry, run
+`npm run dist`, and leave the previous build out of `release/`.
+
 ## Approved decisions
 
 These were agreed with the user; do not re-litigate them without asking.
@@ -65,12 +68,13 @@ These were agreed with the user; do not re-litigate them without asking.
 - Read-only everywhere. Never write to notes, the vault, or Drive.
 - The dashboard is one page inside a desktop shell: the briefing owns it, with one "start here" count derived from the
   attention rules below, the connected services as a vertical source rail (which is also the sync
-  progress), today's calendar and settings. The activity feed and the attention queue left the screen by the
-  user's decision on 2026-11-03; `/api/attention` and `/api/feed` still exist as data sources.
+  progress), today's calendar and settings. Optional widgets sit in the empty gutters of a wide window (≥1920 px)
+  or fold inline above the briefing on a narrow one; they are bounded (three rows) and configurable in Settings → Widgets.
+  The activity feed and the attention queue left the screen by the user's decision on 2026-11-03; `/api/attention` and `/api/feed` still exist as data sources.
 - Sources for phase 1: the Obsidian vault, Google Drive, Gmail (read-only IMAP) and Google Calendar.
 - Mail keeps message bodies for 90 days; older messages keep headers and subject only. Attachments are never downloaded, only their names are stored.
-- Only a **digest** goes to DeepSeek — never raw vault content, never whole files. For mail the digest may carry subjects, senders and the first ~200 characters of unread messages; bodies and attachments never leave the machine.
-- Briefing target: 5–7 bullets covering what moved, what is stuck, one suggestion. Stored in SQLite, previous ones kept.
+- Only a **digest** goes to DeepSeek — never whole files. For mail the digest may carry subjects, senders and the first ~200 characters of unread messages; bodies and attachments never leave the machine. For the five most changed notes it carries up to 200 characters from the changed part, so the briefing can say what was written, not only which file moved.
+- Briefing target: 2–5 bullets covering today's calendar, what moved in the notes, the week's trend and one suggestion. Stored in SQLite, previous ones kept.
 - Scheduled 08:00 by default; generate on startup if today's briefing is missing.
 - Attention queue rules: open tasks grouped by tag (recurring tags such as `#vitamins` collapse into one row with a count), notes with frontmatter `status: Undone` untouched for 14+ days, notes sitting in `Inbox` for 3+ days, unread mail from the last 30 days and the next calendar event.
 - Autostart is managed by Electron (`app.setLoginItemSettings`), toggled from the tray.

@@ -17,7 +17,7 @@ table are the only support channel. Single user per machine; no accounts, no rol
 ## Product Purpose
 
 One quiet screen that answers two questions — where do I start today, and what happened — plus a
-5–7 bullet briefing for today written by DeepSeek. The briefing owns the page; a single "start here"
+2–5 bullet briefing for today written by DeepSeek, grounded in cited digest lines. The briefing owns the page; a single "start here"
 count, the connected services and today's calendar sit above it. Read-only toward every source and
 local by default; only a compact digest leaves the machine, and only when a briefing is generated.
 
@@ -38,13 +38,14 @@ cloud account behind it.
 - Windows desktop first, used at the start of the workday: 08:00 briefing with catch-up on start,
   plus ad hoc glances when something feels unfiled.
 - Electron window with tray, native notifications and optional autostart. The Aurora Glass shell is
-  frameless with a custom title bar and remembers its size, position and maximized state. Nine
+  frameless with a custom title bar and remembers its size, position and maximized state. 27
   wallpapers can sit behind the glass; Aurora is the default. Closing the window hides to the tray.
   Packaged data lives in `%APPDATA%\Local Dashboard\data`; `.env` is optional and imported once, then
   connections are managed in the settings screen.
 - Sources are real, user-owned accounts: an Obsidian vault with non-ASCII folder names, Gmail over
-  IMAP with an app password, a self-created Google Cloud OAuth desktop client kept in Production,
-  a GitHub token with `notifications`, and a local Chrome/Edge/Helium history database.
+  IMAP with an app password, a self-created Google Cloud OAuth desktop client kept in Production
+  (one or more calendars can be listed per connection), a GitHub token with `notifications`, and a
+  local Chrome/Edge/Helium history database.
 - Keyboard: `/` focuses search, `b` generates a briefing, `Esc` clears results.
 - Recovery tools the user is expected to use: **Copy diagnostics**, `data/server.log`, daily
   backups in `data/backups/`.
@@ -69,7 +70,8 @@ Approved decisions; do not re-litigate without asking.
 - Briefing budget is roughly a few thousand tokens; long notes truncate to a sentence or two.
 
 Open: browser history is Chromium-based only; Google Docs content is exported to a 20 KB cap; IMAP
-IDLE, weekly review and vault write-back are roadmap items, not current behaviour.
+IDLE and vault write-back are roadmap items. Weekly review is implemented as a `weekly` briefing
+kind; a failed strict-grounding check is surfaced as `unverified`.
 
 ## Brand Commitments
 

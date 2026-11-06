@@ -296,6 +296,9 @@ async function boot() {
 
   createSplash()
 
+  // The window's version, so About never drifts from the shipped build.
+  process.env.APP_VERSION = app.getVersion()
+
   const { startServer } = require(path.join(root, 'dist', 'server', 'server.cjs'))
   const envFile = isDev ? path.join(root, '.env') : path.join(dataDir, '.env')
 

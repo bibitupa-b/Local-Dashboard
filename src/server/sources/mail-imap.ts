@@ -1,6 +1,6 @@
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
-import type { MailApi, MailFlags, MailMessage } from './mail.js'
+import { threadKeyOf, type MailApi, type MailFlags, type MailMessage } from './mail.js'
 
 const BODY_DAYS = 90
 const INITIAL_LIMIT = 2000
@@ -12,6 +12,7 @@ const MAX_SOURCE_BYTES = 512 * 1024
 type Envelope = {
   subject?: string
   messageId?: string
+  inReplyTo?: string
   date?: Date
   from?: Array<{ name?: string; address?: string }>
 }
@@ -110,7 +111,14 @@ export function createImapMailApi(creds: {
 
         const parsed = new Map<
           number,
-          { body: string; snippet: string; attachments: string[]; bulk: boolean }
+          {
+            body: string
+            snippet: string
+            attachments: string[]
+            bulk: boolean
+            inReplyTo: string | null
+            references: string[]
+          }
         >()
         if (withBody.length > 0) {
           const bodyRange = withBody.map((item) => item.uid).join(',')
@@ -120,6 +128,11 @@ export function createImapMailApi(creds: {
             try {
               const mail = await simpleParser(message.source)
               const text = (mail.text ?? '').trim()
+              const references = Array.isArray(mail.references)
+                ? mail.references
+                : mail.references
+                  ? [mail.references]
+                  : []
               parsed.set(message.uid, {
                 body: text.slice(0, BODY_MAX_CHARS),
                 snippet: text.replace(/\s+/g, ' ').slice(0, 200),
@@ -127,6 +140,8 @@ export function createImapMailApi(creds: {
                   .map((attachment) => attachment.filename)
                   .filter((name): name is string => Boolean(name)),
                 bulk: isBulkMessage(mail.headers),
+                inReplyTo: mail.inReplyTo ?? null,
+                references,
               })
             } catch (error) {
               console.warn(`[mail] could not parse uid ${message.uid} in ${folder}:`, error)
@@ -136,10 +151,20 @@ export function createImapMailApi(creds: {
 
         for (const item of fetched) {
           const extra = parsed.get(item.uid)
+          const inReplyTo = extra?.inReplyTo ?? item.envelope?.inReplyTo ?? null
+          const references = extra?.references ?? []
           messages.push({
             folder,
             uid: item.uid,
             messageId: item.envelope?.messageId ?? null,
+            inReplyTo,
+            references,
+            threadKey: threadKeyOf(
+              item.envelope?.messageId ?? null,
+              inReplyTo,
+              references,
+              item.envelope?.subject ?? '',
+            ),
             sender: senderOf(item.envelope),
             subject: item.envelope?.subject ?? '(no subject)',
             date: (item.internalDate ?? item.envelope?.date ?? new Date()).toISOString(),
@@ -166,6 +191,39 @@ export function createImapMailApi(creds: {
         }
 
         return { messages, uidValidity, flags }
+      } finally {
+        lock.release()
+      }
+    },
+
+    /** The current UID set of a recent window, used to forget mail that was moved or deleted. */
+    async recent(folder, days) {
+      const connection_ = await connection()
+      const lock = await connection_.getMailboxLock(folder)
+      try {
+        const since = new Date(Date.now() - days * 86_400_000)
+        const found = await connection_.search({ since }, { uid: true })
+        const uids = (Array.isArray(found) ? found : [])
+          .map(Number)
+          .filter((uid) => Number.isFinite(uid))
+          .sort((a, b) => a - b)
+          .slice(-5000)
+        const flags: MailFlags[] = []
+        if (uids.length > 0) {
+          for await (const item of connection_.fetch(
+            uids.join(','),
+            { uid: true, flags: true },
+            { uid: true },
+          )) {
+            const message = item as unknown as RawMessage
+            flags.push({
+              uid: message.uid,
+              seen: message.flags?.has('\\Seen') ?? false,
+              starred: message.flags?.has('\\Flagged') ?? false,
+            })
+          }
+        }
+        return { uids, flags }
       } finally {
         lock.release()
       }

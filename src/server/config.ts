@@ -31,7 +31,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     deepseekKey: value(env, 'DEEPSEEK_API_KEY'),
     googleClientId: value(env, 'GOOGLE_CLIENT_ID'),
     googleClientSecret: value(env, 'GOOGLE_CLIENT_SECRET'),
-    briefingHour: Number(env.BRIEFING_HOUR) || 8,
+    briefingHour:
+      env.BRIEFING_HOUR !== undefined &&
+      Number.isFinite(Number(env.BRIEFING_HOUR)) &&
+      Number(env.BRIEFING_HOUR) >= 0 &&
+      Number(env.BRIEFING_HOUR) <= 23
+        ? Number(env.BRIEFING_HOUR)
+        : 8,
     gmailUser: value(env, 'GMAIL_USER'),
     gmailPassword: value(env, 'GMAIL_APP_PASSWORD'),
     githubToken: value(env, 'GITHUB_TOKEN'),

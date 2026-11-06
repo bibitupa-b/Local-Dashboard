@@ -17,7 +17,11 @@ import {
   type GoogleCreds,
 } from './google.js'
 import { createDriveSource, createGoogleDriveApi } from './sources/drive.js'
-import { createCalendarSource, createGoogleCalendarApi } from './sources/calendar.js'
+import {
+  createCalendarSource,
+  createGoogleCalendarApi,
+  parseCalendarIds,
+} from './sources/calendar.js'
 
 export type RegistryDeps = {
   db: DatabaseSync
@@ -93,7 +97,15 @@ export function buildSources(deps: RegistryDeps): Source[] {
           ? authorizedClient(creds)
           : null
         sources.push(createDriveSource(createGoogleDriveApi(driveClient), meta('drive')))
-        sources.push(createCalendarSource(createGoogleCalendarApi(calendarClient), meta('calendar')))
+        sources.push(
+          createCalendarSource(
+            createGoogleCalendarApi(
+              calendarClient,
+              parseCalendarIds(connection.config.calendarIds),
+            ),
+            meta('calendar'),
+          ),
+        )
         break
       }
     }

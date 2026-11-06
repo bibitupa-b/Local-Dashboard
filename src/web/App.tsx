@@ -16,6 +16,10 @@ import { contentLang } from './lang.js'
 import { driveUrl, mailUrl, obsidianUrl, sourceUrl } from './links.js'
 import { dialogOpen, useDialog, useLeaving } from './useDialog.js'
 import { wallpaperById } from './wallpapers.js'
+import { applyAppearance } from './appearance.js'
+import { AURORA_THEME, scaleTheme, themeFromPixels } from './theme.js'
+import { WidgetColumns, WidgetsInline, type WidgetData } from './Widgets.js'
+import { DEFAULT_WIDGET_LAYOUT, type BriefingStats, type WidgetLayout } from '../shared/widgets.js'
 
 function SourceGlyph({ service }: { service: string }) {
   const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
@@ -93,9 +97,7 @@ const START_ORDER: AttentionItem['kind'][] = [
   'github',
   'inbox',
   'stale-project',
-  'drive',
   'calendar',
-  'browser',
 ]
 
 function time(iso: string): string {
@@ -191,6 +193,181 @@ function refTint(kind: BriefingRef['kind']): string {
   }
 }
 
+/** Why unfolds under a point: a quiet inset that grows instead of appearing. */
+function Why({ lines }: { lines: string[] }) {
+  const [open, setOpen] = useState(false)
+  const presence = usePresence(open, 200)
+  return (
+    <div className={`why${open ? ' is-open' : ''}`}>
+      <button
+        type="button"
+        className="why__toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        Why
+        <span className="why__plus" aria-hidden="true">
+          +
+        </span>
+      </button>
+      {presence.mounted && (
+        <div className={`why-panel${presence.leaving ? ' is-leaving' : ''}`}>
+          {lines.map((line, index) => (
+            <span
+              key={line}
+              lang={contentLang(line)}
+              style={{ '--i': index } as React.CSSProperties}
+            >
+              {line}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** The panels under the briefing open like the Why inset instead of snapping open. */
+function Disclosure({
+  label,
+  hint,
+  className,
+  children,
+}: {
+  label: string
+  hint?: string
+  className?: string
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const presence = usePresence(open, 200)
+  return (
+    <div className={`disclosure${className ? ` ${className}` : ''}${open ? ' is-open' : ''}`}>
+      <button
+        type="button"
+        className="disclosure__toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="disclosure__chevron" aria-hidden="true">
+          ›
+        </span>
+        <span>{label}</span>
+      </button>
+      {presence.mounted && (
+        <div className={`disclosure__body${presence.leaving ? ' is-leaving' : ''}`}>
+          <div className="disclosure__inner">
+            {hint && <p className="disclosure__hint">{hint}</p>}
+            {children}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** What the app is, what it reads, and where it keeps everything. */
+function AboutDialog({
+  status,
+  settings,
+  stations,
+  onClose,
+}: {
+  status: Status | null
+  settings: Settings
+  stations: Array<{
+    service: string
+    total: number
+    configured: number
+    error: string | null
+    lastSync: string | null
+  }>
+  onClose: () => void
+}) {
+  const { leaving, close } = useLeaving()
+  const dialog = useDialog<HTMLDivElement>(true, () => close(onClose))
+  const [copied, setCopied] = useState(false)
+  const connected = stations.filter((station) => station.configured > 0).length
+  const failing = stations.filter((station) => station.error).length
+  const lastSync = stations
+    .map((station) => station.lastSync)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1)
+
+  async function copyDiagnostics(): Promise<void> {
+    await navigator.clipboard.writeText(JSON.stringify({ status, settings }, null, 2))
+    setCopied(true)
+  }
+
+  return (
+    <div className={`modal-backdrop${leaving ? ' leaving' : ''}`} onClick={() => close(onClose)}>
+      <div
+        ref={dialog}
+        className="modal card modal--about"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="about-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 id="about-title">
+          Local Dashboard <span className="about__version">v{status?.version ?? '—'}</span>
+        </h2>
+        <p className="about__privacy">
+          Everything stays on this machine. Only the briefing digest is sent to DeepSeek.
+        </p>
+        <dl className="about__facts">
+          <div>
+            <dt>Data</dt>
+            <dd>
+              <span className="detail" lang={contentLang(settings.dataDir)}>
+                {settings.dataDir}
+              </span>
+              {window.dashboard && (
+                <button
+                  type="button"
+                  className="about__inline"
+                  onClick={() => window.dashboard?.openDataFolder()}
+                >
+                  Open folder
+                </button>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>Sources</dt>
+            <dd>
+              {connected} of {stations.length} connected
+              {failing > 0 ? ` · ${failing} need${failing === 1 ? 's' : ''} attention` : ''}
+              {lastSync ? ` · last sync ${time(lastSync)}` : ''}
+            </dd>
+          </div>
+          <div>
+            <dt>DeepSeek</dt>
+            <dd>{settings.hasDeepSeekKey ? 'API key saved' : 'No API key yet'}</dd>
+          </div>
+        </dl>
+        <div className="modal__actions">
+          <button type="button" className="btn btn--ghost" onClick={() => void copyDiagnostics()}>
+            {copied ? 'Copied' : 'Copy diagnostics'}
+          </button>
+          <a
+            className="btn btn--ghost"
+            href="https://github.com/bibitupa-b/Local-Dashboard#readme"
+            target="_blank"
+            rel="noreferrer"
+          >
+            README
+          </a>
+          <button type="button" className="btn btn--primary" onClick={() => close(onClose)}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** Structured answer: a headline to read first, points that open their source, one suggestion. */
 function BriefingPoints({
   body,
@@ -203,13 +380,26 @@ function BriefingPoints({
   id: number
   digest: string
 }) {
+  const [votes, setVotes] = useState<Record<number, 'useful' | 'miss'>>({})
+
+  function votePoint(index: number, value: 'useful' | 'miss'): void {
+    const next = votes[index] === value ? null : value
+    setVotes((current) => {
+      const copy = { ...current }
+      if (next === null) delete copy[index]
+      else copy[index] = next
+      return copy
+    })
+    void api.bulletFeedback(id, index, next).catch(() => {})
+  }
+
   return (
     <div
       className="markdown"
       lang={contentLang(`${body.headline} ${body.bullets.map((b) => b.text).join(' ')}`)}
     >
       {body.headline && (
-        <h3 className="briefing__headline headline" dir="auto">
+        <h3 className="briefing__headline headline" dir="auto" style={{ '--i': 0 } as React.CSSProperties}>
           {body.headline}
         </h3>
       )}
@@ -221,8 +411,33 @@ function BriefingPoints({
             digest,
           )
           return (
-            <li key={`${index}-${bullet.text.slice(0, 24)}`} className="line point" dir="auto">
+            <li
+              key={`${index}-${bullet.text.slice(0, 24)}`}
+              className="line point"
+              dir="auto"
+              style={{ '--i': index + 1 } as React.CSSProperties}
+            >
               <p>{bullet.text}</p>
+              <div className="point__vote" role="group" aria-label={`Was point ${index + 1} useful?`}>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--mini"
+                  aria-label={`Mark point ${index + 1} useful`}
+                  aria-pressed={votes[index] === 'useful'}
+                  onClick={() => votePoint(index, 'useful')}
+                >
+                  Useful
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--mini"
+                  aria-label={`Mark point ${index + 1} miss`}
+                  aria-pressed={votes[index] === 'miss'}
+                  onClick={() => votePoint(index, 'miss')}
+                >
+                  Miss
+                </button>
+              </div>
               {(refs.length > 0 || why.length > 0) && (
                 <div className="point__sources">
                   <span className="refs">
@@ -235,7 +450,6 @@ function BriefingPoints({
                           lang={contentLang(ref.label)}
                           target={href.startsWith('obsidian://') ? undefined : '_blank'}
                           rel={href.startsWith('obsidian://') ? undefined : 'noreferrer'}
-                          onClick={() => void api.opened(id)}
                         >
                           <span
                             className="status-dot"
@@ -256,18 +470,7 @@ function BriefingPoints({
                       ),
                     )}
                   </span>
-                  {why.length > 0 && (
-                    <details className="why">
-                      <summary>Why</summary>
-                      <div className="why-panel">
-                        {why.map((line) => (
-                          <span key={line} lang={contentLang(line)}>
-                            {line}
-                          </span>
-                        ))}
-                      </div>
-                    </details>
-                  )}
+                  {why.length > 0 && <Why lines={why} />}
                 </div>
               )}
             </li>
@@ -275,7 +478,11 @@ function BriefingPoints({
         })}
       </ul>
       {body.suggestion && (
-        <div className="suggestion line" dir="auto">
+        <div
+          className="suggestion line"
+          dir="auto"
+          style={{ '--i': body.bullets.length + 1 } as React.CSSProperties}
+        >
           <span className="label label--amber" lang="en">
             Suggestion
           </span>
@@ -377,29 +584,62 @@ function LegacyBriefingBody({ markdown }: { markdown: string }) {
   )
 }
 
-/** The sand rule follows the line at the middle of the viewport: reading position, not decoration. */
-function useReadingLine(key: string | number | undefined, visible: boolean) {
+/** Light pointer parallax for the room: wallpaper and aurora move against the pointer by a few pixels. */
+function useParallax(enabled: boolean) {
+  const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (!visible || typeof IntersectionObserver === 'undefined') return undefined
-    const lines = [...document.querySelectorAll<HTMLElement>('.briefing .point')]
-    let current: HTMLElement | null = null
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting || entry.target === current) continue
-          current?.classList.remove('is-reading')
-          current = entry.target as HTMLElement
-          current.classList.add('is-reading')
-        }
-      },
-      { rootMargin: '-42% 0px -52% 0px' },
-    )
-    lines.forEach((line) => observer.observe(line))
-    return () => {
-      observer.disconnect()
-      current?.classList.remove('reading')
+    const node = ref.current
+    if (!enabled || !node || typeof window.matchMedia !== 'function') return undefined
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined
+    let frame = 0
+    let x = 0
+    let y = 0
+    const paint = () => {
+      frame = 0
+      node.style.setProperty('--par-x', `${x.toFixed(1)}px`)
+      node.style.setProperty('--par-y', `${y.toFixed(1)}px`)
     }
-  }, [key, visible])
+    const move = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse') return
+      x = (0.5 - event.clientX / window.innerWidth) * 20
+      y = (0.5 - event.clientY / window.innerHeight) * 14
+      if (!frame) frame = requestAnimationFrame(paint)
+    }
+    window.addEventListener('pointermove', move, { passive: true })
+    return () => {
+      window.removeEventListener('pointermove', move)
+      if (frame) cancelAnimationFrame(frame)
+    }
+  }, [enabled])
+  return ref
+}
+
+/** Keeps a floating layer mounted for one exit animation; instant when motion is reduced. */
+function usePresence(open: boolean, exit = 110) {
+  const [mounted, setMounted] = useState(open)
+  const [leaving, setLeaving] = useState(false)
+  useEffect(() => {
+    if (open) {
+      setMounted(true)
+      setLeaving(false)
+      return undefined
+    }
+    if (!mounted) return undefined
+    if (
+      typeof window.matchMedia !== 'function' ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      setMounted(false)
+      return undefined
+    }
+    setLeaving(true)
+    const timer = setTimeout(() => {
+      setMounted(false)
+      setLeaving(false)
+    }, exit)
+    return () => clearTimeout(timer)
+  }, [open, mounted, exit])
+  return { mounted, leaving }
 }
 
 export function App() {
@@ -408,6 +648,8 @@ export function App() {
   const [briefings, setBriefings] = useState<Briefing[] | null>(null)
   const [today, setToday] = useState<Today | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
+  const [stats, setStats] = useState<BriefingStats | null>(null)
+  const [wide, setWide] = useState(() => window.innerWidth >= 1920)
   const [busy, setBusy] = useState(false)
   const [voting, setVoting] = useState(false)
   const [question, setQuestion] = useState('')
@@ -422,6 +664,16 @@ export function App() {
     retry?: boolean
   } | null>(null)
   const [glow, setGlow] = useState(false)
+  const [about, setAbout] = useState(false)
+  const [groundingOpen, setGroundingOpen] = useState(false)
+  const [groundingSeen, setGroundingSeen] = useState(() => {
+    try {
+      return localStorage.getItem('dashboard.groundingSeen') === '1'
+    } catch {
+      return false
+    }
+  })
+  const [theme, setTheme] = useState(AURORA_THEME)
   const [showSettings, setShowSettings] = useState(false)
   const [welcome, setWelcome] = useState(() => {
     try {
@@ -441,12 +693,19 @@ export function App() {
   const generating = useRef(false)
   const wasSettings = useRef(showSettings)
   const searched = useRef('')
+  const searchSeq = useRef(0)
   const [live, setLive] = useState('')
 
   async function load() {
-    const [statusRes, attentionRes, briefingsRes, settingsRes, todayRes] = await Promise.allSettled(
-      [api.status(), api.attention(), api.briefings(), api.settings(), api.today()] as const,
-    )
+    const [statusRes, attentionRes, briefingsRes, settingsRes, todayRes, statsRes] =
+      await Promise.allSettled([
+        api.status(),
+        api.attention(),
+        api.briefings(),
+        api.settings(),
+        api.today(),
+        api.briefingStats(),
+      ] as const)
     const missing: string[] = []
     if (statusRes.status === 'fulfilled') setStatus(statusRes.value)
     else missing.push('service status')
@@ -458,6 +717,7 @@ export function App() {
     else missing.push('settings')
     if (todayRes.status === 'fulfilled') setToday(todayRes.value)
     else missing.push("today's calendar")
+    if (statsRes.status === 'fulfilled') setStats(statsRes.value)
 
     // One failed endpoint must not blank the page; the rest still renders.
     const results = [statusRes, attentionRes, briefingsRes, settingsRes, todayRes]
@@ -550,11 +810,34 @@ export function App() {
     return () => document.removeEventListener('pointerdown', dismiss)
   }, [suggestions])
 
+  // The results sheet is a layer too: clicking away closes it, like the menu above.
+  useEffect(() => {
+    if (!results || !resultsQuery) return undefined
+    const dismiss = (event: PointerEvent) => {
+      const panel = document.querySelector('.search-overlay__panel')
+      if (panel?.contains(event.target as Node)) return
+      setResults(null)
+      setResultsQuery('')
+    }
+    document.addEventListener('pointerdown', dismiss)
+    return () => document.removeEventListener('pointerdown', dismiss)
+  }, [results, resultsQuery])
+
   useEffect(() => {
     const update = () => document.body.classList.toggle('motion-paused', document.hidden)
     update()
     document.addEventListener('visibilitychange', update)
     return () => document.removeEventListener('visibilitychange', update)
+  }, [])
+
+  // The gutters appear only when the window can keep the 1180px measure plus two columns.
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined
+    const query = window.matchMedia('(min-width: 1920px)')
+    const update = () => setWide(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
   }, [])
 
   // A success message is a receipt, not a state: it should not sit on the page forever.
@@ -646,6 +929,22 @@ export function App() {
     withViewTransition(() => setShowSettings((value) => !value))
   }
 
+  function dismissGrounding(): void {
+    setGroundingSeen(true)
+    setGroundingOpen(false)
+    try {
+      localStorage.setItem('dashboard.groundingSeen', '1')
+    } catch {
+      // private mode: the note returns next launch, which is harmless
+    }
+  }
+
+  function disableGrounding(): void {
+    setSettings((current) => (current ? { ...current, groundingStrict: false } : current))
+    void api.saveSettings({ groundingStrict: false }).catch(() => {})
+    dismissGrounding()
+  }
+
   function closeSettings(): void {
     const stage = document.getElementById('stage')
     if (stage) stage.scrollTop = 0
@@ -725,6 +1024,8 @@ export function App() {
             trigger: 'manual',
             markdown: result.markdown,
             body: result.body,
+            digest: result.digest,
+            digest_meta: result.digestMeta,
             feedback: null,
             opens: 0,
           },
@@ -735,6 +1036,12 @@ export function App() {
         )
         setGlow(true)
         setLive(`Briefing ready at ${time(new Date().toISOString())}.`)
+        if ((result.digestMeta as { model?: string }).model === 'rules') {
+          setNote({
+            text: 'Rules briefing — add a DeepSeek key for an AI briefing.',
+            tone: 'info',
+          })
+        }
       }
     } catch (error) {
       setNote({
@@ -751,6 +1058,7 @@ export function App() {
 
   async function search() {
     const term = query.trim()
+    const seq = ++searchSeq.current
     if (term.length < 2) {
       setResults(null)
       setResultsQuery('')
@@ -760,6 +1068,7 @@ export function App() {
     setSuggestions(null)
     try {
       const found = await api.search(term)
+      if (seq !== searchSeq.current) return
       setResults(found)
       setResultsQuery(term)
       setSuggestions(null)
@@ -772,6 +1081,7 @@ export function App() {
             : `${count} results for ${term}.`,
       )
     } catch (error) {
+      if (seq !== searchSeq.current) return
       setNote({
         text: friendlyError(error instanceof Error ? error.message : String(error)),
         tone: 'error',
@@ -782,20 +1092,38 @@ export function App() {
   type Suggestion = { kind: 'note' | 'mail' | 'drive'; label: string; detail?: string; url: string }
 
   const vaultPath = settings?.vaultPath ?? ''
-  const items: Suggestion[] = suggestions
+  const suggestionOpen =
+    query.trim().length >= 2 && suggestions !== null && !(results && resultsQuery)
+  const suggestionPresence = usePresence(suggestionOpen)
+  const overlayPresence = usePresence(Boolean(results && resultsQuery))
+  // A layer that is leaving keeps showing what it showed; only its pointer is gone.
+  const lastSuggestions = useRef<SearchResults | null>(null)
+  const lastOverlay = useRef<{ results: SearchResults; query: string } | null>(null)
+  if (suggestions) lastSuggestions.current = suggestions
+  if (results && resultsQuery) lastOverlay.current = { results, query: resultsQuery }
+  const shownSuggestions =
+    suggestions ?? (suggestionPresence.leaving ? lastSuggestions.current : null)
+  const overlay =
+    results && resultsQuery
+      ? { results, query: resultsQuery }
+      : overlayPresence.leaving
+        ? lastOverlay.current
+        : null
+
+  const items: Suggestion[] = shownSuggestions
     ? [
-        ...suggestions.notes.map((note) => ({
+        ...shownSuggestions.notes.map((note) => ({
           kind: 'note' as const,
           label: note.path,
           url: obsidianUrl(vaultPath, note.path),
         })),
-        ...suggestions.mail.map((message) => ({
+        ...shownSuggestions.mail.map((message) => ({
           kind: 'mail' as const,
           label: message.subject,
           detail: message.sender,
           url: mailUrl(message.messageId, message.subject),
         })),
-        ...suggestions.drive.map((file) => ({
+        ...shownSuggestions.drive.map((file) => ({
           kind: 'drive' as const,
           label: file.name,
           url: driveUrl(file.id),
@@ -815,6 +1143,20 @@ export function App() {
     return item.url ?? null
   }
 
+  const widgetLayout = settings?.widgets?.length ? settings.widgets : DEFAULT_WIDGET_LAYOUT
+
+  function saveWidgets(next: WidgetLayout[]): void {
+    setSettings((current) => (current ? { ...current, widgets: next } : current))
+    void api.saveSettings({ widgets: next }).catch((error: unknown) =>
+      setNote({
+        text: friendlyError(error instanceof Error ? error.message : String(error)),
+        tone: 'error',
+      }),
+    )
+  }
+
+  const widgetData: WidgetData = { today, attention, stats, hrefFor: attentionHref }
+
   function choose(item?: Suggestion) {
     const target = item ?? items[activeSuggestion]
     if (!target) return
@@ -824,8 +1166,6 @@ export function App() {
 
   // The search-all row is one more option after the suggestions, so arrows reach it too.
   const activeOption = Math.min(activeSuggestion, items.length)
-  const suggestionOpen =
-    query.trim().length >= 2 && suggestions !== null && !(results && resultsQuery)
   const optionCount = items.length + 1
 
   function onSearchKey(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -853,11 +1193,23 @@ export function App() {
   }
 
   const latest = briefings?.[0]
+  const openedBriefing = useRef<number | null>(null)
+  useEffect(() => {
+    if (!latest || busy || openedBriefing.current === latest.id) return
+    openedBriefing.current = latest.id
+    void api.opened(latest.id).catch(() => {})
+  }, [latest?.id, busy])
+  const groundingChecked = latest?.digest_meta?.grounding?.verified === true
+  const groundingPresence = usePresence(groundingOpen, 200)
+
+  useEffect(() => {
+    if (!groundingChecked || groundingSeen) return
+    setGroundingOpen(true)
+  }, [groundingChecked, groundingSeen])
   // Stale is a fact about today's briefing only; an old one from yesterday is not "today's".
   const ageHours =
     latest && status?.briefingToday ? briefingAgeHours(latest.created_at, Date.now()) : 0
-  // The settings route unmounts the briefing, so the observer is rebuilt when it returns.
-  useReadingLine(latest?.id, !showSettings)
+  // The settings route unmounts the briefing; hover owns the reading rule now.
   const welcomeDialog = useLeaving()
   const welcomeRef = useDialog<HTMLDivElement>(welcome && Boolean(settings), () =>
     welcomeDialog.close(dismissWelcome),
@@ -926,6 +1278,49 @@ export function App() {
     month: 'long',
   })
   const wall = wallpaperById(settings?.wallpaper)
+  const glassScale = (settings?.appearance.glass ?? 100) / 100
+  const accentHue = settings?.appearance.accent ?? null
+
+  // The wallpaper decides the palette; sampling 32x20 is enough and costs nothing at runtime.
+  useEffect(() => {
+    if (!wall.full) {
+      setTheme(scaleTheme(AURORA_THEME, glassScale))
+      return undefined
+    }
+    let cancelled = false
+    const image = new Image()
+    const sample = () => {
+      if (cancelled) return
+      const canvas = document.createElement('canvas')
+      canvas.width = 32
+      canvas.height = 20
+      const context = canvas.getContext('2d', { willReadFrequently: true })
+      if (!context) return
+      context.drawImage(image, 0, 0, canvas.width, canvas.height)
+      setTheme(
+        themeFromPixels(context.getImageData(0, 0, canvas.width, canvas.height).data, {
+          glassScale,
+          accentHue,
+        }),
+      )
+    }
+    image.src = wall.full
+    if (typeof image.decode === 'function') image.decode().then(sample).catch(() => {})
+    else image.onload = sample
+    return () => {
+      cancelled = true
+    }
+  }, [wall.full, glassScale, accentHue])
+
+  useEffect(() => {
+    const root = document.documentElement
+    for (const [name, value] of Object.entries(theme.vars)) root.style.setProperty(name, value)
+  }, [theme])
+
+  // The five appearance knobs are plain variables; every glass rule reads them.
+  useEffect(() => {
+    if (settings?.appearance) applyAppearance(settings.appearance)
+  }, [settings?.appearance])
   const lastSync = stations
     .map((station) => station.lastSync)
     .filter((value): value is string => Boolean(value))
@@ -950,16 +1345,33 @@ export function App() {
   }
 
   function clearSearch(): void {
+    searchSeq.current++
     setQuery('')
     setResults(null)
     setResultsQuery('')
     setSuggestions(null)
   }
 
+  const roomRef = useParallax(settings?.appearance.motion !== 'calm')
   const environment = (
-    <div className={`environment${wall.full ? ' environment--photo' : ''}`} aria-hidden="true">
+    <div
+      ref={roomRef}
+      className={`environment${wall.full ? ' environment--photo' : ''}`}
+      aria-hidden="true"
+    >
       {wall.full && (
-        <div className="environment__photo" style={{ backgroundImage: `url(${wall.full})` }} />
+        <div
+          key={wall.id}
+          className="environment__photo"
+          style={
+            {
+              backgroundImage: `url(${wall.full})`,
+              backgroundPosition: wall.focus ?? 'center',
+              transformOrigin: wall.focus ?? 'center',
+              '--wall-zoom': String(wall.zoom ?? 1),
+            } as React.CSSProperties
+          }
+        />
       )}
       <div className="environment__aurora">
         <span className="orb orb--indigo" />
@@ -987,15 +1399,28 @@ export function App() {
           const label = `${name}, ${
             station.total > 1 ? `${station.total} accounts, ` : ''
           }${detail}${url ? `, ${OPEN_LABELS[station.service] ?? 'opens the service'}` : ''}`
+          const active = running && activeService === station.service
+          const state = station.error
+            ? 'error'
+            : station.lastSync
+              ? time(station.lastSync)
+              : station.configured > 0
+                ? 'waiting'
+                : 'off'
           const body = (
             <>
               <SourceGlyph service={station.service} />
-              <span className={`status-dot status-dot--${railState(station)}`} aria-hidden="true" />
+              <span className="rail__caption" aria-hidden="true">
+                <span className="rail__name">{name}</span>
+                <span className="rail__state">
+                  <span className={`status-dot status-dot--${railState(station)}`} />
+                  {state}
+                </span>
+              </span>
               <span className="sr-only">{name}</span>
               <span className="sr-only">{detail}</span>
             </>
           )
-          const active = running && activeService === station.service
           return url ? (
             <a
               key={station.service}
@@ -1050,44 +1475,49 @@ export function App() {
         data-tip-sub="Connections, Application, Preferences"
       >
         <SourceGlyph service="settings" />
+        <span className="rail__caption">
+          <span className="rail__name">settings</span>
+        </span>
       </button>
     </nav>
   )
 
   function topbar(isSettings: boolean) {
     const failed = stations.some((station) => station.error)
+    const errorCount = stations.filter((station) => station.error).length
+    // The chip carries the whole sync state, so the second line names the count, not only the colour.
+    const syncSub = running
+      ? status
+        ? `${syncing ?? 'sources'} · ${Math.min(
+            status.sync.sourceIndex + 1,
+            status.sync.sourceTotal,
+          )} of ${status.sync.sourceTotal}`
+        : 'Starting…'
+      : errorCount > 0
+        ? `${errorCount} ${errorCount === 1 ? 'source needs' : 'sources need'} attention`
+        : stations.length > 0
+          ? `${stations.length} ${stations.length === 1 ? 'source' : 'sources'} up to date`
+          : 'No sources connected'
     const brand = (
-      <>
+      <button
+        type="button"
+        className="brand"
+        onClick={() => setAbout(true)}
+        aria-label="About Local Dashboard"
+      >
         <img className="brand__mark" src="/icon-transparent-96.png" alt="" />
         <span className="brand__text">
           <span className="brand__name">Local Dashboard</span>
           <span className="brand__date">{date}</span>
         </span>
-      </>
+      </button>
     )
     return (
       <header className="topbar">
-        <div className="topbar__left">
-          {isSettings ? (
-            <button
-              type="button"
-              className="brand"
-              onClick={closeSettings}
-              aria-label="Local Dashboard"
-            >
-              {brand}
-            </button>
-          ) : (
-            <div className="brand">{brand}</div>
-          )}
-        </div>
+        <div className="topbar__left">{brand}</div>
 
         <div className="topbar__center">
-          {isSettings ? (
-            <div className="topbar__crumb" aria-label="Settings">
-              <span>Settings</span>
-            </div>
-          ) : (
+          {!isSettings && (
             <form
               className="command search-wrap"
               onSubmit={(event) => {
@@ -1137,8 +1567,12 @@ export function App() {
               <button type="submit" className="sr-only" tabIndex={-1}>
                 Search
               </button>
-              {suggestionOpen && (
-                <div className="suggest" id="search-suggestions" role="listbox">
+              {suggestionPresence.mounted && (
+                <div
+                  className={`suggest${suggestionPresence.leaving ? ' is-leaving' : ''}`}
+                  id="search-suggestions"
+                  role="listbox"
+                >
                   {items.map((item, index) => (
                     <Fragment key={`${item.kind}-${index}`}>
                       {(index === 0 || items[index - 1]!.kind !== item.kind) && (
@@ -1224,11 +1658,14 @@ export function App() {
               <path d="M8 16H3v5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <span className="sync__dot" aria-hidden="true" />
-            <span className="sync__bar" aria-hidden="true">
-              <i style={{ width: `${running ? progress : fill}%` }} />
-            </span>
             <span className="sync__text">
-              {running ? 'Syncing…' : failed ? 'Sync failed' : lastSync ? `Synced ${time(lastSync)}` : 'Sync now'}
+              <span className="sync__line">
+                {running ? 'Syncing…' : failed ? 'Sync failed' : lastSync ? `Synced ${time(lastSync)}` : 'Sync now'}
+              </span>
+              <span className="sync__sub">{syncSub}</span>
+            </span>
+            <span className="sync__bar" aria-hidden="true">
+              <i style={{ width: `${running || syncOutcome ? fill : 100}%` }} />
             </span>
           </button>
           {window.dashboard && (
@@ -1288,10 +1725,23 @@ export function App() {
       <div className="app app-enter">
         {environment}
         {topbar(true)}
+        {about && (
+          <AboutDialog
+            status={status}
+            settings={settings}
+            stations={stations}
+            onClose={() => setAbout(false)}
+          />
+        )}
         {rail}
-        <main className="stage glass" id="stage" tabIndex={-1} aria-label="Main content">
+        <main className="stage" id="stage" tabIndex={-1} aria-label="Main content">
           <div className="route" role="region" aria-label="Settings">
-            <SettingsPanel settings={settings} onClose={closeSettings} onSaved={setSettings} />
+            <SettingsPanel
+              settings={settings}
+              hues={theme.hues}
+              onClose={closeSettings}
+              onSaved={setSettings}
+            />
           </div>
         </main>
       </div>
@@ -1302,8 +1752,24 @@ export function App() {
     <div className="app app-enter">
       {environment}
       {topbar(false)}
+      {about && settings && (
+        <AboutDialog
+          status={status}
+          settings={settings}
+          stations={stations}
+          onClose={() => setAbout(false)}
+        />
+      )}
       {rail}
-      <main className="stage glass" id="stage" tabIndex={-1} aria-label="Main content">
+      {wide && (
+        <WidgetColumns
+          layout={widgetLayout}
+          onChange={saveWidgets}
+          wide={wide}
+          data={widgetData}
+        />
+      )}
+      <main className="stage" id="stage" tabIndex={-1} aria-label="Main content">
         <div className="route" role="region" aria-label="Dashboard">
           <div className="page">
             <h1 className="sr-only">Dashboard</h1>
@@ -1493,19 +1959,21 @@ export function App() {
           </section>
         )}
 
-        {results && resultsQuery && (
+        {overlayPresence.mounted && overlay && (
           <section className="search-overlay" aria-label="Search results">
-            <div className="search-overlay__panel">
+            <div
+              className={`search-overlay__panel${overlayPresence.leaving ? ' is-leaving' : ''}`}
+            >
               <header className="search-overlay__head">
-                <span className="label">Results for “{resultsQuery}”</span>
+                <span className="label">Results for “{overlay.query}”</span>
                 <button type="button" className="btn btn--ghost btn--mini" onClick={clearSearch}>
                   Close
                 </button>
               </header>
-              {results.notes.length === 0 && results.mail.length === 0 && results.drive.length === 0 && (
-                <p className="empty">Nothing found.</p>
-              )}
-              {results.notes.map((note) => (
+              {overlay.results.notes.length === 0 &&
+                overlay.results.mail.length === 0 &&
+                overlay.results.drive.length === 0 && <p className="empty">Nothing found.</p>}
+              {overlay.results.notes.map((note) => (
                 <a
                   key={note.path}
                   className="result"
@@ -1518,7 +1986,7 @@ export function App() {
                   </span>
                 </a>
               ))}
-              {results.mail.map((message, index) => (
+              {overlay.results.mail.map((message, index) => (
                 <a
                   key={`mail-${index}`}
                   className="result"
@@ -1536,7 +2004,7 @@ export function App() {
                   </span>
                 </a>
               ))}
-              {results.drive.map((file, index) => (
+              {overlay.results.drive.map((file, index) => (
                 <a
                   key={`drive-${index}`}
                   className="result"
@@ -1554,6 +2022,13 @@ export function App() {
             </div>
           </section>
         )}
+
+        <WidgetsInline
+          layout={widgetLayout}
+          onChange={saveWidgets}
+          data={widgetData}
+          includeSide={!wide}
+        />
 
         <article
           className={`briefing enter-item${glow ? ' glow' : ''}`}
@@ -1577,6 +2052,8 @@ export function App() {
                   {briefingSpan(latest.digest_meta)
                     ? ` · ${briefingSpan(latest.digest_meta)}`
                     : ''}
+                  {latest.digest_meta?.model === 'rules' ? ' · rules' : ''}
+                  {latest.digest_meta?.grounding?.error ? ' · unverified' : ''}
                 </span>
               )}
             </div>
@@ -1609,9 +2086,11 @@ export function App() {
                 <span className="skeleton" />
                 <span className="skeleton" />
                 <span className="skeleton" />
+                <span className="skeleton" />
+                <span className="skeleton" />
               </div>
             ) : latest ? (
-              <BriefingBody briefing={latest} vaultPath={vaultPath} />
+              <BriefingBody key={latest.id} briefing={latest} vaultPath={vaultPath} />
             ) : (
               briefings?.length === 0 &&
               loaded && (
@@ -1628,7 +2107,7 @@ export function App() {
                 <div className="segmented" role="group" aria-label="Was this briefing useful?">
                   <button
                     type="button"
-                    className="segmented__btn"
+                    className="segmented__btn segmented__btn--good"
                     aria-pressed={latest.feedback === 'useful'}
                     disabled={voting}
                     onClick={() => void vote(latest.id, 'useful')}
@@ -1637,7 +2116,7 @@ export function App() {
                   </button>
                   <button
                     type="button"
-                    className="segmented__btn"
+                    className="segmented__btn segmented__btn--bad"
                     aria-pressed={latest.feedback === 'miss'}
                     disabled={voting}
                     onClick={() => void vote(latest.id, 'miss')}
@@ -1649,74 +2128,90 @@ export function App() {
             )}
 
             {latest && !busy && (
-              <details className="ask">
-                <summary className="ask__toggle">Ask about this</summary>
-                <div className="ask__panel">
-                  <form className="ask__form" onSubmit={(event) => void askAbout(event, latest.id)}>
-                    <input
-                      value={question}
-                      onChange={(event) => setQuestion(event.target.value)}
-                      placeholder="Why 47 mails?"
-                      maxLength={200}
-                      aria-label="Ask about this briefing"
-                    />
-                    <button
-                      type="submit"
-                      className="btn btn--mini btn--ghost"
-                      disabled={asking || !question.trim()}
-                    >
-                      {asking ? 'Thinking…' : 'Ask'}
-                    </button>
-                  </form>
-                  <p className="ask__hint">Max 200 characters.</p>
-                  {answer && answer.id === latest.id && (
-                    <p className="ask__answer" dir="auto" lang={contentLang(answer.text)}>
-                      {answer.text}
-                    </p>
-                  )}
-                </div>
-              </details>
+              <Disclosure
+                className="ask"
+                label="Ask about this"
+                hint="Ask anything about today's briefing — the answer uses only what it read, never your notes. Up to 200 characters."
+              >
+                <form className="ask__form" onSubmit={(event) => void askAbout(event, latest.id)}>
+                  <input
+                    value={question}
+                    onChange={(event) => setQuestion(event.target.value)}
+                    placeholder="e.g. Why 47 mails?"
+                    maxLength={200}
+                    aria-label="Ask about this briefing"
+                  />
+                  <button
+                    type="submit"
+                    className="btn btn--mini btn--ghost"
+                    disabled={asking || !question.trim()}
+                  >
+                    {asking ? 'Thinking…' : 'Ask'}
+                  </button>
+                </form>
+                {answer && answer.id === latest.id && (
+                  <p className="ask__answer" dir="auto" lang={contentLang(answer.text)}>
+                    {answer.text}
+                  </p>
+                )}
+              </Disclosure>
             )}
 
             <div className="briefing__disclosures">
               {(briefings?.length ?? 0) > 1 && (
-                <details className="disclosure">
-                  <summary>
-                    <span>Earlier briefings</span>
-                  </summary>
-                  <div className="disclosure__body">
-                    {(briefings ?? []).slice(1).map((briefing) => (
-                      <article key={briefing.id} className="earlier">
-                        <span className="earlier__stamp">
-                          {new Date(briefing.created_at).toLocaleString('en-GB', {
-                            dateStyle: 'medium',
-                            timeStyle: 'short',
-                          })}
-                          {kindLabel(briefing.kind)}
-                          {briefing.opens > 0 ? ` · ${briefing.opens} opens` : ''}
-                        </span>
-                        <BriefingBody briefing={briefing} vaultPath={vaultPath} />
-                      </article>
-                    ))}
-                  </div>
-                </details>
+                <Disclosure
+                  label="Earlier briefings"
+                  hint="The previous briefings, newest first, kept for comparison."
+                >
+                  {(briefings ?? []).slice(1).map((briefing) => (
+                    <article key={briefing.id} className="earlier">
+                      <span className="earlier__stamp">
+                        {new Date(briefing.created_at).toLocaleString('en-GB', {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}
+                        {kindLabel(briefing.kind)}
+                        {briefing.opens > 0 ? ` · ${briefing.opens} opens` : ''}
+                      </span>
+                      <BriefingBody briefing={briefing} vaultPath={vaultPath} />
+                    </article>
+                  ))}
+                </Disclosure>
               )}
 
               {latest?.digest && (
-                <details className="disclosure">
-                  <summary>
-                    <span>What it read</span>
-                  </summary>
-                  <div className="disclosure__body">
-                    <pre className="digest" lang={contentLang(latest.digest)}>{latest.digest}</pre>
-                  </div>
-                </details>
+                <Disclosure
+                  label="What it read"
+                  hint="The digest sent to DeepSeek — the only thing that leaves this machine."
+                >
+                  <pre className="digest" lang={contentLang(latest.digest)}>{latest.digest}</pre>
+                </Disclosure>
               )}
             </div>
           </div>
         </article>
           </div>
         </div>
+
+        {groundingChecked && groundingPresence.mounted && (
+          <aside
+            className={`grounding-note${groundingPresence.leaving ? ' is-leaving' : ''}`}
+            role="status"
+          >
+            <p>
+              <strong>Strict grounding is on.</strong> Every point in the briefing was checked
+              against the digest, and unsupported ones were dropped. The check uses extra tokens.
+            </p>
+            <div className="grounding-note__actions">
+              <button type="button" className="btn btn--ghost btn--mini" onClick={disableGrounding}>
+                Turn off
+              </button>
+              <button type="button" className="btn btn--primary btn--mini" onClick={dismissGrounding}>
+                Got it
+              </button>
+            </div>
+          </aside>
+        )}
       </main>
 
       {welcome && settings && (

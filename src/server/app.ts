@@ -32,6 +32,9 @@ export function buildApp(deps: Deps): FastifyInstance {
   const app = Fastify({ logger: false })
 
   const localHosts = new Set(['127.0.0.1', 'localhost', '[::1]'])
+  const localOrigins = new Set(
+    [...localHosts].map((host) => `${host}:${deps.config.port}`.toLowerCase()),
+  )
 
   app.addHook('onRequest', async (request, reply) => {
     const host = (request.headers.host ?? '').split(':')[0]
@@ -43,7 +46,8 @@ export function buildApp(deps: Deps): FastifyInstance {
       if (origin) {
         try {
           const parsed = new URL(origin)
-          if (!localHosts.has(parsed.hostname.toLowerCase())) {
+          // Host and port: another localhost app on a different port is still foreign.
+          if (!localOrigins.has(parsed.host.toLowerCase())) {
             return reply.code(403).send({ error: 'forbidden origin' })
           }
         } catch {

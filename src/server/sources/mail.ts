@@ -9,6 +9,9 @@ export type MailMessage = {
   folder: string
   uid: number
   messageId: string | null
+  inReplyTo?: string | null
+  references?: string[]
+  threadKey?: string | null
   sender: string
   subject: string
   date: string
@@ -26,9 +29,23 @@ export type MailApi = {
     folder: string,
     fromUid: number,
   ): Promise<{ messages: MailMessage[]; uidValidity: string; flags: MailFlags[] }>
+  /** Current UIDs and flags for a recent window, so moved/deleted mail can be reconciled. */
+  recent?(folder: string, days: number): Promise<{ uids: number[]; flags: MailFlags[] }>
 }
 
 const IGNORED_FOLDER = /all mail/i
+
+/** The first reference is the thread root; a reply without one still has its own message id. */
+export function threadKeyOf(
+  messageId: string | null,
+  inReplyTo: string | null | undefined,
+  references: string[] | undefined,
+  subject: string,
+): string | null {
+  const root = references?.find(Boolean) ?? inReplyTo ?? messageId
+  if (root) return root.trim().toLowerCase()
+  return subject.trim() ? subject.trim().toLowerCase() : null
+}
 
 const SPECIAL_ALIASES: Record<string, string> = {
   '\\Inbox': 'INBOX',
@@ -74,10 +91,12 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
       )
       const insertMessage = db.prepare(
         `INSERT INTO mail_messages
-           (connection_id, folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (connection_id, folder, uid, message_id, in_reply_to, references_json, thread_key,
+            sender, subject, date, seen, starred, snippet, body, attachments, bulk)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(connection_id, folder, uid) DO UPDATE SET seen = excluded.seen, starred = excluded.starred,
-           bulk = excluded.bulk`,
+           bulk = excluded.bulk, in_reply_to = excluded.in_reply_to,
+           references_json = excluded.references_json, thread_key = excluded.thread_key`,
       )
       const updateFlags = db.prepare(
         'UPDATE mail_messages SET seen = ?, starred = ? WHERE connection_id = ? AND folder = ? AND uid = ?',
@@ -96,12 +115,12 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
           let result = await api.syncFolder(folder.path, fromUid)
 
           if (row && result.uidValidity !== row.uid_validity) {
-            // The server renumbered the folder; cached UIDs are meaningless.
+            // The server renumbered the folder; fetch the new list before dropping the old rows.
+            result = await api.syncFolder(folder.path, 0)
             db.prepare('DELETE FROM mail_messages WHERE connection_id = ? AND folder = ?').run(
               connectionId,
               dbPath,
             )
-            result = await api.syncFolder(folder.path, 0)
           }
           const { messages, uidValidity, flags } = result
 
@@ -111,6 +130,15 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
               dbPath,
               message.uid,
               message.messageId,
+              message.inReplyTo ?? null,
+              JSON.stringify(message.references ?? []),
+              message.threadKey ??
+                threadKeyOf(
+                  message.messageId,
+                  message.inReplyTo,
+                  message.references,
+                  message.subject,
+                ),
               message.sender,
               message.subject,
               message.date,
@@ -131,7 +159,41 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
               flag.uid,
             )
           }
-          const highest = (maxUid.get(connectionId, dbPath) as { uid: number }).uid
+
+          // IMAP only tells us about new UIDs. Reconcile the unread window so archived or deleted
+          // mail stops being counted as unread forever.
+          if (api.recent && (dbPath === 'INBOX' || dbPath === '[Gmail]/Important')) {
+            try {
+              const recent = await api.recent(folder.path, 30)
+              const present = new Set(recent.uids)
+              const windowStart = new Date(now.getTime() - 30 * 86_400_000).toISOString()
+              const rows = db
+                .prepare(
+                  'SELECT uid FROM mail_messages WHERE connection_id = ? AND folder = ? AND date >= ?',
+                )
+                .all(connectionId, dbPath, windowStart) as Array<{ uid: number }>
+              const remove = db.prepare(
+                'DELETE FROM mail_messages WHERE connection_id = ? AND folder = ? AND uid = ?',
+              )
+              for (const row of rows) {
+                if (!present.has(row.uid)) remove.run(connectionId, dbPath, row.uid)
+              }
+              for (const flag of recent.flags) {
+                updateFlags.run(
+                  flag.seen ? 1 : 0,
+                  flag.starred ? 1 : 0,
+                  connectionId,
+                  dbPath,
+                  flag.uid,
+                )
+              }
+            } catch (error) {
+              // Reconciliation is best effort; the new messages are already stored.
+              console.error(`[mail] reconcile ${dbPath} failed:`, error)
+            }
+          }
+
+        const highest = (maxUid.get(connectionId, dbPath) as { uid: number }).uid
           upsertFolder.run(connectionId, dbPath, uidValidity, highest, now.toISOString())
         } catch (error) {
           // One broken folder must not stop the rest of the mailbox.

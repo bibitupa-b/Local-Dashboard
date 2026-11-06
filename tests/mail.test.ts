@@ -1,6 +1,11 @@
 import { expect, test } from 'vitest'
 import { openDb } from '../src/server/db/index.js'
-import { createMailSource, type MailApi, type MailMessage } from '../src/server/sources/mail.js'
+import {
+  createMailSource,
+  threadKeyOf,
+  type MailApi,
+  type MailMessage,
+} from '../src/server/sources/mail.js'
 
 function message(uid: number, overrides: Partial<MailMessage> = {}): MailMessage {
   return {
@@ -18,6 +23,15 @@ function message(uid: number, overrides: Partial<MailMessage> = {}): MailMessage
     ...overrides,
   }
 }
+
+test('threadKeyOf prefers the root reference', () => {
+  expect(threadKeyOf('<m@x>', '<parent@x>', ['<root@x>', '<parent@x>'], 'Re: Plan')).toBe(
+    '<root@x>',
+  )
+  expect(threadKeyOf('<m@x>', '<parent@x>', [], 'Re: Plan')).toBe('<parent@x>')
+  expect(threadKeyOf('<m@x>', null, [], 'Plan')).toBe('<m@x>')
+  expect(threadKeyOf(null, null, [], ' Plan ')).toBe('plan')
+})
 
 function fakeApi() {
   const state = {
@@ -37,6 +51,13 @@ function fakeApi() {
         flags: state.messages
           .filter((item) => item.folder === folder)
           .map((item) => ({ uid: item.uid, seen: item.seen, starred: item.starred })),
+      }
+    },
+    recent: async (folder) => {
+      const items = state.messages.filter((item) => item.folder === folder)
+      return {
+        uids: items.map((item) => item.uid),
+        flags: items.map((item) => ({ uid: item.uid, seen: item.seen, starred: item.starred })),
       }
     },
   }
@@ -61,6 +82,28 @@ test('syncs incrementally, skips All Mail and records the cursor', async () => {
   state.messages.push(message(3))
   await source.sync(db)
   expect(db.prepare('SELECT COUNT(*) AS n FROM mail_messages').get()).toEqual({ n: 3 })
+})
+
+test('stores the thread key and references from the parsed message', async () => {
+  const db = openDb(':memory:')
+  const { api, state } = fakeApi()
+  state.messages.push(
+    message(1, {
+      messageId: '<m1@x>',
+      inReplyTo: '<root@x>',
+      references: ['<root@x>'],
+    } as unknown as Partial<MailMessage>),
+  )
+  const source = createMailSource(api)
+  await source.sync(db)
+
+  expect(
+    db.prepare('SELECT thread_key, in_reply_to, references_json FROM mail_messages WHERE uid = 1').get(),
+  ).toEqual({
+    thread_key: '<root@x>',
+    in_reply_to: '<root@x>',
+    references_json: '["<root@x>"]',
+  })
 })
 
 test('flag changes on existing messages are applied', async () => {
@@ -256,4 +299,18 @@ test('localized Gmail folders are stored under their special-use alias', async (
   expect(db.prepare('SELECT folder FROM mail_messages').get()).toEqual({
     folder: '[Gmail]/Important',
   })
+})
+
+test('mail that left the inbox stops being counted', async () => {
+  const db = openDb(':memory:')
+  const { api, state } = fakeApi()
+  state.messages.push(message(1), message(2))
+  const source = createMailSource(api)
+  await source.sync(db)
+  expect(db.prepare('SELECT COUNT(*) AS n FROM mail_messages').get()).toEqual({ n: 2 })
+
+  // Archived on the server: the UID is gone from INBOX but was never re-fetched.
+  state.messages = state.messages.filter((item) => item.uid !== 1)
+  await source.sync(db)
+  expect(db.prepare('SELECT uid FROM mail_messages ORDER BY uid').all()).toEqual([{ uid: 2 }])
 })

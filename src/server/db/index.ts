@@ -66,6 +66,16 @@ export function migrate(db: DatabaseSync): void {
   if (mailColumns.length > 0 && !mailColumns.some((column) => column.name === 'bulk')) {
     db.exec('ALTER TABLE mail_messages ADD COLUMN bulk INTEGER NOT NULL DEFAULT 0')
   }
+  const mailAdditions: Array<[string, string]> = [
+    ['in_reply_to', 'TEXT'],
+    ['references_json', "TEXT NOT NULL DEFAULT '[]'"],
+    ['thread_key', 'TEXT'],
+  ]
+  for (const [name, definition] of mailAdditions) {
+    if (!mailColumns.some((column) => column.name === name)) {
+      db.exec(`ALTER TABLE mail_messages ADD COLUMN ${name} ${definition}`)
+    }
+  }
   const briefingColumns = columnNames(db, 'briefings')
   for (const [name, definition] of BRIEFING_COLUMNS) {
     if (!briefingColumns.includes(name)) {
@@ -81,6 +91,11 @@ export function migrate(db: DatabaseSync): void {
 export function openDb(path: string): DatabaseSync {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
   const db = new DatabaseSync(path)
+  // The watcher, the scheduler and the HTTP handlers all write to one file. Without WAL and a
+  // busy timeout a reader or a backup can make a sync fail with "database is locked".
+  if (path !== ':memory:') db.exec('PRAGMA journal_mode = WAL')
+  db.exec('PRAGMA busy_timeout = 5000')
+  db.exec('PRAGMA synchronous = NORMAL')
   migrate(db)
   return db
 }

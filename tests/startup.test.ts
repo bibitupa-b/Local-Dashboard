@@ -33,6 +33,21 @@ test('startServer boots, serves the API and closes cleanly', async () => {
   }
 })
 
+test('briefing hour 0 survives a restart', async () => {
+  const { openDb, setSetting } = await import('../src/server/db/index.js')
+  const db = openDb(join(dataDir, 'dashboard.db'))
+  setSetting(db, 'briefing_hour', '0')
+  db.close()
+
+  const server = await startServer({ dataDir, port: 0, envFile: null })
+  try {
+    const response = await server.app.inject({ method: 'GET', url: '/api/settings' })
+    expect(response.json()).toMatchObject({ briefingHour: 0 })
+  } finally {
+    await server.close()
+  }
+})
+
 test('close releases the port quickly even during the first sync', async () => {
   const server = await startServer({ dataDir, port: 0, envFile: null })
   const started = Date.now()

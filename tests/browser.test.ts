@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { openDb } from '../src/server/db/index.js'
-import { buildAttention } from '../src/server/attention.js'
+import { buildActivity } from '../src/server/attention.js'
 import {
   chromiumMicrosToIso,
   isoToChromiumMicros,
@@ -121,7 +121,7 @@ test('today visits appear in attention', () => {
     `INSERT INTO browser_visits (url, domain, title, visited_at) VALUES (?, ?, ?, ?)`,
   ).run('https://github.com/a', 'github.com', 'Repo', now.toISOString())
 
-  const items = buildAttention(db, now, { staleDays: 14, inboxDays: 3 })
+  const items = buildActivity(db, now)
   const item = items.find((entry) => entry.kind === 'browser')
   expect(item?.label).toContain('1 visits today')
   expect(item?.detail).toContain('github.com')
@@ -137,9 +137,7 @@ test('the visit count covers every domain, not only the three named', () => {
     insert.run(`https://${domain}/`, domain, 't', now.toISOString())
   }
 
-  const item = buildAttention(db, now, { staleDays: 14, inboxDays: 3 }).find(
-    (entry) => entry.kind === 'browser',
-  )
+  const item = buildActivity(db, now).find((entry) => entry.kind === 'browser')
   expect(item?.count).toBe(4)
   expect(item?.detail?.split(', ')).toHaveLength(3)
 })

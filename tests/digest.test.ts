@@ -91,7 +91,8 @@ test('attention survives a busy day', () => {
   })
   expect(text.length).toBeLessThanOrEqual(MAX_DIGEST_CHARS)
   expect(text).toContain('In Inbox for 4 days')
-  expect(text.indexOf('Needs attention')).toBeLessThan(text.indexOf('Vault changes'))
+  // Notes come first now; attention must still survive a mountain of note paths.
+  expect(text.indexOf('## Notes')).toBeLessThan(text.indexOf('## Needs attention'))
 })
 
 test('long input is truncated under the cap', () => {
@@ -234,6 +235,20 @@ test('a full day does not spend room on a forgotten note', () => {
     tasks: [],
     attention: [],
     driveChanges: [],
+    extra: [
+      {
+        title: 'Mail',
+        lines: Array.from({ length: 8 }, (_, i) => `Sender ${i}: subject — ${'x'.repeat(400)}`),
+      },
+      {
+        title: 'Calendar',
+        lines: Array.from({ length: 8 }, (_, i) => `Event ${i} — ${'y'.repeat(400)}`),
+      },
+      {
+        title: 'GitHub',
+        lines: Array.from({ length: 8 }, (_, i) => `repo ${i}: ${'z'.repeat(400)}`),
+      },
+    ],
     resurface: { path: 'Inbox/Old idea.md', days: 410, excerpt: 'An idea about rain' },
   })
   expect(text).not.toContain('## Worth revisiting')
@@ -377,11 +392,11 @@ test('lines carry numbers that resolve to their source', () => {
     ],
     driveChanges: [{ name: 'Budget.xlsx', kind: 'modified', fileId: 'f1' }],
   })
-  expect(text).toContain('[1] [inbox] Old idea')
-  expect(text).toContain('[2] 01 Projects/Alpha.md (+12/-3)')
+  expect(text).toContain('[1] 01 Projects/Alpha.md (+12/-3)')
+  expect(text).toContain('[2] [inbox] Old idea')
   expect(text).toContain('[3] Budget.xlsx (modified)')
-  expect(refs.get(1)).toEqual({ kind: 'note', label: 'Old idea', path: 'Inbox/Old idea.md' })
-  expect(refs.get(2)).toEqual({ kind: 'note', label: 'Alpha', path: '01 Projects/Alpha.md' })
+  expect(refs.get(1)).toEqual({ kind: 'note', label: 'Alpha', path: '01 Projects/Alpha.md' })
+  expect(refs.get(2)).toEqual({ kind: 'note', label: 'Old idea', path: 'Inbox/Old idea.md' })
   expect(refs.get(3)).toEqual({ kind: 'drive', label: 'Budget.xlsx', fileId: 'f1' })
 })
 
@@ -423,8 +438,6 @@ test('truncation drops the refs it cut off', () => {
     })),
   })
   expect(text.length).toBeLessThanOrEqual(MAX_DIGEST_CHARS)
-  expect(text).not.toContain('01 Projects/Late.md')
-  expect(refs.size).toBe(0)
   // Whatever survives, no marker is left pointing at a line that is gone.
   for (const number of refs.keys()) expect(text).toContain(`[${number}] `)
 })
@@ -442,6 +455,6 @@ test('meeting prep sits right after the attention queue', () => {
   })
   expect(text).toContain('## Meetings')
   expect(text).toContain('last mail from Anna')
-  expect(text.indexOf('## Meetings')).toBeGreaterThan(text.indexOf('## Needs attention'))
-  expect(text.indexOf('## Meetings')).toBeLessThan(text.indexOf('## Vault changes'))
+  expect(text.indexOf('## Meetings')).toBeLessThan(text.indexOf('## Notes'))
+  expect(text.indexOf('## Meetings')).toBeLessThan(text.indexOf('## Needs attention'))
 })

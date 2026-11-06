@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { dueEventNotification } from '../src/server/notify.js'
+import { dueEventNotification, dueMeetingPrep } from '../src/server/notify.js'
 import type { CalendarEvent } from '../src/server/sources/calendar.js'
 
 const now = new Date('2026-10-31T12:00:00.000Z')
@@ -22,6 +22,15 @@ test('notifies for an event starting within 15 minutes', () => {
   const due = dueEventNotification([event('Standup', 10)], now, null)
   expect(due?.eventId).toBe('Standup')
   expect(due?.message).toContain('Standup')
+})
+
+test('meeting prep fires 30 minutes before and does not repeat', () => {
+  const due = dueMeetingPrep([event('Design review', 25)], now, null)
+  expect(due?.eventId).toBe('Design review')
+  expect(due?.title).toBe('Meeting soon')
+  expect(due?.message).toContain('Design review')
+  expect(dueMeetingPrep([event('Design review', 25)], now, 'Design review')).toBeNull()
+  expect(dueMeetingPrep([event('Later', 45)], now, null)).toBeNull()
 })
 
 test('does not repeat the same event', () => {

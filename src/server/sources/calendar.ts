@@ -19,6 +19,31 @@ export type CalendarApi = {
   upcoming(from: Date, to: Date): Promise<CalendarEvent[]>
 }
 
+export type WorkHours = { start: number; end: number }
+
+export const DEFAULT_WORK_HOURS: WorkHours = { start: 9, end: 19 }
+
+/** Stored hours are clamped; a broken pair falls back to the default instead of an empty day. */
+export function workHours(db: DatabaseSync): WorkHours {
+  const read = (key: string, fallback: number): number => {
+    const raw = getSetting(db, key)
+    const value = Number(raw)
+    return raw !== null && Number.isFinite(value) && value >= 0 && value <= 23 ? value : fallback
+  }
+  const start = read('work_start', DEFAULT_WORK_HOURS.start)
+  const end = read('work_end', DEFAULT_WORK_HOURS.end)
+  return start < end ? { start, end } : DEFAULT_WORK_HOURS
+}
+
+/** Accepts `primary, work`; an empty value still reads the primary calendar. */
+export function parseCalendarIds(value: string | null | undefined): string[] {
+  const ids = (value ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean)
+  return [...new Set(ids.length > 0 ? ids : ['primary'])]
+}
+
 export function localDayBounds(now: Date): { from: string; to: string } {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const end = new Date(start.getTime() + 86_400_000)
@@ -81,35 +106,44 @@ export function createCalendarSource(api: CalendarApi | null, meta: SourceMeta =
         const allDay = Date.parse(row.end) - Date.parse(row.start) >= 23 * 3_600_000
         const time = allDay
           ? 'All day'
-          : new Date(row.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : new Date(row.start).toLocaleTimeString('en-GB', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          })
         return `${time} ${row.summary}`
       })
     },
   }
 }
 
-export function createGoogleCalendarApi(client: OAuth2Client | null): CalendarApi | null {
+export function createGoogleCalendarApi(
+  client: OAuth2Client | null,
+  calendarIds: string[] = ['primary'],
+): CalendarApi | null {
   if (!client) return null
   const calendar = google.calendar({ version: 'v3', auth: client })
+  const ids = [...new Set(calendarIds.filter(Boolean))]
 
   return {
     async upcoming(from, to) {
-      const res = await calendar.events.list({
-        calendarId: 'primary',
-        timeMin: from.toISOString(),
-        timeMax: to.toISOString(),
-        singleEvents: true,
-        orderBy: 'startTime',
-        maxResults: 100,
-      })
-      return (res.data.items ?? []).flatMap((event) => {
-        const start = event.start?.dateTime ?? event.start?.date
-        const end = event.end?.dateTime ?? event.end?.date
-        if (!event.id || !start || !end) return []
-        return [
-          {
+      const events: CalendarEvent[] = []
+      for (const calendarId of ids.length > 0 ? ids : ['primary']) {
+        const res = await calendar.events.list({
+          calendarId,
+          timeMin: from.toISOString(),
+          timeMax: to.toISOString(),
+          singleEvents: true,
+          orderBy: 'startTime',
+          maxResults: 100,
+        })
+        for (const event of res.data.items ?? []) {
+          const start = event.start?.dateTime ?? event.start?.date
+          const end = event.end?.dateTime ?? event.end?.date
+          if (!event.id || !start || !end) continue
+          events.push({
             id: event.id,
-            calendarId: 'primary',
+            calendarId,
             summary: event.summary ?? '(no title)',
             start: localIso(start),
             end: localIso(end),
@@ -118,9 +152,10 @@ export function createGoogleCalendarApi(client: OAuth2Client | null): CalendarAp
             attendees: (event.attendees ?? [])
               .filter((person) => person.email && !person.resource && !person.self)
               .map((person) => ({ email: person.email!, name: person.displayName ?? '' })),
-          },
-        ]
-      })
+          })
+        }
+      }
+      return events
     },
   }
 }
@@ -145,13 +180,15 @@ export type DayPlan = {
   conflicts: string[]
 }
 
-const WORK_START = 9
-const WORK_END = 19
 const MIN_GAP_MS = 30 * 60_000
 
-export function dayPlan(events: CalendarEvent[], now: Date): DayPlan {
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), WORK_START)
-  const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), WORK_END)
+export function dayPlan(
+  events: CalendarEvent[],
+  now: Date,
+  hours: WorkHours = DEFAULT_WORK_HOURS,
+): DayPlan {
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours.start)
+  const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours.end)
   const from = Math.max(dayStart.getTime(), now.getTime())
 
   const busy = events

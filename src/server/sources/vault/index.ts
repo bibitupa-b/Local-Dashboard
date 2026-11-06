@@ -102,9 +102,9 @@ export function applyVaultChanges(
         changes++
       }
       upsert.run(connectionId, entry.path, entry.hash, entry.mtime, entry.size, entry.text)
+      // Tasks are parsed from the text; an unchanged note has identical tasks.
+      refreshTasks(db, connectionId, entry.path, entry.text, nowIso)
     }
-    // Always re-derive tasks: they are cheap to rebuild and must survive schema migrations.
-    refreshTasks(db, connectionId, entry.path, entry.text, nowIso)
   }
 
   if (opts.reconcileDeletes !== false) {

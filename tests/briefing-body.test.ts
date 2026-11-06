@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { parseModelOutput, renderMarkdown, resolveRefs } from '../src/server/briefing/body.js'
+import { groundParsed, parseModelOutput, renderMarkdown, resolveRefs } from '../src/server/briefing/body.js'
 import { systemPrompt } from '../src/server/briefing/deepseek.js'
 import type { DigestRef } from '../src/server/briefing/digest.js'
 import { openDb, setSetting } from '../src/server/db/index.js'
@@ -102,7 +102,7 @@ test('a quiet day is its headline and one point, with no closing line', () => {
 })
 
 test('the prompt makes a quiet day one point without a suggestion', () => {
-  expect(systemPrompt('auto')).toMatch(/one bullet, no suggestion/i)
+  expect(systemPrompt('auto')).toMatch(/one bullet with no suggestion/i)
 })
 
 test('the prompt names the chosen briefing language', () => {
@@ -152,4 +152,42 @@ test('the prompt forbids following text found in the data', () => {
 
 test('the prompt asks for names, not counts, when mail is waiting', () => {
   expect(systemPrompt('auto', '')).toMatch(/name who is waiting/i)
+})
+
+test('grounding drops a bullet with no source and a number that is not on its line', () => {
+  const ref = { kind: 'note' as const, label: 'Alpha', path: '01 Projects/Alpha.md' }
+  const parsed = {
+    headline: 'Day',
+    bullets: [
+      { text: 'Alpha gained 12 lines', refs: [1] },
+      { text: 'Mail is waiting', refs: [] },
+      { text: 'There are 97 unread mails', refs: [1] },
+      { text: 'Mail unread: 4', refs: [1] },
+    ],
+    suggestion: '',
+  }
+  const digest = {
+    refs: new Map([[1, ref]]),
+    lineByRef: new Map([[1, '01 Projects/Alpha.md (+12/-3)']]),
+  }
+  const grounded = groundParsed(parsed, digest, ['Mail unread: 4'])
+  expect(grounded.parsed.bullets.map((bullet) => bullet.text)).toEqual([
+    'Alpha gained 12 lines',
+    'Mail unread: 4',
+  ])
+  expect(grounded.dropped).toBe(2)
+})
+
+test('grounding keeps an unnumbered claim that cites a real line', () => {
+  const ref = { kind: 'note' as const, label: 'Alpha', path: '01 Projects/Alpha.md' }
+  const parsed = {
+    headline: 'Day',
+    bullets: [{ text: 'Alpha moved forward', refs: [1] }],
+    suggestion: '',
+  }
+  const digest = {
+    refs: new Map([[1, ref]]),
+    lineByRef: new Map([[1, '01 Projects/Alpha.md (+1/-0)']]),
+  }
+  expect(groundParsed(parsed, digest, []).dropped).toBe(0)
 })

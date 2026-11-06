@@ -90,6 +90,36 @@ export function resolveRefs(parsed: ParsedOutput, refs: Map<number, DigestRef>):
   }
 }
 
+/**
+ * A bullet survives only when it cites a real line and every number it says is on that line or in
+ * the authoritative facts. This is the part of grounding that does not depend on the model.
+ */
+export function groundParsed(
+  parsed: ParsedOutput,
+  digest: { refs: Map<number, DigestRef>; lineByRef: Map<number, string> },
+  facts: string[],
+): { parsed: ParsedOutput; dropped: number } {
+  const factsText = facts.join(' ')
+  const bullets = parsed.bullets.filter((bullet) => {
+    const valid = [...new Set(bullet.refs)].filter((number) => digest.refs.has(number))
+    if (valid.length === 0) return false
+    const cited = valid.map((number) => digest.lineByRef.get(number) ?? '').join(' ')
+    return (bullet.text.match(/\d{1,4}/g) ?? []).every((number) =>
+      new RegExp(`(?<!\\d)${number}(?!\\d)`).test(`${cited} ${factsText}`),
+    )
+  })
+  return {
+    parsed: {
+      ...parsed,
+      bullets: bullets.map((bullet) => ({
+        ...bullet,
+        refs: [...new Set(bullet.refs)].filter((number) => digest.refs.has(number)),
+      })),
+    },
+    dropped: parsed.bullets.length - bullets.length,
+  }
+}
+
 export function renderMarkdown(body: BriefingBody): string {
   return [
     body.headline,

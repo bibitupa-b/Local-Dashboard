@@ -1,7 +1,14 @@
 import { expect, test } from 'vitest'
 import { openDb } from '../src/server/db/index.js'
 import { buildAttention } from '../src/server/attention.js'
-import { createCalendarSource, localDayBounds, type CalendarApi, type CalendarEvent } from '../src/server/sources/calendar.js'
+import {
+  createCalendarSource,
+  dayPlan,
+  localDayBounds,
+  parseCalendarIds,
+  type CalendarApi,
+  type CalendarEvent,
+} from '../src/server/sources/calendar.js'
 
 const NOW = new Date('2026-10-31T12:00:00.000Z')
 
@@ -28,6 +35,41 @@ function fakeApi(events: CalendarEvent[]) {
   }
   return { api, calls }
 }
+
+test('calendar ids are trimmed, deduplicated and default to primary', () => {
+  expect(parseCalendarIds(undefined)).toEqual(['primary'])
+  expect(parseCalendarIds(' primary, work ,, work ')).toEqual(['primary', 'work'])
+})
+
+test('events from more than one calendar keep their calendar id', async () => {
+  const db = openDb(':memory:')
+  await createCalendarSource(
+    fakeApi([
+      event({ id: 'e1', calendarId: 'primary', summary: 'Personal' }),
+      event({ id: 'e2', calendarId: 'work', summary: 'Planning' }),
+    ]).api,
+  ).sync(db, NOW)
+
+  expect(
+    db.prepare('SELECT calendar_id FROM calendar_events ORDER BY id').all(),
+  ).toEqual([{ calendar_id: 'primary' }, { calendar_id: 'work' }])
+})
+
+test('free windows follow the configured work hours', () => {
+  const now = new Date(2026, 9, 31, 7, 0)
+  const eventStart = new Date(2026, 9, 31, 10, 0).toISOString()
+  const eventEnd = new Date(2026, 9, 31, 11, 0).toISOString()
+
+  const plan = dayPlan(
+    [event({ start: eventStart, end: eventEnd })],
+    now,
+    { start: 8, end: 12 },
+  )
+  expect(plan.free.map((window) => [new Date(window.from).getHours(), new Date(window.to).getHours()])).toEqual([
+    [8, 10],
+    [11, 12],
+  ])
+})
 
 test('stores the requested window and drops events that disappeared', async () => {
   const db = openDb(':memory:')

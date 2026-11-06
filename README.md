@@ -9,31 +9,56 @@ briefing is generated.
 
 ![Dashboard](docs/screenshots/current/dashboard.jpeg)
 
-`Windows` · `Local-first` · `Read-only` · `Single user` · `MIT`
+`Windows` · `Local-first` · `Read-only` · `Single user` · `MIT` · `v1.12.0`
+
+## What's new in 1.12.0
+
+- **Reply triage that survives opening mail** — "awaiting your reply" now includes read messages and
+  closes on a sent reply, using `References`/`In-Reply-To` with a subject fallback.
+- **Attention is separate from activity** — browser visits and Drive changes no longer hijack
+  "Start here"; they live on `/api/activity`.
+- **FTS5 search** — Cyrillic is case-insensitive, with `source`/`from`/`to` filters and a `LIKE`
+  fallback.
+- **Per-point feedback** — each point has its own Useful/Miss; the next briefing sees the signal.
+- **More calendar control** — multiple Google calendars per connection and configurable work hours
+  for free windows.
+- **Local data controls** — export a secret-free snapshot, delete indexed data, and set retention
+  for mail bodies, browser visits and vault diffs.
+- **Meeting prep** — a 30-minute heads-up, separate from the 15-minute "starting soon" alert.
+- **Honest labels** — rules briefings say `rules`; a failed strict-grounding check says `unverified`.
 
 ## What it does
 
-- **Start here** — one number and one sentence chosen from the attention rules: mail awaiting your
-  reply, unread mail, open tasks, GitHub review requests, Inbox backlog, stale projects or Drive
-  changes. The backlog stays in your services; the dashboard never becomes a second inbox.
+- **Start here** — one number and one sentence chosen from the actionable rules: mail awaiting your
+  reply, unread mail, open tasks, GitHub review requests, Inbox backlog, stale projects or the next
+  event. The backlog stays in your services; the dashboard never becomes a second inbox.
 - **Source rail** — every connected service as a vertical rail, which is also the sync progress. Click
   a station to open that service; its tooltip says when it last synced or what failed.
 - **Today** — the day's calendar events, free windows and conflicts beside the focus panel.
-- **Daily briefing** — 5–7 points covering what moved, what is stuck and one suggestion for today.
-  Runs at 08:00, on demand, or on the first start after a missed day. Points are set as a reading
-  column with an amber line that follows the point you are reading.
-- **Search** — one command field over note text, mail, Drive file names and Google Docs content,
-  with suggestions in place and results in a glass overlay.
+- **Activity** — browser visits and Drive changes are separate context (`/api/activity`), so a quiet
+  day does not answer "Start here" with a visit count.
+- **Daily briefing** — 2–5 points covering today's calendar, what moved in the notes, the week's
+  trend and one suggestion for today. Runs at 08:00, on demand, or on the first start after a missed
+  day. Each point cites its digest line, and a strict check drops what the digest cannot support.
+  Without a DeepSeek key the fallback is a plain rules list, labelled `rules` rather than AI. A
+  failed grounding check is labelled `unverified`. Each point can be marked Useful or Miss on its
+  own, not only the whole briefing.
+- **Search** — one command field over note text, mail, Drive file names and Google Docs content.
+  FTS5 with the `unicode61` tokenizer keeps Cyrillic case-insensitive; source/date filters are in
+  the API, suggestions stay in place and results open in a glass overlay.
 - **Mail** — read-only Gmail over IMAP: senders, subjects and the last 90 days of message text.
   Attachments are indexed by name only and never downloaded.
-- **Browser history** — Chrome, Edge or Helium domains; only aggregate counts reach the briefing.
+- **Browser history** — Chrome, Edge or Helium history; full URLs stay local and only aggregate
+  domain counts reach the briefing.
 - **GitHub** — unread notifications and review requests.
 - **Desktop shell** — a frameless Electron window on a slow aurora, with a custom title bar, tray,
   native notifications, optional autostart and remembered size and position.
-- **Wallpapers** — nine images ship with the app; pick one under **Settings → Preferences → App
+- **Wallpapers** — 27 images ship with the app; pick one under **Settings → Appearance → App
   background** and it sits behind the glass. Aurora remains the default.
-- **Settings** — connections with a hint per service. Preferences save as you edit; each field shows
-  its own `Saving…` / `Saved 09:14` receipt, and a failed write keeps your text with `Retry`.
+- **Settings** — connections with a hint per service, multiple Google calendars, work hours,
+  meeting-prep and retention controls. Preferences save as you edit; each field shows its own
+  `Saving…` / `Saved 09:14` receipt, and a failed write keeps your text with `Retry`.
+  **Application** can export a secret-free JSON snapshot or delete indexed data.
 
 ## Install
 
@@ -87,12 +112,13 @@ available keys: `PORT`, `VAULT_PATH`, `DEEPSEEK_API_KEY`, Google credentials, `G
 
 ## The briefing and your privacy
 
-1. The digest contains note paths with line counts, task titles, project names, Drive file names,
-   today's calendar, unread mail subjects/senders and the first ~200 characters of unread mail.
-2. It is sent to `https://api.deepseek.com` (`deepseek-chat`) only when a briefing is generated.
+1. The digest contains note paths with line counts and up to 200 characters from the changed part of
+   the five most-changed notes, task titles, project names, Drive file names, today's calendar,
+   unread mail subjects/senders and the first ~200 characters of unread mail.
+2. It is sent to `https://api.deepseek.com` (`deepseek-flash`) only when a briefing is generated.
 3. The reply is stored in the local database and shown on the page. Earlier briefings stay available.
 
-**Never sent:** vault note bodies, full mail bodies, attachments, browser URLs or page titles,
+**Never sent:** whole vault notes, full mail bodies, attachments, browser URLs or page titles,
 OAuth tokens, passwords. Browser history reaches the model as domain counts only. There is no
 telemetry, no analytics and no cloud account.
 
@@ -106,6 +132,8 @@ telemetry, no analytics and no cloud account.
 | Search in the command field, grouped suggestions | Connections, preferences and the wallpaper picker |
 
 More screens: [`docs/screenshots/current/index.html`](docs/screenshots/current/index.html).
+
+Release notes: [`docs/releases/1.12.0.md`](docs/releases/1.12.0.md).
 
 ## Troubleshooting
 

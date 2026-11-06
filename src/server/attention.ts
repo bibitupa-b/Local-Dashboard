@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { parseNote } from './sources/vault/parse.js'
-import { isExcludedSender, isExcludedVaultPath } from './settings.js'
+import { isExcludedSender, isExcludedVaultPath, isSourceEnabled } from './settings.js'
 
 export type AttentionItem = {
   kind:
@@ -23,6 +23,37 @@ export type AttentionItem = {
 }
 
 const TEMPLATES = 'Templates/%'
+
+/** The source a queue item belongs to; one map keeps every consumer honest. */
+export function sourceForKind(kind: AttentionItem['kind']): string {
+  switch (kind) {
+    case 'task':
+    case 'inbox':
+    case 'stale-project':
+      return 'vault'
+    case 'mail':
+    case 'reply':
+      return 'mail'
+    case 'drive':
+      return 'drive'
+    case 'calendar':
+      return 'calendar'
+    case 'browser':
+      return 'browser'
+    case 'github':
+      return 'github'
+  }
+}
+
+export function visibleAttention(
+  db: DatabaseSync,
+  now: Date,
+  opts: { staleDays: number; inboxDays: number },
+): AttentionItem[] {
+  return buildAttention(db, now, opts).filter((item) =>
+    isSourceEnabled(db, sourceForKind(item.kind)),
+  )
+}
 
 export function normalizeSubject(subject: string): string {
   let value = subject.trim().toLowerCase()
@@ -85,27 +116,45 @@ export function buildAttention(
   const replyWindow = new Date(now.getTime() - 30 * 86_400_000).toISOString()
   const candidates = db
     .prepare(
-      `SELECT sender, subject, date FROM mail_messages
-       WHERE folder = 'INBOX' AND seen = 0 AND bulk = 0 AND date <= ? AND date >= ?
+      `SELECT sender, subject, date, thread_key FROM mail_messages
+       WHERE folder = 'INBOX' AND bulk = 0 AND date <= ? AND date >= ?
        ORDER BY date ASC`,
     )
-    .all(replyCutoff, replyWindow) as Array<{ sender: string; subject: string; date: string }>
+    .all(replyCutoff, replyWindow) as Array<{
+    sender: string
+    subject: string
+    date: string
+    thread_key: string | null
+  }>
 
   const sent = db
     .prepare(
-      `SELECT subject, date FROM mail_messages WHERE folder LIKE '%Sent%' AND date >= ?`,
+      `SELECT subject, date, thread_key FROM mail_messages WHERE folder LIKE '%Sent%' AND date >= ?`,
     )
-    .all(replyWindow) as Array<{ subject: string; date: string }>
-  const repliedAt = new Map<string, number>()
+    .all(replyWindow) as Array<{ subject: string; date: string; thread_key: string | null }>
+  const repliedThreads = new Map<string, number>()
+  const repliedSubjects = new Map<string, number>()
   for (const message of sent) {
+    const at = Date.parse(message.date)
+    const thread = message.thread_key?.trim().toLowerCase()
+    if (thread) repliedThreads.set(thread, Math.max(repliedThreads.get(thread) ?? 0, at))
     const key = normalizeSubject(message.subject)
-    repliedAt.set(key, Math.max(repliedAt.get(key) ?? 0, Date.parse(message.date)))
+    repliedSubjects.set(key, Math.max(repliedSubjects.get(key) ?? 0, at))
+  }
+
+  const repliedAt = (message: { thread_key: string | null; subject: string }): number => {
+    const thread = message.thread_key?.trim().toLowerCase()
+    return (
+      (thread ? repliedThreads.get(thread) : undefined) ??
+      repliedSubjects.get(normalizeSubject(message.subject)) ??
+      0
+    )
   }
 
   const waiting = candidates.filter(
     (message) =>
       !isExcludedSender(db, message.sender) &&
-      !((repliedAt.get(normalizeSubject(message.subject)) ?? 0) > Date.parse(message.date)),
+      !(repliedAt(message) > Date.parse(message.date)),
   )
   if (waiting.length > 0) {
     items.push({
@@ -116,28 +165,6 @@ export function buildAttention(
         .map((message) => message.sender.split('<')[0]!.trim() || message.sender)
         .join(', '),
       count: waiting.length,
-    })
-  }
-
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
-  const browsing = db
-    .prepare(
-      `SELECT domain, COUNT(*) AS n FROM browser_visits
-       WHERE visited_at >= ? GROUP BY domain ORDER BY n DESC LIMIT 3`,
-    )
-    .all(todayStart) as Array<{ domain: string; n: number }>
-  // Every visit, not the three domains named below: the label says "today", so the number must mean today.
-  const visits = (
-    db
-      .prepare('SELECT COUNT(*) AS n FROM browser_visits WHERE visited_at >= ?')
-      .get(todayStart) as { n: number }
-  ).n
-  if (visits > 0) {
-    items.push({
-      kind: 'browser',
-      label: `Browser: ${visits} visits today`,
-      detail: browsing.map((row) => `${row.domain} (${row.n})`).join(', '),
-      count: visits,
     })
   }
 
@@ -215,7 +242,8 @@ export function buildAttention(
 
   const projectNotes = (
     db
-      .prepare(`SELECT path, previous_text AS text FROM vault_files WHERE mtime <= ?`)
+      .prepare(`SELECT path, previous_text AS text FROM vault_files
+        WHERE mtime <= ? AND previous_text LIKE '%status%'`)
       .all(staleBefore) as Array<{ path: string; text: string }>
   ).filter((note) => !isExcludedVaultPath(db, note.path))
   for (const note of projectNotes) {
@@ -247,6 +275,45 @@ export function buildAttention(
     })
   }
 
+  const order = {
+    task: 0,
+    mail: 1,
+    reply: 2,
+    browser: 3,
+    github: 4,
+    calendar: 5,
+    'stale-project': 6,
+    inbox: 7,
+    drive: 8,
+  } as const
+  return items.sort((a, b) => order[a.kind] - order[b.kind] || (b.count ?? 1) - (a.count ?? 1))
+}
+
+/** What happened, not what needs a decision: browser and Drive belong here. */
+export function buildActivity(db: DatabaseSync, now: Date): AttentionItem[] {
+  const items: AttentionItem[] = []
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+  const browsing = db
+    .prepare(
+      `SELECT domain, COUNT(*) AS n FROM browser_visits
+       WHERE visited_at >= ? GROUP BY domain ORDER BY n DESC LIMIT 3`,
+    )
+    .all(todayStart) as Array<{ domain: string; n: number }>
+  // Every visit, not the three domains named below: the label says "today", so the number must mean today.
+  const visits = (
+    db
+      .prepare('SELECT COUNT(*) AS n FROM browser_visits WHERE visited_at >= ?')
+      .get(todayStart) as { n: number }
+  ).n
+  if (visits > 0) {
+    items.push({
+      kind: 'browser',
+      label: `Browser: ${visits} visits today`,
+      detail: browsing.map((row) => `${row.domain} (${row.n})`).join(', '),
+      count: visits,
+    })
+  }
+
   const drive = db
     .prepare(
       `SELECT c.kind, c.file_id AS fileId, COALESCE(f.name, c.file_id) AS name FROM drive_changes c
@@ -266,17 +333,11 @@ export function buildAttention(
       fileId: change.fileId,
     })
   }
+  return items
+}
 
-  const order = {
-    task: 0,
-    mail: 1,
-    reply: 2,
-    browser: 3,
-    github: 4,
-    calendar: 5,
-    'stale-project': 6,
-    inbox: 7,
-    drive: 8,
-  } as const
-  return items.sort((a, b) => order[a.kind] - order[b.kind] || (b.count ?? 1) - (a.count ?? 1))
+export function visibleActivity(db: DatabaseSync, now: Date): AttentionItem[] {
+  return buildActivity(db, now).filter((item) =>
+    isSourceEnabled(db, sourceForKind(item.kind)),
+  )
 }

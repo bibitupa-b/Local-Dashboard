@@ -6,6 +6,7 @@ import { SettingsPanel } from '../src/web/Settings.js'
 
 const responses: Record<string, unknown> = {
   '/api/status': {
+    version: '1.9.0',
     sources: [
       {
         id: 'vault:default',
@@ -23,6 +24,15 @@ const responses: Record<string, unknown> = {
   '/api/feed?days=7': { days: [] },
   '/api/attention': [],
   '/api/briefings?limit=10': { items: [] },
+  '/api/briefings/stats?days=7': {
+    days: 7,
+    count: 0,
+    opens: 0,
+    useful: 0,
+    miss: 0,
+    tokens: { prompt: 0, completion: 0 },
+    usageKnown: 0,
+  },
   '/api/today': { events: [], free: [], conflicts: [] },
   '/api/settings': {
     vaultPath: 'C:/notes',
@@ -46,6 +56,21 @@ const responses: Record<string, unknown> = {
     eveningPass: false,
     enabledSources: [],
     wallpaper: 'aurora',
+    appearance: {
+      blur: 14,
+      glass: 100,
+      grain: 12,
+      shadow: 100,
+      photo: 94,
+      motion: 'balanced',
+      accent: null,
+    },
+    widgets: [
+      { id: 'now-next', slot: 'left', order: 0, collapsed: false, wide: false, expanded: false, narrow: 'inline' },
+      { id: 'open-loops', slot: 'right', order: 1, collapsed: false, wide: false, expanded: false, narrow: 'inline' },
+      { id: 'deepseek-week', slot: 'right', order: 2, collapsed: false, wide: false, expanded: false, narrow: 'inline' },
+    ],
+    groundingStrict: true,
     dataDir: 'C:/data',
   },
 }
@@ -397,10 +422,14 @@ test('a point can show the digest lines behind it', async () => {
 
   const lines = container.querySelectorAll<HTMLElement>('.markdown .line')
   const why = within(lines[0]!).getByText('Why')
-  expect(why.closest('details')?.hasAttribute('open')).toBe(false)
+  expect(why.getAttribute('aria-expanded')).toBe('false')
+  expect(lines[0]!.querySelector('.why-panel')).toBeNull()
+  fireEvent.click(why)
+  expect(why.getAttribute('aria-expanded')).toBe('true')
+  expect(lines[0]!.querySelector('.why-panel')).toBeTruthy()
   expect(within(lines[0]!).getByText(/01 Projects\/Alpha\.md \(\+2\/-1\)/)).toBeTruthy()
   // A point with no source has nothing to prove.
-  expect(lines[1]!.querySelector('details')).toBeNull()
+  expect(lines[1]!.querySelector('.why__toggle')).toBeNull()
   unmount()
 })
 
@@ -414,7 +443,11 @@ test('the stamp names the trigger and the window it covers', async () => {
         trigger: 'auto',
         markdown: '- one',
         body: null,
-        digest_meta: { since: '2026-10-28T08:00:00.000Z', until: '2026-11-04T08:00:00.000Z' },
+        digest_meta: {
+          since: '2026-10-28T08:00:00.000Z',
+          until: '2026-11-04T08:00:00.000Z',
+          model: 'rules',
+        },
       },
     ],
   }
@@ -428,7 +461,37 @@ test('the stamp names the trigger and the window it covers', async () => {
   )
   const { container, unmount } = render(<App />)
   await waitFor(() => expect(screen.getByText('one')).toBeTruthy())
-  expect(container.querySelector('.stamp')?.textContent).toContain('auto · 7 d')
+  expect(container.querySelector('.stamp')?.textContent).toContain('auto · 7 d · rules')
+  unmount()
+})
+
+test('a failed grounding check is visible in the stamp', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const briefings = {
+    items: [
+      {
+        id: 6,
+        created_at: '2026-11-04T08:00:00.000Z',
+        trigger: 'auto',
+        markdown: '- one',
+        body: null,
+        digest_meta: {
+          grounding: { dropped: 0, verified: false, error: 'verifier down' },
+        },
+      },
+    ],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url === '/api/briefings?limit=10' ? briefings : responses[url] ?? {},
+    })),
+  )
+  const { container, unmount } = render(<App />)
+  await waitFor(() => expect(screen.getByText('one')).toBeTruthy())
+  expect(container.querySelector('.stamp')?.textContent).toContain('unverified')
   unmount()
 })
 
@@ -532,7 +595,7 @@ test('a briefing that mixes bullets and plain lines stays one list without raw m
   unmount()
 })
 
-test('the reading rule re-attaches after the settings route rebuilds the page', async () => {
+test('the reading rule is hover, not a scroll observer', async () => {
   localStorage.setItem('dashboard.welcomed', '1')
   const briefings = {
     items: [
@@ -556,11 +619,14 @@ test('the reading rule re-attaches after the settings route rebuilds the page', 
             : responses[url] ?? {},
     })),
   )
-  const observed: Element[] = []
+  let observers = 0
   vi.stubGlobal(
     'IntersectionObserver',
     class {
-      observe = (node: Element) => observed.push(node)
+      constructor() {
+        observers++
+      }
+      observe = () => {}
       disconnect = () => {}
       unobserve = () => {}
       takeRecords = () => []
@@ -569,13 +635,9 @@ test('the reading rule re-attaches after the settings route rebuilds the page', 
 
   const { container, unmount } = render(<App />)
   await waitFor(() => expect(screen.getByText('First move')).toBeTruthy())
-  expect(observed).toContain(container.querySelector('.line'))
-
-  // The settings route unmounts the briefing: a stale observer would leave the tick dead.
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Back to dashboard' }))
-  await waitFor(() => expect(container.querySelector('.line')).toBeTruthy())
-  expect(observed.at(-1) && container.contains(observed.at(-1)!)).toBe(true)
+  expect(container.querySelector('.line')).toBeTruthy()
+  // The reading rule follows the pointer; nothing tracks the scroll position any more.
+  expect(observers).toBe(0)
   unmount()
 })
 
@@ -845,6 +907,99 @@ test('a repeated briefing shortcut spends once', async () => {
   finish()
   await waitFor(() => expect(screen.getByText('A fresh point')).toBeTruthy())
   unmount()
+})
+
+test('viewing a briefing records an open', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const opened: string[] = []
+  const briefings = {
+    items: [
+      {
+        id: 5,
+        created_at: '2026-11-04T08:00:00.000Z',
+        trigger: 'auto',
+        markdown: '- one',
+        body: null,
+        digest_meta: {},
+      },
+    ],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (url === '/api/briefings/5/opened') opened.push(url)
+      return {
+        ok: true,
+        json: async () =>
+          url === '/api/briefings?limit=10' ? briefings : responses[url] ?? {},
+      }
+    }),
+  )
+  render(<App />)
+  await waitFor(() => expect(opened).toEqual(['/api/briefings/5/opened']))
+})
+
+test('a point can be marked useful on its own', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const posts: unknown[] = []
+  const briefings = {
+    items: [
+      {
+        id: 5,
+        created_at: '2026-11-04T08:00:00.000Z',
+        trigger: 'auto',
+        markdown: '- one',
+        body: {
+          headline: 'Day',
+          bullets: [{ text: 'Alpha moved', refs: [] }],
+          suggestion: '',
+        },
+        digest_meta: {},
+      },
+    ],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/briefings/5/bullets/0/feedback') {
+        posts.push(JSON.parse(String(init?.body)))
+      }
+      return {
+        ok: true,
+        json: async () =>
+          url === '/api/briefings?limit=10' ? briefings : responses[url] ?? {},
+      }
+    }),
+  )
+  render(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Mark point 1 useful' }))
+  await waitFor(() => expect(posts).toEqual([{ value: 'useful' }]))
+})
+
+test('a rules briefing says it is rules, not AI', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => {
+        if (url === '/api/briefings/generate') {
+          return {
+            id: 4,
+            markdown: '- rules',
+            body: { headline: 'Rules', bullets: [], suggestion: '' },
+            digest: '',
+            digestMeta: { model: 'rules' },
+          }
+        }
+        return responses[url] ?? {}
+      },
+    })),
+  )
+  render(<App />)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Briefing now' })).toBeTruthy())
+  fireEvent.click(screen.getByRole('button', { name: 'Briefing now' }))
+  expect(await screen.findByText(/Rules briefing — add a DeepSeek key/)).toBeTruthy()
 })
 
 test('briefing ready and a finished search are announced, not only drawn', async () => {
@@ -1245,12 +1400,12 @@ test('preferences save themselves, and a number out of range never leaves the fi
   })
   await flush()
   expect(bodies).toHaveLength(1)
-  fireEvent.click(screen.getByRole('radio', { name: 'Pine Hollow' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Lily Pond' }))
   await act(async () => {
     await vi.advanceTimersByTimeAsync(500)
   })
   await flush()
-  expect(bodies).toContainEqual({ wallpaper: 'pine-hollow' })
+  expect(bodies).toContainEqual({ wallpaper: 'lily-pond' })
   expect(screen.getByText('0–23')).toBeTruthy()
   unmount()
 })
@@ -1289,8 +1444,9 @@ test('a preference that did not save keeps the text and can be retried', async (
   )
   await flush()
 
-  const senders = screen.getByLabelText('Never mention these mail senders (one per line)')
+  const senders = screen.getByLabelText('Never mention these mail senders')
   fireEvent.change(senders, { target: { value: 'spam@example.com' } })
+  fireEvent.keyDown(senders, { key: 'Enter' })
   await act(async () => {
     await vi.advanceTimersByTimeAsync(500)
   })
@@ -1298,7 +1454,7 @@ test('a preference that did not save keeps the text and can be retried', async (
 
   expect(screen.getByText(/The local server hit an error/)).toBeTruthy()
   expect(screen.getByText('1 change not saved')).toBeTruthy()
-  expect((senders as HTMLTextAreaElement).value).toBe('spam@example.com')
+  expect(screen.getByText('spam@example.com')).toBeTruthy()
 
   down = false
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -1392,4 +1548,270 @@ test('a briefing from this hour keeps the plain button', async () => {
   const { unmount } = render(<App />)
   expect(await screen.findByRole('button', { name: 'Briefing now' })).toBeTruthy()
   unmount()
+})
+
+test('the brand opens About with the version it is running', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => responses[url] ?? {},
+    })),
+  )
+  const { unmount } = render(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: 'About Local Dashboard' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(within(dialog).getByText('v1.9.0')).toBeTruthy()
+  expect(within(dialog).getByText(/Only the briefing digest/i)).toBeTruthy()
+  expect(within(dialog).getByText('C:/data')).toBeTruthy()
+  unmount()
+})
+
+test('a list preference adds one entry at a time and removes it', async () => {
+  const bodies: unknown[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/settings' && init?.method === 'PUT') {
+        bodies.push(JSON.parse(String(init.body)))
+        return { ok: true, json: async () => ({ ok: true }) }
+      }
+      return {
+        ok: true,
+        json: async () => (url === '/api/connections' ? { items: [] } : responses[url] ?? {}),
+      }
+    }),
+  )
+  const flush = async () => {
+    await act(async () => {
+      for (let tick = 0; tick < 50; tick++) await Promise.resolve()
+    })
+  }
+
+  vi.useFakeTimers()
+  const { unmount } = render(
+    <SettingsPanel
+      settings={responses['/api/settings'] as never}
+      onSaved={() => {}}
+      onClose={() => {}}
+    />,
+  )
+  await flush()
+
+  const input = screen.getByLabelText('Never mention these mail senders')
+  fireEvent.change(input, { target: { value: '  spam@example.com  ' } })
+  fireEvent.keyDown(input, { key: 'Enter' })
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500)
+  })
+  await flush()
+
+  expect(bodies).toEqual([{ excludedSenders: ['spam@example.com'] }])
+  expect(screen.getByText('spam@example.com')).toBeTruthy()
+
+  // The same value again is already on the list: there is nothing to write.
+  fireEvent.change(input, { target: { value: 'spam@example.com' } })
+  fireEvent.keyDown(input, { key: 'Enter' })
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500)
+  })
+  expect(bodies).toHaveLength(1)
+
+  fireEvent.click(screen.getByRole('button', { name: 'Remove spam@example.com' }))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500)
+  })
+  await flush()
+  expect(bodies.at(-1)).toEqual({ excludedSenders: [] })
+  expect(screen.queryByText('spam@example.com')).toBeNull()
+  unmount()
+})
+
+test('an appearance slider previews on the document and saves the value', async () => {
+  const bodies: unknown[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/settings' && init?.method === 'PUT') {
+        bodies.push(JSON.parse(String(init.body)))
+        return { ok: true, json: async () => ({ ok: true }) }
+      }
+      return {
+        ok: true,
+        json: async () => (url === '/api/connections' ? { items: [] } : responses[url] ?? {}),
+      }
+    }),
+  )
+  const flush = async () => {
+    await act(async () => {
+      for (let tick = 0; tick < 50; tick++) await Promise.resolve()
+    })
+  }
+
+  vi.useFakeTimers()
+  const { unmount } = render(
+    <SettingsPanel
+      settings={responses['/api/settings'] as never}
+      onSaved={() => {}}
+      onClose={() => {}}
+    />,
+  )
+  await flush()
+
+  fireEvent.change(screen.getByLabelText('Blur'), { target: { value: '22' } })
+  expect(document.documentElement.style.getPropertyValue('--blur-panel')).toBe('22px')
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500)
+  })
+  await flush()
+  expect(bodies).toContainEqual({
+    appearance: {
+      blur: 22,
+      glass: 100,
+      grain: 12,
+      shadow: 100,
+      photo: 94,
+      motion: 'balanced',
+      accent: null,
+    },
+  })
+
+  fireEvent.click(screen.getByRole('button', { name: 'Calm' }))
+  expect(document.documentElement.dataset.motion).toBe('calm')
+
+  // The default is one click away, and the button says what it will do.
+  const reset = screen.getByRole('button', { name: 'Reset Blur to 14 px' })
+  expect(reset.hasAttribute('disabled')).toBe(false)
+  fireEvent.click(reset)
+  expect((screen.getByLabelText('Blur') as HTMLInputElement).value).toBe('14')
+  expect(document.documentElement.style.getPropertyValue('--blur-panel')).toBe('14px')
+  expect(reset.hasAttribute('disabled')).toBe(true)
+  unmount()
+})
+
+test('a connect dialog shows the optional marker once', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => (url === '/api/connections' ? { items: [] } : responses[url] ?? {}),
+    })),
+  )
+  const { unmount } = render(
+    <SettingsPanel
+      settings={responses['/api/settings'] as never}
+      onSaved={() => {}}
+      onClose={() => {}}
+    />,
+  )
+  const group = screen.getByText('Browser history').closest('.conn-group') as HTMLElement
+  fireEvent.click(within(group).getByRole('button', { name: 'Connect' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(within(dialog).getByText('History file (optional)')).toBeTruthy()
+  expect(within(dialog).queryByText(/optional\) \(optional\)/i)).toBeNull()
+  unmount()
+})
+
+test('search results close when the empty page is clicked', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => {
+        if (url.startsWith('/api/search')) {
+          return { notes: [{ path: 'Inbox/Old idea.md', snippet: '' }], mail: [], drive: [] }
+        }
+        return responses[url] ?? {}
+      },
+    })),
+  )
+  const { unmount } = render(<App />)
+  await waitFor(() => expect(screen.getByRole('combobox')).toBeTruthy())
+  const input = screen.getByRole('combobox')
+  fireEvent.change(input, { target: { value: 'idea' } })
+  fireEvent.submit(input.closest('form')!)
+  const panel = await screen.findByRole('region', { name: 'Search results' })
+  expect(panel).toBeTruthy()
+  fireEvent.pointerDown(document.querySelector('.stage')!)
+  await waitFor(() => expect(screen.queryByRole('region', { name: 'Search results' })).toBeNull())
+  unmount()
+})
+
+test('a narrow window folds the widgets inline above the briefing', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({ ok: true, json: async () => responses[url] ?? {} })),
+  )
+  const { unmount } = render(<App />)
+  expect(await screen.findByText('Now / Next')).toBeTruthy()
+  expect(screen.getByText('Open loops')).toBeTruthy()
+  expect(screen.getByText('DeepSeek this week')).toBeTruthy()
+  expect(document.querySelectorAll('.widgets-inline .widget')).toHaveLength(3)
+  unmount()
+})
+
+test('a widget placement is saved from the Widgets settings section', async () => {
+  const bodies: unknown[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/settings' && init?.method === 'PUT') {
+        bodies.push(JSON.parse(String(init.body)))
+        return { ok: true, json: async () => ({ ok: true }) }
+      }
+      return {
+        ok: true,
+        json: async () => (url === '/api/connections' ? { items: [] } : responses[url] ?? {}),
+      }
+    }),
+  )
+  const flush = async () => {
+    await act(async () => {
+      for (let tick = 0; tick < 50; tick++) await Promise.resolve()
+    })
+  }
+  vi.useFakeTimers()
+  const { unmount } = render(
+    <SettingsPanel
+      settings={responses['/api/settings'] as never}
+      onSaved={() => {}}
+      onClose={() => {}}
+    />,
+  )
+  await flush()
+  fireEvent.change(screen.getByLabelText('Open loops placement'), { target: { value: 'hidden' } })
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500)
+  })
+  await flush()
+  const saved = bodies.at(-1) as { widgets?: Array<{ id: string; slot: string }> }
+  expect(saved.widgets?.find((item) => item.id === 'open-loops')?.slot).toBe('hidden')
+  unmount()
+})
+
+test('a wide window keeps the widgets in side columns and leaves the page unchanged', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({ ok: true, json: async () => responses[url] ?? {} })),
+  )
+  const originalWidth = window.innerWidth
+  Object.defineProperty(window, 'innerWidth', { value: 2000, configurable: true })
+  const media = {
+    matches: true,
+    media: '(min-width: 1900px)',
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }
+  vi.stubGlobal('matchMedia', vi.fn(() => media))
+  const { unmount } = render(<App />)
+  expect(await screen.findByText('Now / Next')).toBeTruthy()
+  expect(document.querySelectorAll('.widgets-col .widget')).toHaveLength(3)
+  expect(document.querySelectorAll('.widgets-inline .widget')).toHaveLength(0)
+  unmount()
+  Object.defineProperty(window, 'innerWidth', { value: originalWidth, configurable: true })
 })

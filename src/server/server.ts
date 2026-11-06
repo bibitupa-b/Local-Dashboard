@@ -5,6 +5,7 @@ import { buildApp } from './app.js'
 import { loadConfig } from './config.js'
 import { getSetting, openDb, setSetting } from './db/index.js'
 import { createBriefing, type BriefingKind } from './briefing/index.js'
+import { claimBriefing, releaseBriefing } from './briefing/lock.js'
 import { isEveningDue, isWeeklyDue, shouldCatchUp } from './briefing/schedule.js'
 import { initLogging } from './log.js'
 import type { Source } from './sources/types.js'
@@ -19,9 +20,11 @@ import {
   startSync,
   updateSyncProgress,
 } from './health.js'
-import { dueEventNotification, notify } from './notify.js'
+import { dueEventNotification, dueMeetingPrep, notify } from './notify.js'
 import { todayEvents } from './sources/calendar.js'
 import { backupDb } from './backup.js'
+import { rebuildSearchIndex } from './search-index.js'
+import { applyRetention } from './retention.js'
 import { createSecretBox } from './secrets.js'
 import {
   assignLegacyConnections,
@@ -91,7 +94,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   applyDeepseekKey()
 
   config.vaultPath = getSetting(db, 'vault_path') ?? config.vaultPath
-  config.briefingHour = Number(getSetting(db, 'briefing_hour')) || config.briefingHour
+  const storedBriefingHour = getSetting(db, 'briefing_hour')
+  if (storedBriefingHour !== null && storedBriefingHour.trim() !== '') {
+    const hour = Number(storedBriefingHour)
+    if (Number.isFinite(hour) && hour >= 0 && hour <= 23) config.briefingHour = hour
+  }
 
   let sources: Source[] = buildSources({ db, box, config, dataDir: config.dataDir })
   let stopWatchers: Array<() => Promise<void>> = []
@@ -104,21 +111,49 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   let health = createHealth(sources.map((source) => source.id))
   const syncState = createSyncState()
 
+  /** A source that never answers must not hold the whole dashboard hostage. */
+  function withTimeout<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms)
+      work.then(
+        (value) => {
+          clearTimeout(timer)
+          resolve(value)
+        },
+        (error) => {
+          clearTimeout(timer)
+          reject(error)
+        },
+      )
+    })
+  }
+
   async function syncAll(): Promise<void> {
     if (syncing) return syncing
     syncing = (async () => {
       for (const [index, source] of sources.entries()) {
         startSync(syncState, source.id, index, sources.length)
         try {
-          await source.sync(db, new Date(), (done, total) => {
-            updateSyncProgress(syncState, done, total)
-            markProgress(health, source.id, done, total)
-          })
+          await withTimeout(
+            source.sync(db, new Date(), (done, total) => {
+              updateSyncProgress(syncState, done, total)
+              markProgress(health, source.id, done, total)
+            }),
+            120_000,
+            `sync ${source.id}`,
+          )
           markSuccess(health, source.id)
         } catch (error) {
           markFailure(health, source.id, error)
           console.error(`[${source.id}] sync failed:`, error)
         }
+      }
+      try {
+        applyRetention(db)
+        rebuildSearchIndex(db)
+      } catch (error) {
+        // Search falls back to LIKE until the next successful rebuild.
+        console.error('[search] index rebuild failed:', error)
       }
     })()
     try {
@@ -204,6 +239,15 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   })
 
   async function brief(trigger: 'auto' | 'manual', kind: BriefingKind = 'daily'): Promise<void> {
+    if (!claimBriefing()) return
+    try {
+      await runBrief(trigger, kind)
+    } finally {
+      releaseBriefing()
+    }
+  }
+
+  async function runBrief(trigger: 'auto' | 'manual', kind: BriefingKind = 'daily'): Promise<void> {
     const result = await createBriefing(db, sources, config, { trigger, kind })
     if ('error' in result) {
       console.error('[briefing]', result.error)
@@ -248,21 +292,25 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
 
   function checkEventNotifications(): void {
     if (!ready) return
-    const due = dueEventNotification(
-      todayEvents(db, new Date()),
-      new Date(),
-      getSetting(db, 'last_notified_event'),
-    )
-    if (!due) return
-    send(due.title, due.message)
-    setSetting(db, 'last_notified_event', due.eventId)
+    const now = new Date()
+    const events = todayEvents(db, now)
+    const due = dueEventNotification(events, now, getSetting(db, 'last_notified_event'))
+    if (due) {
+      send(due.title, due.message)
+      setSetting(db, 'last_notified_event', due.eventId)
+    }
+    if (getSetting(db, 'meeting_prep') === '0') return
+    const prep = dueMeetingPrep(events, now, getSetting(db, 'last_notified_meeting'))
+    if (!prep) return
+    send(prep.title, prep.message)
+    setSetting(db, 'last_notified_meeting', prep.eventId)
   }
 
   function maybeBrief(): void {
     if (!ready || closed) return
-    const last = db.prepare('SELECT created_at FROM briefings ORDER BY id DESC LIMIT 1').get() as
-      | { created_at: string }
-      | undefined
+    const last = db
+      .prepare("SELECT created_at FROM briefings WHERE kind = 'daily' ORDER BY id DESC LIMIT 1")
+      .get() as { created_at: string } | undefined
     if (shouldCatchUp(last ? new Date(last.created_at) : null, new Date(), config.briefingHour)) {
       void brief('auto')
     }
@@ -270,6 +318,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
 
   function maybeWeekly(): void {
     if (!ready || closed) return
+    // A fresh install should not open with a weekly review before its first daily.
+    const history = db
+      .prepare("SELECT COUNT(*) AS n FROM briefings WHERE kind = 'daily'")
+      .get() as { n: number }
+    if (history.n === 0) return
     const last = db
       .prepare("SELECT created_at FROM briefings WHERE kind = 'weekly' ORDER BY id DESC LIMIT 1")
       .get() as { created_at: string } | undefined
@@ -295,7 +348,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   }
 
   const tasks: ScheduledTask[] = [
-    schedule(`0 ${config.briefingHour} * * *`, maybeBrief),
+    // The 15-minute sync calls maybeBrief; this hourly nudge also covers a paused sync loop.
+    // `maybeBrief` itself checks the configured briefing hour, so changing it needs no restart.
+    schedule('0 * * * *', maybeBrief),
     schedule('0 18 * * *', maybeEvening),
     schedule('0 18 * * 0', maybeWeekly),
     schedule('*/5 * * * *', checkEventNotifications),
@@ -324,6 +379,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     ready = true
     maybeBrief()
     maybeEvening()
+    maybeWeekly()
     try {
       backupDb(db, config.dataDir)
     } catch (error) {
@@ -340,6 +396,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       closed = true
       for (const task of tasks) task.stop()
       await Promise.all(stopWatchers.map((stop) => stop().catch(() => {})))
+      // Let an in-flight sync finish its last write before the handle closes.
+      if (syncing) {
+        await Promise.race([
+          syncing.catch(() => {}),
+          new Promise<void>((resolve) => setTimeout(resolve, 2000)),
+        ])
+      }
       await app.close().catch(() => {})
       try {
         db.close()

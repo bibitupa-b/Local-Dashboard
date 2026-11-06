@@ -1,3 +1,7 @@
+import type { BriefingStats, WidgetLayout } from '../shared/widgets.js'
+
+export type { BriefingStats, WidgetLayout }
+
 export type SourceStatus = {
   id: string
   kind: 'vault' | 'drive' | 'mail' | 'calendar' | 'browser' | 'github'
@@ -19,8 +23,10 @@ export type SyncState = {
   total: number
 }
 export type Status = {
+  version: string
   sources: SourceStatus[]
   briefingToday: boolean
+  briefingKindsToday?: string[]
   briefingError: { at: string; message: string } | null
   sync: SyncState
 }
@@ -75,7 +81,14 @@ export type Briefing = {
   body: BriefingBody | null
   feedback: 'useful' | 'miss' | null
   opens: number
-  digest_meta?: { since?: string; until?: string; headline?: string }
+  digest_meta?: {
+    since?: string
+    until?: string
+    headline?: string
+    usage?: { prompt: number; completion: number }
+    model?: string
+    grounding?: { dropped: number; verified: boolean; error?: string }
+  }
 }
 export type CalendarEvent = {
   id: string
@@ -90,15 +103,31 @@ export type Today = {
   events: CalendarEvent[]
   free: Array<{ from: string; to: string }>
   conflicts: string[]
+  workHours?: { start: number; end: number }
 }
 export type SearchResults = {
   notes: Array<{ path: string; snippet: string }>
   mail: Array<{ sender: string; subject: string; date: string; messageId: string | null }>
   drive: Array<{ id: string; name: string; modifiedTime: string; snippet?: string | null }>
 }
+export type MotionPreset = 'calm' | 'balanced' | 'lively'
+
+/** Appearance knobs; the server clamps every number before it is stored. */
+export type Appearance = {
+  blur: number
+  glass: number
+  grain: number
+  shadow: number
+  photo: number
+  motion: MotionPreset
+  accent: number | null
+}
+
 export type Settings = {
   vaultPath: string
   briefingHour: number
+  workStart: number
+  workEnd: number
   hasDeepSeekKey: boolean
   driveConnected: boolean
   mailConfigured: boolean
@@ -115,8 +144,15 @@ export type Settings = {
   briefingLanguage: 'auto' | 'ru' | 'en'
   briefingProfile: string
   eveningPass: boolean
+  meetingPrep: boolean
+  mailBodyDays: number
+  browserDays: number
+  vaultChangeDays: number
   enabledSources: string[]
   wallpaper: string
+  appearance: Appearance
+  widgets: WidgetLayout[]
+  groundingStrict: boolean
   dataDir: string
 }
 
@@ -131,6 +167,8 @@ export type Connection = {
   lastError: string | null
   createdAt: string
   secretsSet: string[]
+  configured?: boolean
+  lastSync?: string | null
 }
 
 export type ConnectionInput = {
@@ -151,7 +189,9 @@ export const api = {
   status: () => get<Status>('/api/status'),
   feed: () => get<{ days: FeedDay[] }>('/api/feed?days=7'),
   attention: () => get<AttentionItem[]>('/api/attention'),
+  activity: () => get<AttentionItem[]>('/api/activity'),
   briefings: () => get<{ items: Briefing[] }>('/api/briefings?limit=10'),
+  briefingStats: (days = 7) => get<BriefingStats>(`/api/briefings/stats?days=${days}`),
   settings: () => get<Settings>('/api/settings'),
   today: () => get<Today>('/api/today'),
   search: (query: string) => get<SearchResults>(`/api/search?q=${encodeURIComponent(query)}`),
@@ -162,7 +202,14 @@ export const api = {
     if (!res.ok) throw new Error(`Sync failed (${res.status})`)
   },
   generate: async (): Promise<
-    { id: number; markdown: string; body: BriefingBody } | { error: string }
+    | {
+        id: number
+        markdown: string
+        body: BriefingBody
+        digest: string
+        digestMeta: Record<string, unknown>
+      }
+    | { error: string }
   > => {
     const res = await fetch('/api/briefings/generate', { method: 'POST' })
     return res.json()
@@ -174,6 +221,18 @@ export const api = {
       body: JSON.stringify({ value }),
     })
     if (!res.ok) throw new Error(`Feedback failed (${res.status})`)
+  },
+  bulletFeedback: async (
+    id: number,
+    index: number,
+    value: 'useful' | 'miss' | null,
+  ): Promise<void> => {
+    const res = await fetch(`/api/briefings/${id}/bullets/${index}/feedback`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ value }),
+    })
+    if (!res.ok) throw new Error(`Point feedback failed (${res.status})`)
   },
   opened: async (id: number): Promise<void> => {
     await fetch(`/api/briefings/${id}/opened`, { method: 'POST', keepalive: true })
@@ -192,15 +251,25 @@ export const api = {
   },
   saveSettings: async (body: {
     briefingHour?: number
+    workStart?: number
+    workEnd?: number
     excludedSenders?: string[]
+    excludedMailFolders?: string[]
     excludedVaultPrefixes?: string[]
     excludedBrowserDomains?: string[]
     digestWindowHours?: number
     briefingLanguage?: 'auto' | 'ru' | 'en'
     briefingProfile?: string
     eveningPass?: boolean
+    meetingPrep?: boolean
+    mailBodyDays?: number
+    browserDays?: number
+    vaultChangeDays?: number
     enabledSources?: string[]
     wallpaper?: string
+    appearance?: Partial<Appearance>
+    widgets?: WidgetLayout[]
+    groundingStrict?: boolean
   }): Promise<void> => {
     await fetch('/api/settings', {
       method: 'PUT',
@@ -209,6 +278,15 @@ export const api = {
     }).then((res) => {
       if (!res.ok) throw new Error(`Saving preferences failed: ${res.status}`)
     })
+  },
+  exportData: async (): Promise<Blob> => {
+    const res = await fetch('/api/export')
+    if (!res.ok) throw new Error(`Export failed (${res.status})`)
+    return res.blob()
+  },
+  deleteData: async (): Promise<void> => {
+    const res = await fetch('/api/data', { method: 'DELETE' })
+    if (!res.ok) throw new Error(`Delete failed (${res.status})`)
   },
   connections: () => get<{ items: Connection[] }>('/api/connections'),
   addConnection: async (input: ConnectionInput): Promise<Connection> => {

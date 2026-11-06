@@ -71,9 +71,27 @@ CREATE TABLE IF NOT EXISTS briefings (
   opens INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
+  source UNINDEXED,
+  ref UNINDEXED,
+  title,
+  body,
+  date UNINDEXED,
+  meta UNINDEXED,
+  tokenize = 'unicode61'
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS briefing_feedback (
+  briefing_id INTEGER NOT NULL,
+  bullet_index INTEGER NOT NULL,
+  value TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (briefing_id, bullet_index)
 );
 
 CREATE TABLE IF NOT EXISTS resurfaced (
@@ -96,6 +114,9 @@ CREATE TABLE IF NOT EXISTS mail_messages (
   folder TEXT NOT NULL,
   uid INTEGER NOT NULL,
   message_id TEXT,
+  in_reply_to TEXT,
+  references_json TEXT NOT NULL DEFAULT '[]',
+  thread_key TEXT,
   sender TEXT NOT NULL,
   subject TEXT NOT NULL,
   date TEXT NOT NULL,

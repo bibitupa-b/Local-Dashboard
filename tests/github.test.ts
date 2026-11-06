@@ -1,7 +1,12 @@
 import { expect, test } from 'vitest'
 import { openDb } from '../src/server/db/index.js'
 import { buildAttention } from '../src/server/attention.js'
-import { createGithubSource, type GithubApi, type GithubItem } from '../src/server/sources/github.js'
+import {
+  createGithubApi,
+  createGithubSource,
+  type GithubApi,
+  type GithubItem,
+} from '../src/server/sources/github.js'
 
 function item(id: string, overrides: Partial<GithubItem> = {}): GithubItem {
   return {
@@ -33,6 +38,57 @@ test('sync replaces the item list and reports counts', async () => {
 
   await createGithubSource(fakeApi([item('3')])).sync(db)
   expect(db.prepare('SELECT id FROM github_items').all()).toEqual([{ id: '3' }])
+})
+
+test('notifications use the repository name and a web link', async () => {
+  const previous = globalThis.fetch
+  const updated = '2026-10-31T10:00:00.000Z'
+  globalThis.fetch = (async (url: string | URL | Request) => {
+    if (String(url).includes('/notifications')) {
+      return new Response(
+        JSON.stringify([
+          {
+            id: 'n1',
+            reason: 'review_requested',
+            updated_at: updated,
+            subject: {
+              title: 'Fix the parser',
+              url: 'https://api.github.com/repos/octo/repo/issues/12',
+            },
+            repository: { full_name: 'octo/repo' },
+          },
+        ]),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      )
+    }
+    return new Response(
+      JSON.stringify({
+        items: [
+          {
+            id: 2,
+            title: 'Add tests',
+            html_url: 'https://github.com/octo/repo/pull/7',
+            updated_at: updated,
+          },
+        ],
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    )
+  }) as typeof fetch
+
+  try {
+    const items = await createGithubApi('token')!.items()
+    expect(items[0]).toMatchObject({
+      repo: 'octo/repo',
+      url: 'https://github.com/octo/repo/issues/12',
+    })
+    expect(items[1]).toMatchObject({
+      repo: 'octo/repo',
+      url: 'https://github.com/octo/repo/pull/7',
+    })
+  } finally {
+    globalThis.fetch = previous
+  }
 })
 
 test('a hostile pull request title is flattened and cut', async () => {

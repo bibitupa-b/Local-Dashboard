@@ -11,6 +11,8 @@ import { friendlyError } from './errors.js'
 import { contentLang } from './lang.js'
 import { useDialog, useLeaving } from './useDialog.js'
 import { WALLPAPERS } from './wallpapers.js'
+import { applyAppearance } from './appearance.js'
+import { WIDGET_LABELS, type WidgetId, type WidgetLayout } from '../shared/widgets.js'
 
 type FieldDef = {
   key: string
@@ -57,6 +59,12 @@ Only .md files are read; the app never writes to the vault.`,
     fields: [
       { key: 'clientId', label: 'Client ID', placeholder: '...apps.googleusercontent.com' },
       { key: 'clientSecret', label: 'Client secret', secret: true, placeholder: 'GOCSPX-...' },
+      {
+        key: 'calendarIds',
+        label: 'Calendar IDs',
+        optional: true,
+        placeholder: 'primary, work',
+      },
     ],
   },
   {
@@ -92,7 +100,7 @@ Excluded domains are listed under Preferences.`,
     fields: [
       {
         key: 'path',
-        label: 'History file (optional)',
+        label: 'History file',
         optional: true,
         placeholder: 'auto-detect',
       },
@@ -211,15 +219,14 @@ function useLiveSave<T>(
       if (timer.current) clearTimeout(timer.current)
       if (!valid.current || latest.current === stored.current) return
       if (sending.current) repeat.current = true
-      else void commitRef.current(latest.current)
+      else void commitRef.current(latest.current).catch(() => {})
     }
   }, [])
 
   return { draft, receipt, edit, retry: () => void send() }
 }
 
-function FieldNote({ receipt, onRetry }: { receipt: Receipt | null; onRetry: () => void }) {
-  if (!receipt) return null
+function FieldNote({ receipt, onRetry }: { receipt: Receipt | null; onRetry: () => void }) {  if (!receipt) return null
   if (receipt.state === 'saving') return <span className="field-note">Saving…</span>
   if (receipt.state === 'saved')
     return (
@@ -239,20 +246,193 @@ function FieldNote({ receipt, onRetry }: { receipt: Receipt | null; onRetry: () 
   )
 }
 
+/**
+ * A list of values edited as chips: each one readable and removable on its own, instead of a
+ * textarea whose line breaks silently decide what the server gets.
+ */
+function ListEditor({
+  id,
+  label,
+  hint,
+  placeholder,
+  values,
+  wide,
+  onChange,
+  receipt,
+  onRetry,
+}: {
+  id: string
+  label: string
+  hint: string
+  placeholder: string
+  values: string[]
+  wide?: boolean
+  onChange: (next: string[]) => void
+  receipt: Receipt | null
+  onRetry: () => void
+}) {
+  const [draft, setDraft] = useState('')
+
+  function add(): void {
+    const value = draft.trim()
+    if (!value) return
+    setDraft('')
+    if (values.includes(value)) return
+    onChange([...values, value])
+  }
+
+  return (
+    <div className={`pref${wide ? ' pref--wide' : ''}`}>
+      <div className="pref-head">
+        <label htmlFor={id}>{label}</label>
+        <FieldNote receipt={receipt} onRetry={onRetry} />
+      </div>
+      <div className="list-edit">
+        {values.length > 0 && (
+          <ul className="list-edit__items">
+            {values.map((value) => (
+              <li key={value} className="list-edit__item">
+                <span lang={contentLang(value)}>{value}</span>
+                <button
+                  type="button"
+                  className="list-edit__remove"
+                  aria-label={`Remove ${value}`}
+                  onClick={() => onChange(values.filter((item) => item !== value))}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="list-edit__add">
+          <input
+            id={id}
+            value={draft}
+            placeholder={placeholder}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter') return
+              event.preventDefault()
+              add()
+            }}
+          />
+          <button
+            type="button"
+            className="btn btn--ghost btn--mini"
+            onClick={add}
+            disabled={draft.trim().length === 0}
+          >
+            Add
+          </button>
+        </div>
+        <p className="hint-text">{hint}</p>
+      </div>
+    </div>
+  )
+}
+
+const MOTIONS: Array<{ id: Settings['appearance']['motion']; label: string }> = [
+  { id: 'calm', label: 'Calm' },
+  { id: 'balanced', label: 'Balanced' },
+  { id: 'lively', label: 'Lively' },
+]
+
+/** One appearance knob: a square track with the default marked, and a way back to it. */
+function AppearanceSlider({
+  id,
+  label,
+  value,
+  min,
+  max,
+  unit,
+  defaultValue,
+  onChange,
+}: {
+  id: string
+  label: string
+  value: number
+  min: number
+  max: number
+  unit: string
+  defaultValue: number
+  onChange: (value: number) => void
+}) {
+  const tick = ((defaultValue - min) / (max - min)) * 100
+  return (
+    <div className="appearance__block">
+      <div className="appearance__head">
+        <label className="field-label" htmlFor={id}>
+          {label}
+        </label>
+        <span className="appearance__tail">
+          <span className="appearance__value" aria-hidden="true">
+            {value}
+            {unit}
+          </span>
+          <button
+            type="button"
+            className="slider__reset"
+            aria-label={`Reset ${label} to ${defaultValue}${unit}`}
+            title={`Reset to ${defaultValue}${unit}`}
+            disabled={value === defaultValue}
+            onClick={() => onChange(defaultValue)}
+          >
+            <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
+              <path
+                d="M3.2 3.4a4 4 0 1 1-1.1 3.3"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
+              <path
+                d="M2.5 1.6v2.2h2.2"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </span>
+      </div>
+      <div className="slider">
+        <span className="slider__rail">
+          <input
+            id={id}
+            type="range"
+            min={min}
+            max={max}
+            value={value}
+            onChange={(event) => onChange(Number(event.target.value))}
+          />
+          <span className="slider__tick" style={{ left: `${tick}%` }} aria-hidden="true" />
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export function SettingsPanel({
   settings,
   onSaved,
   onClose,
+  hues = [28, 158, 220],
 }: {
   settings: Settings
   onSaved: (next: Settings) => void
   onClose: () => void
+  hues?: [number, number, number]
 }) {
   const [connections, setConnections] = useState<Connection[]>([])
   const [editing, setEditing] = useState<{ service: Service; connection?: Connection } | null>(null)
   const [confirming, setConfirming] = useState<Connection | null>(null)
+  const [confirmingData, setConfirmingData] = useState(false)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [tests, setTests] = useState<Record<string, string>>({})
+  const navRef = useRef<HTMLElement>(null)
 
   // Autosave is the affordance: every field writes itself and carries its own receipt.
   const latestSettings = useRef(settings)
@@ -269,6 +449,23 @@ export function SettingsPanel({
       remember({ briefingHour: Number(raw) })
     },
     { accept: (raw) => /^\d{1,2}$/.test(raw) && Number(raw) <= 23, hint: '0–23' },
+  )
+
+  const work = useLiveSave(
+    { start: settings.workStart ?? 9, end: settings.workEnd ?? 19 },
+    async (value) => {
+      await api.saveSettings({ workStart: value.start, workEnd: value.end })
+      remember({ workStart: value.start, workEnd: value.end })
+    },
+    {
+      accept: (value) =>
+        Number.isInteger(value.start) &&
+        Number.isInteger(value.end) &&
+        value.start >= 0 &&
+        value.end <= 23 &&
+        value.start < value.end,
+      hint: 'Start and end must be whole hours, start before end',
+    },
   )
 
   const windowHours = useLiveSave(
@@ -295,25 +492,104 @@ export function SettingsPanel({
     remember({ eveningPass: value })
   })
 
+  const meeting = useLiveSave(settings.meetingPrep ?? true, async (value) => {
+    await api.saveSettings({ meetingPrep: value })
+    remember({ meetingPrep: value })
+  })
+
+  const retention = useLiveSave(
+    {
+      mail: settings.mailBodyDays ?? 90,
+      browser: settings.browserDays ?? 90,
+      vault: settings.vaultChangeDays ?? 365,
+    },
+    async (value) => {
+      await api.saveSettings({
+        mailBodyDays: value.mail,
+        browserDays: value.browser,
+        vaultChangeDays: value.vault,
+      })
+      remember({
+        mailBodyDays: value.mail,
+        browserDays: value.browser,
+        vaultChangeDays: value.vault,
+      })
+    },
+    {
+      accept: (value) =>
+        [value.mail, value.browser, value.vault].every(
+          (days) => Number.isInteger(days) && days >= 1 && days <= 3650,
+        ),
+      hint: '1–3650 days',
+    },
+  )
+
   const wallpaper = useLiveSave(settings.wallpaper, async (value) => {
     await api.saveSettings({ wallpaper: value })
     remember({ wallpaper: value })
   })
 
-  const senders = useLiveSave(settings.excludedSenders.join('\n'), async (raw) => {
-    const list = lines(raw)
+  const appearance = useLiveSave(settings.appearance, async (value) => {
+    await api.saveSettings({ appearance: value })
+    remember({ appearance: value })
+  })
+
+  const widgets = useLiveSave(settings.widgets, async (value) => {
+    await api.saveSettings({ widgets: value })
+    remember({ widgets: value })
+  })
+
+  const grounding = useLiveSave(settings.groundingStrict, async (value) => {
+    await api.saveSettings({ groundingStrict: value })
+    remember({ groundingStrict: value })
+  })
+
+  // Sliders preview instantly; the debounced save keeps the last value.
+  function changeAppearance(patch: Partial<Settings['appearance']>): void {
+    const next = { ...appearance.draft, ...patch }
+    applyAppearance(next)
+    appearance.edit(next)
+  }
+
+  function patchWidget(id: WidgetId, change: Partial<WidgetLayout>): void {
+    const current = widgets.draft.find((item) => item.id === id)
+    const next = widgets.draft.map((item) => (item.id === id ? { ...item, ...change } : item))
+    if (change.slot && current && change.slot !== current.slot) {
+      const moved = next.find((item) => item.id === id)
+      const max = widgets.draft
+        .filter((item) => item.slot === change.slot && item.id !== id)
+        .reduce((value, item) => Math.max(value, item.order), -1)
+      if (moved) moved.order = max + 1
+    }
+    widgets.edit(next)
+  }
+
+  function moveWidget(id: WidgetId, delta: number): void {
+    const sorted = [...widgets.draft].sort((a, b) => a.order - b.order)
+    const index = sorted.findIndex((item) => item.id === id)
+    const target = index + delta
+    if (index < 0 || target < 0 || target >= sorted.length) return
+    const [moved] = sorted.splice(index, 1)
+    sorted.splice(target, 0, moved!)
+    widgets.edit(sorted.map((item, order) => ({ ...item, order })))
+  }
+
+  const senders = useLiveSave(settings.excludedSenders, async (list) => {
     await api.saveSettings({ excludedSenders: list })
     remember({ excludedSenders: list })
   })
 
-  const vaultPrefixes = useLiveSave(settings.excludedVaultPrefixes.join('\n'), async (raw) => {
-    const list = lines(raw)
+  const mailFolders = useLiveSave(settings.excludedMailFolders, async (list) => {
+    await api.saveSettings({ excludedMailFolders: list })
+    remember({ excludedMailFolders: list })
+  })
+
+  const vaultPrefixes = useLiveSave(settings.excludedVaultPrefixes, async (list) => {
     await api.saveSettings({ excludedVaultPrefixes: list })
     remember({ excludedVaultPrefixes: list })
   })
 
-  const browserDomains = useLiveSave(settings.excludedBrowserDomains.join('\n'), async (raw) => {
-    const list = lines(raw)
+  const browserDomains = useLiveSave(settings.excludedBrowserDomains, async (list) => {
     await api.saveSettings({ excludedBrowserDomains: list })
     remember({ excludedBrowserDomains: list })
   })
@@ -326,7 +602,7 @@ export function SettingsPanel({
     },
   )
 
-  const fields = [hour, windowHours, evening, language, profile, senders, vaultPrefixes, browserDomains, sources, wallpaper]
+  const fields = [hour, work, windowHours, evening, meeting, retention, language, profile, senders, mailFolders, vaultPrefixes, browserDomains, sources, wallpaper, appearance, widgets, grounding]
   const receipts = fields.map((field) => field.receipt)
   const unsaved = receipts.filter((receipt) => receipt?.state === 'error').length
   const saving = receipts.some((receipt) => receipt?.state === 'saving')
@@ -380,6 +656,16 @@ export function SettingsPanel({
         if (active) link.setAttribute('aria-current', 'location')
         else link.removeAttribute('aria-current')
       }
+      // The highlight is one pane that slides to the current section, not a class that blinks.
+      const nav = navRef.current
+      const activeLink = links.find((link) => link.classList.contains('is-active'))
+      if (nav && activeLink) {
+        nav.style.setProperty('--thumb-y', `${activeLink.offsetTop}px`)
+        nav.style.setProperty('--thumb-h', `${activeLink.offsetHeight}px`)
+        nav.style.setProperty('--thumb-x', `${activeLink.offsetLeft}px`)
+        nav.style.setProperty('--thumb-w', `${activeLink.offsetWidth}px`)
+        nav.classList.add('is-measured')
+      }
     }
     update()
     root.addEventListener('scroll', update, { passive: true })
@@ -424,6 +710,37 @@ export function SettingsPanel({
     }
   }
 
+  async function exportData(): Promise<void> {
+    try {
+      const blob = await api.exportData()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `local-dashboard-export-${new Date().toISOString().slice(0, 10)}.json`
+      link.click()
+      URL.revokeObjectURL(url)
+      setNotice({ text: 'Export downloaded.', tone: 'success' })
+    } catch (error) {
+      setNotice({
+        text: friendlyError(error instanceof Error ? error.message : String(error)),
+        tone: 'error',
+      })
+    }
+  }
+
+  async function deleteData(): Promise<void> {
+    setConfirmingData(false)
+    try {
+      await api.deleteData()
+      window.location.reload()
+    } catch (error) {
+      setNotice({
+        text: friendlyError(error instanceof Error ? error.message : String(error)),
+        tone: 'error',
+      })
+    }
+  }
+
   async function copyDiagnostics(): Promise<void> {
     try {
       if (!navigator.clipboard) throw new Error('Clipboard is not available in this window')
@@ -453,7 +770,8 @@ export function SettingsPanel({
       </header>
 
       <div className="settings-layout">
-        <nav className="settings-nav" aria-label="Settings sections">
+        <nav className="settings-nav" aria-label="Settings sections" ref={navRef}>
+          <span className="settings-nav__thumb" aria-hidden="true" />
           <a className="settings-nav__link is-active" href="#section-connections">
             Connections
           </a>
@@ -462,6 +780,12 @@ export function SettingsPanel({
           </a>
           <a className="settings-nav__link" href="#section-preferences">
             Preferences
+          </a>
+          <a className="settings-nav__link" href="#section-appearance">
+            Appearance
+          </a>
+          <a className="settings-nav__link" href="#section-widgets">
+            Widgets
           </a>
         </nav>
 
@@ -487,7 +811,7 @@ export function SettingsPanel({
                 </h3>
                 <button
                   type="button"
-                  className="btn btn--ghost btn--mini"
+                  className="btn btn--ghost btn--mini conn-add"
                   onClick={() => setEditing({ service: definition.service })}
                 >
                   {rows.length > 0 ? '+ Add account' : 'Connect'}
@@ -507,6 +831,12 @@ export function SettingsPanel({
                     </span>
                     <span className="detail" lang={contentLang(detailOf(row))}>
                       {detailOf(row)}
+                      {row.lastSync
+                        ? ` · synced ${new Date(row.lastSync).toLocaleTimeString('en-GB', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}`
+                        : ''}
                     </span>
                     <span className="conn-actions">
                       <button type="button" className="btn btn--ghost btn--mini" onClick={() => void test(row)}>
@@ -519,22 +849,18 @@ export function SettingsPanel({
                       >
                         Edit
                       </button>
-                      {definition.service === 'google' &&
-                        (row.secretsSet.includes('tokens') ? (
-                          <a
-                            className="btn btn--ghost btn--mini"
-                            href={`/api/oauth/google/start?connection=${row.id}`}
-                          >
-                            Reconnect
-                          </a>
-                        ) : (
-                          <a
-                            className="btn btn--ghost btn--mini"
-                            href={`/api/oauth/google/start?connection=${row.id}`}
-                          >
-                            Connect
-                          </a>
-                        ))}
+                      {definition.service === 'google' && (
+                        // A new window is intercepted by Electron and opened in the system browser,
+                        // so the dashboard itself never navigates away.
+                        <a
+                          className="btn btn--ghost btn--mini"
+                          href={`/api/oauth/google/start?connection=${row.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {row.secretsSet.includes('tokens') ? 'Reconnect' : 'Connect'}
+                        </a>
+                      )}
                       <button
                         type="button"
                         className="btn btn--danger btn--mini"
@@ -578,6 +904,12 @@ export function SettingsPanel({
           )}
           <button type="button" className="btn btn--ghost" onClick={() => void copyDiagnostics()}>
             Copy diagnostics
+          </button>
+          <button type="button" className="btn btn--ghost" onClick={() => void exportData()}>
+            Export data
+          </button>
+          <button type="button" className="btn btn--danger" onClick={() => setConfirmingData(true)}>
+            Delete local data
           </button>
           <a
             className="btn btn--ghost btn--mini"
@@ -627,6 +959,36 @@ export function SettingsPanel({
 
           <div className="pref">
             <div className="pref-head">
+              <span className="field-label">Work hours for free windows</span>
+              <FieldNote receipt={work.receipt} onRetry={work.retry} />
+            </div>
+            <div className="row">
+              <input
+                aria-label="Work day start"
+                type="number"
+                min={0}
+                max={22}
+                value={work.draft.start}
+                onChange={(event) =>
+                  work.edit({ ...work.draft, start: Number(event.target.value) })
+                }
+              />
+              <span>to</span>
+              <input
+                aria-label="Work day end"
+                type="number"
+                min={1}
+                max={23}
+                value={work.draft.end}
+                onChange={(event) =>
+                  work.edit({ ...work.draft, end: Number(event.target.value) })
+                }
+              />
+            </div>
+          </div>
+
+          <div className="pref">
+            <div className="pref-head">
               <label htmlFor="pref-window">Digest window, hours</label>
               <FieldNote receipt={windowHours.receipt} onRetry={windowHours.retry} />
             </div>
@@ -652,6 +1014,86 @@ export function SettingsPanel({
                 onChange={(event) => evening.edit(event.target.checked)}
               />
               A short second briefing at 18:00, closing the day
+            </label>
+          </div>
+
+          <div className="pref">
+            <div className="pref-head">
+              <label htmlFor="pref-meeting-prep">Meeting prep</label>
+              <FieldNote receipt={meeting.receipt} onRetry={meeting.retry} />
+            </div>
+            <label className="check">
+              <input
+                id="pref-meeting-prep"
+                type="checkbox"
+                checked={meeting.draft}
+                onChange={(event) => meeting.edit(event.target.checked)}
+              />
+              A short heads-up 30 minutes before a meeting
+            </label>
+          </div>
+
+          <div className="pref pref--wide">
+            <div className="pref-head">
+              <span className="field-label">Keep local data for</span>
+              <FieldNote receipt={retention.receipt} onRetry={retention.retry} />
+            </div>
+            <div className="row">
+              <label className="check">
+                Mail
+                <input
+                  aria-label="Mail retention days"
+                  type="number"
+                  min={1}
+                  max={3650}
+                  value={retention.draft.mail}
+                  onChange={(event) =>
+                    retention.edit({ ...retention.draft, mail: Number(event.target.value) })
+                  }
+                />
+              </label>
+              <label className="check">
+                Browser
+                <input
+                  aria-label="Browser retention days"
+                  type="number"
+                  min={1}
+                  max={3650}
+                  value={retention.draft.browser}
+                  onChange={(event) =>
+                    retention.edit({ ...retention.draft, browser: Number(event.target.value) })
+                  }
+                />
+              </label>
+              <label className="check">
+                Diffs
+                <input
+                  aria-label="Vault change retention days"
+                  type="number"
+                  min={1}
+                  max={3650}
+                  value={retention.draft.vault}
+                  onChange={(event) =>
+                    retention.edit({ ...retention.draft, vault: Number(event.target.value) })
+                  }
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="pref">
+            <div className="pref-head">
+              <span className="field-label">Strict grounding</span>
+              <FieldNote receipt={grounding.receipt} onRetry={grounding.retry} />
+            </div>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={grounding.draft}
+                onChange={(event) => grounding.edit(event.target.checked)}
+              />
+              Re-check every point against the digest and drop what it cannot support. Uses extra
+              tokens.
             </label>
           </div>
 
@@ -688,49 +1130,103 @@ export function SettingsPanel({
             />
           </div>
 
-          <div className="pref">
-            <div className="pref-head">
-              <label htmlFor="pref-senders">Never mention these mail senders (one per line)</label>
-              <FieldNote receipt={senders.receipt} onRetry={senders.retry} />
-            </div>
-            <textarea
-              id="pref-senders"
-              rows={3}
-              value={senders.draft}
-              onChange={(event) => senders.edit(event.target.value)}
-            />
-          </div>
+          <ListEditor
+            id="pref-senders"
+            label="Never mention these mail senders"
+            hint="Press Enter to add one address at a time."
+            placeholder="newsletter@example.com"
+            values={senders.draft}
+            wide
+            onChange={senders.edit}
+            receipt={senders.receipt}
+            onRetry={senders.retry}
+          />
 
-          <div className="pref">
-            <div className="pref-head">
-              <label htmlFor="pref-vault">
-                Hide vault folders from the start line and briefing (prefixes, one per line)
+          <ListEditor
+            id="pref-folders"
+            label="Ignore these mail folders"
+            hint="Folder names or fragments. Press Enter to add one at a time."
+            placeholder="Archive"
+            values={mailFolders.draft}
+            wide
+            onChange={mailFolders.edit}
+            receipt={mailFolders.receipt}
+            onRetry={mailFolders.retry}
+          />
+
+          <ListEditor
+            id="pref-vault"
+            label="Hide vault folders from the start line and briefing"
+            hint="Prefixes. Press Enter to add one at a time."
+            placeholder="02 areas/🎒 body and health"
+            values={vaultPrefixes.draft}
+            wide
+            onChange={vaultPrefixes.edit}
+            receipt={vaultPrefixes.receipt}
+            onRetry={vaultPrefixes.retry}
+          />
+
+          <ListEditor
+            id="pref-domains"
+            label="Ignore these browser domains"
+            hint="Press Enter to add one domain at a time."
+            placeholder="f95zone.to"
+            values={browserDomains.draft}
+            wide
+            onChange={browserDomains.edit}
+            receipt={browserDomains.receipt}
+            onRetry={browserDomains.retry}
+          />
+
+          <fieldset className="sources">
+            <legend>
+              Sources in the briefing · {sources.draft.length} of{' '}
+              {Object.keys(SOURCE_LABELS).length}
+            </legend>
+            {Object.entries(SOURCE_LABELS).map(([source, label]) => (
+              <label key={source} className="check">
+                <input
+                  type="checkbox"
+                  checked={sources.draft.includes(source)}
+                  disabled={sources.draft.length === 1 && sources.draft.includes(source)}
+                  onChange={(event) =>
+                    sources.edit(
+                      event.target.checked
+                        ? [...sources.draft, source]
+                        : sources.draft.filter((item) => item !== source),
+                    )
+                  }
+                />
+                <span className="check__box" aria-hidden="true">
+                  <svg className="check__mark" viewBox="0 0 12 12" fill="none">
+                    <path
+                      d="M2.4 6.3l2.4 2.4 4.8-5"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                {label}
               </label>
-              <FieldNote receipt={vaultPrefixes.receipt} onRetry={vaultPrefixes.retry} />
-            </div>
-            <textarea
-              id="pref-vault"
-              rows={2}
-              value={vaultPrefixes.draft}
-              onChange={(event) => vaultPrefixes.edit(event.target.value)}
-            />
+            ))}
+          </fieldset>
+          <div className="pref-foot">
+            <p className="sub">At least one source stays in the briefing.</p>
+            <FieldNote receipt={sources.receipt} onRetry={sources.retry} />
           </div>
+        </div>
+      </section>
 
-          <div className="pref">
-            <div className="pref-head">
-              <label htmlFor="pref-domains">Ignore these browser domains (one per line)</label>
-              <FieldNote receipt={browserDomains.receipt} onRetry={browserDomains.retry} />
-            </div>
-            <textarea
-              id="pref-domains"
-              rows={2}
-              value={browserDomains.draft}
-              onChange={(event) => browserDomains.edit(event.target.value)}
-            />
-          </div>
+      <section className="card" id="section-appearance" aria-labelledby="appearance">
+        <div className="card-head">
+          <h2 id="appearance" className="card__title">Appearance</h2>
+        </div>
 
-          <div className="pref pref--wide">
-            <div className="pref-head">
+        <div className="appearance">
+          <div className="appearance__block">
+            <div className="appearance__head">
               <span className="field-label">App background</span>
               <FieldNote receipt={wallpaper.receipt} onRetry={wallpaper.retry} />
             </div>
@@ -756,34 +1252,212 @@ export function SettingsPanel({
                 </button>
               ))}
             </div>
-            <p className="sub">The image sits behind the glass; Aurora stays the default.</p>
+            <p className="sub">
+              Aurora stays the default; a picture also sets the interface colours.
+            </p>
           </div>
 
-          <fieldset className="sources">
-            <legend>Sources in the briefing</legend>
-            {Object.entries(SOURCE_LABELS).map(([source, label]) => (
-              <label key={source} className="check">
-                <input
-                  type="checkbox"
-                  checked={sources.draft.includes(source)}
-                  disabled={sources.draft.length === 1 && sources.draft.includes(source)}
-                  onChange={(event) =>
-                    sources.edit(
-                      event.target.checked
-                        ? [...sources.draft, source]
-                        : sources.draft.filter((item) => item !== source),
-                    )
-                  }
+          <AppearanceSlider
+            id="ap-blur"
+            label="Blur"
+            value={appearance.draft.blur}
+            min={0}
+            max={30}
+            unit=" px"
+            defaultValue={14}
+            onChange={(blur) => changeAppearance({ blur })}
+          />
+
+          <AppearanceSlider
+            id="ap-glass"
+            label="Glass density"
+            value={appearance.draft.glass}
+            min={60}
+            max={150}
+            unit="%"
+            defaultValue={100}
+            onChange={(glass) => changeAppearance({ glass })}
+          />
+
+          <AppearanceSlider
+            id="ap-grain"
+            label="Grain"
+            value={appearance.draft.grain}
+            min={0}
+            max={20}
+            unit="%"
+            defaultValue={12}
+            onChange={(grain) => changeAppearance({ grain })}
+          />
+
+          <AppearanceSlider
+            id="ap-shadow"
+            label="Panel shadow"
+            value={appearance.draft.shadow}
+            min={0}
+            max={100}
+            unit="%"
+            defaultValue={100}
+            onChange={(shadow) => changeAppearance({ shadow })}
+          />
+
+          <AppearanceSlider
+            id="ap-photo"
+            label="Wallpaper brightness"
+            value={appearance.draft.photo}
+            min={70}
+            max={100}
+            unit="%"
+            defaultValue={94}
+            onChange={(photo) => changeAppearance({ photo })}
+          />
+
+          <div className="appearance__block">
+            <div className="appearance__head">
+              <span className="field-label">Accent</span>
+              <FieldNote receipt={appearance.receipt} onRetry={appearance.retry} />
+            </div>
+            <div className="accent-row">
+              <button
+                type="button"
+                className="accent-swatch accent-swatch--auto"
+                aria-pressed={appearance.draft.accent === null}
+                onClick={() => changeAppearance({ accent: null })}
+              >
+                Auto
+              </button>
+              {hues.map((hue) => (
+                <button
+                  key={hue}
+                  type="button"
+                  className="accent-swatch"
+                  aria-label={`Accent ${Math.round(hue)} degrees`}
+                  aria-pressed={Math.round(hue) === appearance.draft.accent}
+                  style={{ background: `hsl(${Math.round(hue)} 62% 68%)` }}
+                  onClick={() => changeAppearance({ accent: Math.round(hue) })}
                 />
-                {label}
-              </label>
-            ))}
-          </fieldset>
-          <div className="pref-foot">
-            <p className="sub">At least one source stays in the briefing.</p>
-            <FieldNote receipt={sources.receipt} onRetry={sources.retry} />
+              ))}
+            </div>
+            <div className="accent-hue slider">
+              <input
+                type="range"
+                min={0}
+                max={359}
+                value={appearance.draft.accent ?? 0}
+                aria-label="Accent hue"
+                onChange={(event) => changeAppearance({ accent: Number(event.target.value) })}
+              />
+              <span className="appearance__value">
+                {appearance.draft.accent === null ? 'auto' : `${appearance.draft.accent}°`}
+              </span>
+            </div>
+            <p className="sub">
+              Auto takes three hues from the picture; a picked hue rotates the other two around it.
+            </p>
+          </div>
+
+          <div className="appearance__block">
+            <div className="appearance__head">
+              <span className="field-label">Animation</span>
+            </div>
+            <div className="motion" role="group" aria-label="Animation">
+              {MOTIONS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={appearance.draft.motion === item.id}
+                  onClick={() => changeAppearance({ motion: item.id })}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <p className="sub">
+              Calm drops the shine, parallax and stagger; Lively speeds them up. System reduced
+              motion wins either way.
+            </p>
           </div>
         </div>
+      </section>
+
+      <section className="card" id="section-widgets" aria-labelledby="widgets">
+        <div className="card-head">
+          <h2 id="widgets" className="card__title">Widgets</h2>
+          <FieldNote receipt={widgets.receipt} onRetry={widgets.retry} />
+        </div>
+        <p className="card__sub">
+          Live cards for the empty gutters of a wide window. On a narrow window side widgets fold
+          inline above the briefing unless you choose to hide them.
+        </p>
+        <div className="widget-list">
+          {[...widgets.draft]
+            .sort((a, b) => a.order - b.order)
+            .map((item) => (
+              <div className="widget-row" key={item.id}>
+                <span className="widget-row__name">{WIDGET_LABELS[item.id]}</span>
+                <select
+                  aria-label={`${WIDGET_LABELS[item.id]} placement`}
+                  value={item.slot}
+                  onChange={(event) =>
+                    patchWidget(item.id, { slot: event.target.value as WidgetLayout['slot'] })
+                  }
+                >
+                  <option value="left">Left column</option>
+                  <option value="right">Right column</option>
+                  <option value="inline">Inline</option>
+                  <option value="hidden">Hidden</option>
+                </select>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={!item.collapsed}
+                    onChange={(event) => patchWidget(item.id, { collapsed: !event.target.checked })}
+                  />
+                  Open
+                </label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={item.wide}
+                    onChange={(event) => patchWidget(item.id, { wide: event.target.checked })}
+                  />
+                  Wider
+                </label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={item.narrow === 'inline'}
+                    onChange={(event) =>
+                      patchWidget(item.id, { narrow: event.target.checked ? 'inline' : 'hide' })
+                    }
+                  />
+                  Inline when narrow
+                </label>
+                <span className="widget-row__order">
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--mini"
+                    aria-label={`Move ${WIDGET_LABELS[item.id]} up`}
+                    onClick={() => moveWidget(item.id, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--mini"
+                    aria-label={`Move ${WIDGET_LABELS[item.id]} down`}
+                    onClick={() => moveWidget(item.id, 1)}
+                  >
+                    ↓
+                  </button>
+                </span>
+              </div>
+            ))}
+        </div>
+        <p className="sub">
+          In a wide window you can also drag a widget by its header between the left and right
+          columns.
+        </p>
       </section>
         </div>
       </div>
@@ -818,6 +1492,18 @@ export function SettingsPanel({
             confirmLabel="Disconnect"
             onConfirm={() => void confirmDisconnect()}
             onCancel={() => setConfirming(null)}
+          />,
+          document.body,
+        )}
+
+      {confirmingData &&
+        createPortal(
+          <ConfirmDialog
+            title="Delete local data"
+            message="Delete indexed notes, mail, calendar, Drive, browser history, briefings and preferences? Connections and their keys stay, so you can sync again."
+            confirmLabel="Delete data"
+            onConfirm={() => void deleteData()}
+            onCancel={() => setConfirmingData(false)}
           />,
           document.body,
         )}
@@ -857,9 +1543,8 @@ function isHealthy(connection: Connection): boolean {
   if (!connection.enabled || connection.lastError) return false
   switch (connection.service) {
     case 'vault':
-      return true
     case 'browser':
-      return true
+      return connection.configured !== false
     case 'deepseek':
       return connection.secretsSet.includes('key')
     case 'google':
@@ -955,7 +1640,7 @@ function ConnectionForm({
               <div className="modal-field" key={field.key}>
                 <label htmlFor={fieldId}>
                   {field.label}
-                  {field.optional ? ' (optional)' : ''}
+                  {field.optional && !/optional/i.test(field.label) ? ' (optional)' : ''}
                 </label>
                 <input
                   id={fieldId}
@@ -1053,11 +1738,4 @@ function ConfirmDialog({
       </form>
     </div>
   )
-}
-
-function lines(value: string): string[] {
-  return value
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
 }

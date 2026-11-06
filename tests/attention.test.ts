@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { openDb } from '../src/server/db/index.js'
-import { buildAttention } from '../src/server/attention.js'
+import { buildActivity, buildAttention, visibleActivity, visibleAttention } from '../src/server/attention.js'
 import type { DatabaseSync } from 'node:sqlite'
 
 const NOW = new Date('2026-10-31T12:00:00.000Z')
@@ -113,6 +113,87 @@ test('only old, unreplied personal mail counts as awaiting a reply', async () =>
   expect(reply?.detail).toContain('Alice')
 })
 
+test('reading a message does not close the loop; only a sent reply does', () => {
+  const db = openDb(':memory:')
+  const insert = db.prepare(
+    `INSERT INTO mail_messages (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, 0, '', NULL, '[]', 0)`,
+  )
+  const old = new Date(NOW.getTime() - 3 * 86_400_000).toISOString()
+  const older = new Date(NOW.getTime() - 5 * 86_400_000).toISOString()
+
+  // Alice was opened but never answered: it must stay in the queue.
+  insert.run('INBOX', 1, 'Alice <a@x.com>', 'Project plan', old, 1)
+  // Bob was answered: the sent copy closes the loop even if the inbox copy is unread.
+  insert.run('INBOX', 2, 'Bob <b@x.com>', 'Invoice question', older, 0)
+  insert.run('[Gmail]/Sent Mail', 3, 'Me <me@x.com>', 'Re: Invoice question', old, 1)
+
+  const reply = buildAttention(db, NOW, { staleDays: 14, inboxDays: 3 }).find(
+    (item) => item.kind === 'reply',
+  )
+  expect(reply?.count).toBe(1)
+  expect(reply?.detail).toContain('Alice')
+  expect(reply?.detail).not.toContain('Bob')
+})
+
+test('a reply with a changed subject still closes the thread', () => {
+  const db = openDb(':memory:')
+  const insert = db.prepare(
+    `INSERT INTO mail_messages (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk, thread_key)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, 0, '', NULL, '[]', 0, ?)`,
+  )
+  const old = new Date(NOW.getTime() - 3 * 86_400_000).toISOString()
+  const later = new Date(NOW.getTime() - 2 * 86_400_000).toISOString()
+
+  insert.run('INBOX', 1, 'Alice <a@x.com>', 'Project plan', old, 1, '<root@x>')
+  insert.run('[Gmail]/Sent Mail', 2, 'Me <me@x.com>', 'Re: totally different subject', later, 1, '<root@x>')
+
+  const reply = buildAttention(db, NOW, { staleDays: 14, inboxDays: 3 }).find(
+    (item) => item.kind === 'reply',
+  )
+  expect(reply).toBeUndefined()
+})
+
+test('disabled sources disappear from the visible attention list', async () => {
+  const db = openDb(':memory:')
+  const { setList } = await import('../src/server/settings.js')
+  setList(db, 'enabled_sources', ['vault'])
+
+  task(db, 'Inbox/Plan.md', 'keep me', null)
+  const fresh = new Date(NOW.getTime() - 3_600_000).toISOString()
+  db.prepare(
+    `INSERT INTO mail_messages (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
+     VALUES ('INBOX', 1, NULL, 'Alice <a@x.com>', 'Plan', ?, 0, 0, '', NULL, '[]', 0)`,
+  ).run(fresh)
+  db.prepare(`INSERT INTO github_items (id, kind, repo, title, url, updated_at) VALUES ('n1', 'review', 'o/r', 'Fix', 'https://github.com/o/r/pull/1', ?)`).run(fresh)
+  db.prepare(`INSERT INTO drive_changes (file_id, kind, detected_at) VALUES ('f1', 'modified', ?)`).run(fresh)
+  db.prepare(`INSERT INTO browser_visits (url, domain, title, visited_at) VALUES ('https://x.test', 'x.test', '', ?)`).run(fresh)
+  db.prepare(
+    `INSERT INTO calendar_events (id, calendar_id, summary, start, end, location, status)
+     VALUES ('e1', 'primary', 'Standup', ?, ?, NULL, 'confirmed')`,
+  ).run(fresh, new Date(NOW.getTime() + 3_600_000).toISOString())
+
+  const items = visibleAttention(db, NOW, { staleDays: 14, inboxDays: 3 })
+  expect(items.some((item) => item.kind === 'task')).toBe(true)
+  expect(items.some((item) => item.kind === 'mail' || item.kind === 'reply')).toBe(false)
+  expect(items.some((item) => item.kind === 'github')).toBe(false)
+  expect(items.some((item) => item.kind === 'drive')).toBe(false)
+  expect(items.some((item) => item.kind === 'browser')).toBe(false)
+  expect(items.some((item) => item.kind === 'calendar')).toBe(false)
+})
+
+test('activity is separate and also respects disabled sources', async () => {
+  const db = openDb(':memory:')
+  const { setList } = await import('../src/server/settings.js')
+  const fresh = new Date(NOW.getTime() - 3_600_000).toISOString()
+  db.prepare(`INSERT INTO drive_changes (file_id, kind, detected_at) VALUES ('f1', 'modified', ?)`).run(fresh)
+  db.prepare(`INSERT INTO browser_visits (url, domain, title, visited_at) VALUES ('https://x.test', 'x.test', '', ?)`).run(fresh)
+
+  expect(buildActivity(db, NOW).map((item) => item.kind).sort()).toEqual(['browser', 'drive'])
+  setList(db, 'enabled_sources', ['vault'])
+  expect(visibleActivity(db, NOW)).toEqual([])
+})
+
 test('excluded vault folders disappear from the attention queue', async () => {
   const db = openDb(':memory:')
   const { setList, LIST_KEYS } = await import('../src/server/settings.js')
@@ -148,7 +229,8 @@ test('attention items carry enough to open the source', () => {
   const items = buildAttention(db, NOW, { staleDays: 14, inboxDays: 3 })
   expect(items.find((item) => item.kind === 'mail')?.messageId).toBe('<m1@x.com>')
   expect(items.find((item) => item.kind === 'github')?.url).toBe('https://github.com/o/r/pull/1')
-  expect(items.find((item) => item.kind === 'drive')?.fileId).toBe('f1')
+  expect(items.some((item) => item.kind === 'drive')).toBe(false)
+  expect(buildActivity(db, NOW).find((item) => item.kind === 'drive')?.fileId).toBe('f1')
 })
 
 test('tasks from the same note collapse into one row', () => {
@@ -172,6 +254,7 @@ test('untagged tasks appear once and the first item is the loudest group', () =>
 
   const items = buildAttention(db, NOW, { staleDays: 14, inboxDays: 3 })
   expect(items.filter((item) => item.kind === 'task')).toHaveLength(1)
-  expect(items.some((item) => item.kind === 'drive')).toBe(true)
+  expect(items.some((item) => item.kind === 'drive')).toBe(false)
+  expect(buildActivity(db, NOW).some((item) => item.kind === 'drive')).toBe(true)
   expect(items[0]!.kind).toBe('task')
 })

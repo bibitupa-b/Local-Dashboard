@@ -62,6 +62,16 @@ export function createGithubSource(api: GithubApi | null, meta: SourceMeta = sou
   }
 }
 
+/** Notifications arrive as API URLs; a click must land on the issue, not on JSON. */
+export function webUrl(url: string): string {
+  const match = url.match(
+    /^https:\/\/api\.github\.com\/repos\/([^/]+)\/([^/]+)\/(issues|pulls)\/(\d+)/,
+  )
+  if (!match) return url
+  const [, owner, repo, kind, number] = match
+  return `https://github.com/${owner}/${repo}/${kind === 'pulls' ? 'pull' : 'issues'}/${number}`
+}
+
 export function createGithubApi(token: string | null): GithubApi | null {
   if (!token) return null
   const headers = {
@@ -100,14 +110,15 @@ export function createGithubApi(token: string | null): GithubApi | null {
         kind: 'notification',
         repo: item.repository.full_name,
         title: item.subject.title,
-        url: item.subject.url ?? '',
+        url: webUrl(item.subject.url ?? ''),
         updatedAt: item.updated_at,
       }))
       for (const issue of reviewData.items ?? []) {
+        const parts = new URL(issue.html_url).pathname.split('/').filter(Boolean)
         items.push({
           id: `r-${issue.id}`,
           kind: 'review',
-          repo: new URL(issue.html_url).pathname.split('/')[1] ?? '',
+          repo: parts.slice(0, 2).join('/'),
           title: issue.title,
           url: issue.html_url,
           updatedAt: issue.updated_at,

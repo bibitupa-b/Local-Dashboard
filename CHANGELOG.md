@@ -1,5 +1,218 @@
 # Changelog
 
+## 1.12.0
+
+The first pass over the gap-closure plan: reply triage, honest source visibility, and a quieter
+start line.
+
+- **Reading a message no longer closes the loop** — "awaiting your reply" now includes read mail and
+  only a sent reply (matched by thread references, with a subject fallback) removes it.
+- **Thread keys are stored** — `mail_messages` keeps `in_reply_to`, `references_json` and a
+  normalized `thread_key`; old rows migrate in place.
+- **Source toggles now mean something** — `/api/attention`, the briefing and search all use one
+  visibility filter, so disabling mail, vault, Drive, calendar, browser or GitHub removes its items.
+- **Attention and activity are separate** — browser visits and Drive changes moved to
+  `/api/activity`; they no longer become "Start here" on a quiet day.
+- **Daily catch-up ignores weekly/evening briefings** — `maybeBrief` looks at `kind = 'daily'`, and
+  `status.briefingToday` is true only for a daily briefing. Weekly catch-up now runs on startup once
+  a daily history exists.
+- **Empty calendars report zero events** — the `No events today` line is no longer counted as one.
+- **Briefing hour 0 survives a restart** — the stored hour is read without the `|| 8` fallback.
+- **GitHub links and repo names are usable** — notifications show `owner/repo` and open the issue or
+  pull request on github.com instead of the API URL.
+- **Rules briefings are labelled** — the stamp says `rules` and a generated rules briefing explains
+  that a DeepSeek key is needed for AI.
+- **A failed strict-grounding check is visible** — the stamp says `unverified` instead of silently
+  looking checked.
+- **Connection health is real** — `/api/connections` reports configured/lastSync/error from the
+  sources, and Settings shows the last sync time.
+- **Opening a briefing is counted when it is viewed**, not when a source chip is clicked.
+- **Mail folder exclusions** are editable in Preferences.
+- **Multiple Google calendars** — a Google connection accepts `primary, work` and the calendar
+  source reads each one; free windows follow the configured work hours.
+- **Per-point feedback** — each briefing point has its own Useful/Miss, stored in
+  `briefing_feedback`; the prompt receives the recent point signal.
+- **Local data controls** — Application can export a secret-free JSON snapshot and delete indexed
+  source data, briefings and preferences without removing the connections themselves. Retention
+  now applies to mail bodies, browser visits and vault diffs on every sync.
+- **FTS5 search** — notes, mail and Drive are indexed with the `unicode61` tokenizer, so Cyrillic
+  case no longer matters; `/api/search` accepts `source`, `from` and `to`, and falls back to `LIKE`
+  when the index is empty.
+- **Meeting prep** — a 30-minute heads-up, separate from the 15-minute "starting soon" alert, with
+  a Preferences toggle and a once-per-event guard.
+- **CI** — `.github/workflows/ci.yml` runs typecheck, tests and the production build.
+
+## 1.11.2
+
+Google connect stays in the browser, and OAuth leaves a trail in `server.log`.
+
+- **The dashboard no longer navigates away when you connect Google** — Connect and Reconnect open
+  the consent screen in the system browser in a new window, so the app stays where it was.
+- **OAuth start and callback are logged** — the redirect URI, whether Google came back and whether
+  the state matched. Secrets are never written.
+
+## 1.11.1
+
+Reliability pass after the code review.
+
+- **Wide widgets are no longer clipped** — the column is as wide as the widest card, ordinary and
+  wider cards keep their own width, and the side columns no longer hide overflow. The header menu
+  is not cut by the column any more, and dragging no longer selects text.
+- **SQLite runs in WAL with a 5s busy timeout** — the watcher, scheduler and HTTP handlers no longer
+  fail each other's writes with `database is locked`.
+- **Briefing hour changes apply without a restart** — the fixed-hour cron is replaced by an hourly
+  check of the configured hour; the 15-minute catch-up still covers a missed day.
+- **A failed strict-grounding check keeps the draft** — the second model call is optional; a 4xx,
+  network error or broken JSON marks the briefing `verified: false` instead of failing it.
+- **Deleted or archived mail is reconciled** — INBOX and Important are compared against the current
+  UID set for the 30-day window, so unread and awaiting-reply counts stop drifting. A UIDVALIDITY
+  reset now fetches the new list before deleting the old rows.
+- **One briefing at a time** — the scheduler and the HTTP route share a single claim, so a startup
+  catch-up and a manual click cannot both spend a model call.
+- **Sync sources time out after 120s** and shutdown waits briefly for an in-flight sync, so one hung
+  mailbox no longer keeps the dashboard unready.
+- **Smaller fixes** — full-text search ignores an older response, origin checks include the port,
+  unchanged notes no longer rewrite their tasks every 15 minutes, the stale-note scan skips notes
+  without a status line, and the Now/Next widget ticks every 30 seconds.
+
+## 1.11.0
+
+Widgets in the empty gutters, a briefing that checks itself, and glass that takes the room's colour.
+
+- **Glass follows the wallpaper** — every pane is now tinted from the picture's dominant hue
+  (`--glass-base`): burgundy over a crimson image, deep teal over the sea. Contrast is still solved
+  per wallpaper and per density.
+- **Widgets** — Now / Next, Open loops and DeepSeek this week. On windows ≥1900px they sit in the
+  gutters left and right; narrower, they fold inline above the briefing (or hide, per widget).
+  Drag by the header with a spring-follow ghost and a return on an invalid drop; collapse, widen,
+  expand, hide and reorder are also in a header menu and in **Settings → Widgets**.
+- **DeepSeek this week** shows briefings, opens, useful/miss, tokens and an estimated cost at Flash
+  rates; older briefings without usage are counted as unknown.
+- **Briefing content** — today's calendar first, notes grouped by project with up to five
+  200-character excerpts of what actually changed, a seven-day trend line, and authoritative counts
+  at the top (the same numbers the page uses).
+- **Model** — `deepseek-flash` (V4.1 Flash), thinking off, JSON output.
+- **Strict grounding** — every bullet needs a real digest line, every number must appear on that
+  line or in the facts, and a second pass drops what the digest cannot support. On by default, with
+  a dismissible note about the extra tokens and a toggle in Preferences.
+- **Search results close on a click outside**, like the suggestion menu.
+- **Widget settings** are its own section; no second source of truth for placement.
+
+## 1.10.1
+
+Readability and control polish.
+
+- **No underlines under sources or `Why`** — the inset row and the toggle stay clickable without
+  looking like plain hyperlinks.
+- **Search suggestions are readable** — menus and the suggestion sheet are denser (alpha +0.42) and
+  dim their own backdrop, so the text behind them no longer reads through the labels.
+- **Useful / Miss** are green and red at fixed colours, independent of the wallpaper theme.
+- **Bottom panels animate** — `Ask about this`, `Earlier briefings` and `What it read` grow open
+  over 360ms and close in 200ms; each carries a one-line hint about what it is for, and Ask says
+  what to write.
+- **Sync chip** grew to 52px and 232px wide with 13/12px text, so both lines are readable at a glance.
+- **No doubled `(optional)`** in the Connect Browser history dialog.
+- **Slider defaults** are a tick on the track, with a reset button next to every value.
+
+## 1.10.0
+
+New wallpapers, and a page for making the interface yours.
+
+- **27 new wallpapers** replace the old set; Aurora stays the default. Human-readable ids
+  (`lily-pond`, `night-clouds`), poetic names, 3200px JPEG so a 2K screen sees no upscaling,
+  480px thumbnails so the picker stays light. Credits list every wallhaven origin.
+- **Wallpapers moved** out of Preferences into their own scrollable grid under **Appearance**.
+- **Appearance page** with live controls: blur 0–30px for every glass surface, glass density
+  60–150%, grain 0–20%, panel shadow 0–100%, wallpaper brightness 70–100%.
+- **Accent** — `Auto` keeps three hues from the picture; the swatches show them, and a hue slider
+  picks one by hand. Secondary and tertiary rotate around it, contrast is re-solved, and the pick
+  survives wallpaper changes.
+- **Animation presets** — Calm (no shine, parallax, hover lift or stagger; everything 1.3× slower),
+  Balanced, Lively (0.8×, 2px lift). System reduced motion still wins.
+- **Monochrome wallpapers** get a neutral silver palette instead of an invented amber.
+- **Readability** — the palette is solved against the inset surface and re-solved for every density
+  and manual accent, so secondary text and coral keep 4.5:1 on both panels and insets.
+
+## 1.9.0
+
+Inset glass, a slower reading rhythm, and a Settings screen that is pleasant to use.
+
+- **Inset glass** — sources under a briefing point are now glass insets into the briefing sheet:
+  one row each, with space between them, lighter and more transparent than the panel, a slow
+  hover lift, and a quiet press. The `Why` panel is the same material.
+- **Why unfolds** — clicking `Why` grows the panel open over 320ms and the lines arrive one after
+  another instead of the whole block appearing at once. The `+` turns into `×`.
+- **Reading rhythm** — a briefing arrives line by line, 90ms apart, 620ms each; the loading state
+  is the same rhythm: calm bars with a slow sweep, matched to the size of the text they replace.
+- **The brand is a button** — bigger name (20px) and mark, a shine you can actually see, a hover
+  lift. It opens **About**: version, data folder with `Open folder`, how many sources are connected
+  and when they last synced, the DeepSeek key state, `Copy diagnostics` and the README.
+- **Connections** — `Test / Edit / Disconnect` are three equal glass insets, 30px tall, with slow
+  hover and press states; `+ Add account` became a quiet inset too.
+- **Settings** — the rail is a glass inset whose active pane slides to the section you are reading;
+  clicking a section scrolls there smoothly instead of teleporting. The `Settings` crumb is gone
+  from the top bar.
+- **Filters as chips** — the muted-senders, hidden-folders and ignored-domains lists are edited one
+  entry at a time: add with Enter, remove with `×`. Trims, ignores blanks, never adds a duplicate.
+  Same storage format as before.
+- **Preferences** — a calmer grid, square inset fields, no clipped textarea scrollbars.
+
+## 1.8.2
+
+The interface takes its colour from the wallpaper, and the glass becomes real matte glass.
+
+- **Themes from the picture** — on every wallpaper change the app samples the image, picks three
+  hues, and derives accent, secondary, tertiary, ink and the aurora light from them; errors stay a
+  pastel red. Colours cross-fade over 700ms, so clicking a wallpaper repaints the whole interface
+  instead of swapping it. Readability is solved per picture: glass density and dimming are computed
+  so secondary text still clears 4.5:1 at the image's bright end.
+- **Flat frosted panels** — every gradient, glow and border is gone from the panels, the rail, the
+  cards, the search field, the sync chip, the menus, the dialogs and the tooltips. One flat
+  translucent fill, a static two-scale grain (matte glass) and a soft shadow.
+- **Less blur** — 30px → 14px, so the wallpaper behind a panel stays recognisable instead of
+  turning into a smear.
+- **Search and hints** — the suggestion sheet sits flush against the field and grows out of it;
+  rows and hints are the same frosted material as the panels, with a soft hover patch instead of
+  the ice bar.
+- **Sources in the briefing** and the wallpaper picker keep their layout, now in the new material.
+
+## 1.8.1
+
+A square, frosted pass over the whole interface: the glass loses its borders and corners, search
+gains its transitions, and every wallpaper now shows its subject instead of empty sky.
+
+- **Square glass** — panels, cards, the rail, buttons, fields, menus and dialogs are rectangles with
+  no border; `brightness` in the backdrop filter dims the wallpaper under the glass, so the frost
+  reads on both dark and bright images while the room stays visible around it.
+- **Search** — native scrollbars are gone from the suggestion list and the results sheet; both
+  animate in and out (the layer stays mounted for the exit); focusing the field draws an inner ice
+  hairline instead of a blue halo around it.
+- **Wallpapers** — each image carries its own focal point and zoom, so Dusk Ridge, Amber Dunes,
+  Pine Hollow and Heather Moor show their landscape rather than their sky. The picker shows real
+  previews again.
+- **Sources in the briefing** — checkbox rows became a grid of 44px tiles with a mint check, a
+  brighter checked label and a count in the legend.
+
+## 1.8.0
+
+The window stops being a panel. The wallpaper is the room now, the glass sits only where content
+lives, and the controls that carry state are louder and say more.
+
+- **No stage sheet** — the full-window glass rectangle is gone; the wallpaper runs edge to edge and
+  only the rail, hero, today, briefing, settings cards and search field blur it in their own area.
+- **Wallpapers** — shown at full strength behind the glass with a light scrim; the aurora drops to a
+  low light on top. A subtle pointer parallax moves the room (±10px wallpaper, ±16px aurora), off
+  under reduced motion.
+- **Brand** — 32px mark, 16px Unbounded wordmark with a slow shine sweep, date at 12px.
+- **Source rail** — wider (104px) stations that name the service and its state (`15:45`, `waiting`,
+  `off`, `error`); hover lifts the tile and lights the glyph in its source colour.
+- **Search** — centred in the window, 52px tall, glass like the rest of the surface; the layout
+  keeps it clear of the sync chip and the window controls at every width.
+- **Sync chip** — two lines over a 3px progress bar: `Synced 15:45` with the source count, the
+  service and `2 of 5` while running, and how many sources need attention after a failure.
+- **Briefing** — the reading rule follows the pointer instead of the scroll position; hovering a
+  point (or focusing a link in it) draws its amber tick to full height.
+
 ## 1.7.0
 
 A pass over the details: search now reaches every result from the keyboard, content in Russian is

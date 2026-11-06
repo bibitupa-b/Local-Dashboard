@@ -38,6 +38,26 @@ test('status reports configured sources and no briefing yet', async () => {
   await app.close()
 })
 
+test('status counts only a daily briefing as today\'s briefing', async () => {
+  const { app, db } = harness()
+  const now = new Date().toISOString()
+  db.prepare(
+    `INSERT INTO briefings (created_at, trigger, markdown, kind) VALUES (?, 'auto', '- weekly', 'weekly')`,
+  ).run(now)
+
+  const weeklyOnly = await app.inject({ method: 'GET', url: '/api/status' })
+  expect(weeklyOnly.json().briefingToday).toBe(false)
+  expect(weeklyOnly.json().briefingKindsToday).toEqual(['weekly'])
+
+  db.prepare(
+    `INSERT INTO briefings (created_at, trigger, markdown, kind) VALUES (?, 'auto', '- daily', 'daily')`,
+  ).run(now)
+  const both = await app.inject({ method: 'GET', url: '/api/status' })
+  expect(both.json().briefingToday).toBe(true)
+  expect(both.json().briefingKindsToday.sort()).toEqual(['daily', 'weekly'])
+  await app.close()
+})
+
 test('status exposes the last briefing failure and ignores a broken value', async () => {
   const { app, db } = harness()
   const first = await app.inject({ method: 'GET', url: '/api/status' })
@@ -61,6 +81,20 @@ test('status exposes the last briefing failure and ignores a broken value', asyn
   setSetting(db, 'briefing_last_error', 'not json')
   const broken = await app.inject({ method: 'GET', url: '/api/status' })
   expect(broken.json().briefingError).toBeNull()
+  await app.close()
+})
+
+test('attention respects disabled sources', async () => {
+  const { app, db } = harness()
+  const { setList } = await import('../src/server/settings.js')
+  setList(db, 'enabled_sources', ['vault'])
+  db.prepare(
+    `INSERT INTO mail_messages (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
+     VALUES ('INBOX', 1, NULL, 'Alice <a@x.com>', 'Plan', ?, 0, 0, '', NULL, '[]', 0)`,
+  ).run(new Date().toISOString())
+
+  const res = await app.inject({ method: 'GET', url: '/api/attention' })
+  expect(res.json().some((item: { kind: string }) => item.kind === 'mail')).toBe(false)
   await app.close()
 })
 
@@ -130,6 +164,152 @@ test('status carries health and the sync endpoint runs a sync', async () => {
   const sync = await app.inject({ method: 'POST', url: '/api/sync' })
   expect(sync.statusCode).toBe(200)
   expect(synced).toBe(1)
+  await app.close()
+})
+
+test('export omits secrets and delete clears local data', async () => {
+  const { app, db } = harness()
+  db.prepare(
+    `INSERT INTO briefings (id, created_at, trigger, markdown, kind) VALUES (1, ?, 'auto', '- one', 'daily')`,
+  ).run(new Date().toISOString())
+  db.prepare(
+    `INSERT INTO mail_messages (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
+     VALUES ('INBOX', 1, NULL, 'Alice <a@x.com>', 'Plan', ?, 0, 0, '', NULL, '[]', 0)`,
+  ).run(new Date().toISOString())
+  setSetting(db, 'briefing_profile', 'private profile')
+
+  const exported = await app.inject({ method: 'GET', url: '/api/export' })
+  const payload = exported.json()
+  expect(payload.briefings[0].markdown).toBe('- one')
+  expect(payload.settings.briefing_profile).toBe('private profile')
+  expect(JSON.stringify(payload)).not.toContain('secret')
+
+  const deleted = await app.inject({ method: 'DELETE', url: '/api/data' })
+  expect(deleted.statusCode).toBe(200)
+  expect(db.prepare('SELECT COUNT(*) AS n FROM mail_messages').get()).toEqual({ n: 0 })
+  expect(db.prepare('SELECT COUNT(*) AS n FROM briefings').get()).toEqual({ n: 0 })
+  expect(db.prepare("SELECT COUNT(*) AS n FROM settings WHERE key = 'briefing_profile'").get()).toEqual({ n: 0 })
+  await app.close()
+})
+
+test('per-bullet feedback is stored and can be cleared', async () => {
+  const { app, db } = harness()
+  db.prepare(
+    `INSERT INTO briefings (id, created_at, trigger, markdown, kind) VALUES (1, ?, 'auto', '- one', 'daily')`,
+  ).run(new Date().toISOString())
+
+  const useful = await app.inject({
+    method: 'POST',
+    url: '/api/briefings/1/bullets/0/feedback',
+    payload: { value: 'useful' },
+  })
+  expect(useful.statusCode).toBe(200)
+  expect(
+    db.prepare('SELECT briefing_id, bullet_index, value FROM briefing_feedback').get(),
+  ).toEqual({ briefing_id: 1, bullet_index: 0, value: 'useful' })
+
+  const clear = await app.inject({
+    method: 'POST',
+    url: '/api/briefings/1/bullets/0/feedback',
+    payload: { value: null },
+  })
+  expect(clear.statusCode).toBe(200)
+  expect(db.prepare('SELECT COUNT(*) AS n FROM briefing_feedback').get()).toEqual({ n: 0 })
+  await app.close()
+})
+
+test('FTS search is Unicode-aware and can filter by source', async () => {
+  const { app, db } = harness()
+  const { rebuildSearchIndex } = await import('../src/server/search-index.js')
+  db.prepare(
+    `INSERT INTO vault_files (path, hash, mtime, size, previous_text) VALUES (?, 'h', ?, 10, ?)`,
+  ).run('01 Projects/Alpha.md', new Date().toISOString(), 'Проект про поиск')
+  db.prepare(
+    `INSERT INTO mail_messages (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
+     VALUES ('INBOX', 1, '<m1@x>', 'Alice <a@x.com>', 'Проект в письме', ?, 0, 0, 'проект', NULL, '[]', 0)`,
+  ).run(new Date().toISOString())
+  rebuildSearchIndex(db)
+
+  const all = await app.inject({ method: 'GET', url: '/api/search?q=проект' })
+  expect(all.json().notes).toHaveLength(1)
+  expect(all.json().mail).toHaveLength(1)
+
+  const mail = await app.inject({ method: 'GET', url: '/api/search?q=проект&source=mail' })
+  expect(mail.json().notes).toEqual([])
+  expect(mail.json().mail).toHaveLength(1)
+  await app.close()
+})
+
+test('search respects disabled sources and excluded senders', async () => {
+  const { app, db } = harness()
+  const { setList, LIST_KEYS } = await import('../src/server/settings.js')
+  setList(db, 'enabled_sources', ['vault'])
+  setList(db, LIST_KEYS.mailSenders, ['spam'])
+  db.prepare(
+    `INSERT INTO mail_messages (folder, uid, message_id, sender, subject, date, seen, starred, snippet, body, attachments, bulk)
+     VALUES ('INBOX', 1, NULL, 'Spam <spam@x.com>', 'Zen offer', ?, 0, 0, '', NULL, '[]', 0)`,
+  ).run(new Date().toISOString())
+
+  const res = await app.inject({ method: 'GET', url: '/api/search?q=zen' })
+  expect(res.json().mail).toEqual([])
+  await app.close()
+})
+
+test('activity is exposed separately from attention', async () => {
+  const { app, db } = harness()
+  db.prepare(
+    `INSERT INTO browser_visits (url, domain, title, visited_at) VALUES ('https://x.test', 'x.test', '', ?)`,
+  ).run(new Date().toISOString())
+
+  const attention = await app.inject({ method: 'GET', url: '/api/attention' })
+  expect(attention.json().some((item: { kind: string }) => item.kind === 'browser')).toBe(false)
+  const activity = await app.inject({ method: 'GET', url: '/api/activity' })
+  expect(activity.json().some((item: { kind: string }) => item.kind === 'browser')).toBe(true)
+  await app.close()
+})
+
+test('connections expose their sync health', async () => {
+  const db = openDb(':memory:')
+  const config = loadConfig({ VAULT_PATH: root })
+  const source = {
+    ...(await import('../src/server/sources/types.js')).sourceMeta('vault', 'vault', 'vault-1', 'Main'),
+    configured: () => true,
+    sync: async () => {},
+    lastSync: () => '2026-11-04T08:00:00.000Z',
+    digest: () => [],
+  }
+  const app = buildApp({
+    db,
+    config,
+    sources: [source],
+    webRoot: join(root, 'no-ui'),
+    connections: {
+      list: () => [
+        {
+          id: 'vault-1',
+          service: 'vault',
+          label: 'Main',
+          config: {},
+          enabled: true,
+          lastError: null,
+          createdAt: '2026-11-01T00:00:00.000Z',
+          secretsSet: [],
+        },
+      ],
+      save: () => {
+        throw new Error('not used')
+      },
+      remove: () => {},
+      test: async () => ({ ok: true }),
+    },
+  })
+
+  const res = await app.inject({ method: 'GET', url: '/api/connections' })
+  expect(res.json().items[0]).toMatchObject({
+    id: 'vault-1',
+    configured: true,
+    lastSync: '2026-11-04T08:00:00.000Z',
+  })
   await app.close()
 })
 
@@ -280,10 +460,10 @@ test('the wallpaper is saved through settings and unknown ids are refused', asyn
   await app.inject({
     method: 'PUT',
     url: '/api/settings',
-    payload: { wallpaper: 'pine-hollow' },
+    payload: { wallpaper: 'lily-pond' },
   })
   const saved = await app.inject({ method: 'GET', url: '/api/settings' })
-  expect(saved.json().wallpaper).toBe('pine-hollow')
+  expect(saved.json().wallpaper).toBe('lily-pond')
 
   await app.inject({
     method: 'PUT',
@@ -291,7 +471,55 @@ test('the wallpaper is saved through settings and unknown ids are refused', asyn
     payload: { wallpaper: '../../etc/passwd' },
   })
   const after = await app.inject({ method: 'GET', url: '/api/settings' })
-  expect(after.json().wallpaper).toBe('pine-hollow')
+  expect(after.json().wallpaper).toBe('lily-pond')
+  await app.close()
+})
+
+test('appearance knobs are clamped, refused when nonsensical, and reset to auto', async () => {
+  const { app } = harness()
+  const initial = await app.inject({ method: 'GET', url: '/api/settings' })
+  expect(initial.json().appearance).toEqual({
+    blur: 14,
+    glass: 100,
+    grain: 12,
+    shadow: 100,
+    photo: 94,
+    motion: 'balanced',
+    accent: null,
+  })
+
+  await app.inject({
+    method: 'PUT',
+    url: '/api/settings',
+    payload: {
+      appearance: { blur: 90, glass: 5, grain: -4, shadow: 400, photo: 20, motion: 'loud' },
+    },
+  })
+  const clamped = (await app.inject({ method: 'GET', url: '/api/settings' })).json().appearance
+  expect(clamped.blur).toBe(30)
+  expect(clamped.glass).toBe(60)
+  expect(clamped.grain).toBe(0)
+  expect(clamped.shadow).toBe(100)
+  expect(clamped.photo).toBe(70)
+  // An unknown preset never reaches the interface.
+  expect(clamped.motion).toBe('balanced')
+
+  await app.inject({
+    method: 'PUT',
+    url: '/api/settings',
+    payload: { appearance: { accent: 205, motion: 'calm' } },
+  })
+  const picked = (await app.inject({ method: 'GET', url: '/api/settings' })).json().appearance
+  expect(picked.accent).toBe(205)
+  expect(picked.motion).toBe('calm')
+
+  await app.inject({
+    method: 'PUT',
+    url: '/api/settings',
+    payload: { appearance: { accent: null } },
+  })
+  const auto = (await app.inject({ method: 'GET', url: '/api/settings' })).json().appearance
+  expect(auto.accent).toBeNull()
   await app.close()
 })
 
@@ -437,6 +665,13 @@ test('rejects foreign origins and hosts', async () => {
     headers: { origin: 'http://127.0.0.1:4317' },
   })
   expect(local.statusCode).toBe(200)
+
+  const anotherLocalPort = await app.inject({
+    method: 'POST',
+    url: '/api/sync',
+    headers: { origin: 'http://127.0.0.1:9999' },
+  })
+  expect(anotherLocalPort.statusCode).toBe(403)
   await app.close()
 })
 

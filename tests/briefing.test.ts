@@ -68,6 +68,9 @@ function answer(content: string): typeof fetch {
 
 test('successful briefing is stored as a body and its markdown', async () => {
   const db = openDb(':memory:')
+  db.prepare(
+    `INSERT INTO vault_changes (path, detected_at, added, removed) VALUES (?, ?, 12, 3)`,
+  ).run('01 Projects/Alpha.md', new Date().toISOString())
   const fetchFn = answer(
     JSON.stringify({
       headline: 'Quiet day',
@@ -92,7 +95,12 @@ test('successful briefing is stored as a body and its markdown', async () => {
   expect(row.digest).toContain('# Briefing digest')
   expect(JSON.parse(row.body)).toEqual({
     headline: 'Quiet day',
-    bullets: [{ text: 'Alpha moved', refs: [] }],
+    bullets: [
+      {
+        text: 'Alpha moved',
+        refs: [{ kind: 'note', label: 'Alpha', path: '01 Projects/Alpha.md' }],
+      },
+    ],
     suggestion: 'Open Alpha',
   })
   expect(JSON.parse(row.digest_meta).headline).toBe('Quiet day')
@@ -117,7 +125,7 @@ test('the model, its token cost and a truncated answer reach the metadata', asyn
   await createBriefing(db, [], config, { fetchFn })
   const row = db.prepare('SELECT digest_meta FROM briefings').get() as { digest_meta: string }
   expect(JSON.parse(row.digest_meta)).toMatchObject({
-    model: 'deepseek-chat',
+    model: 'deepseek-flash',
     usage: { prompt: 1200, completion: 700 },
     truncated: true,
   })
@@ -233,6 +241,14 @@ async function sentDigest(db: ReturnType<typeof openDb>, sources: Source[]): Pro
   return sent
 }
 
+test('an empty calendar is zero events, not one', async () => {
+  const sent = await sentDigest(openDb(':memory:'), [
+    stubSource('cal', 'calendar', ['No events today']),
+  ])
+  expect(sent).toContain('Events today: 0')
+  expect(sent).toContain('No events today')
+})
+
 test('mail, calendar, github and browser reach the digest', async () => {
   const sent = await sentDigest(openDb(':memory:'), [
     stubSource('a', 'mail', ['- [mail] Invoice from Acme <a@acme.test>']),
@@ -296,8 +312,9 @@ test('the vault section stops at its cap', async () => {
   for (let note = 0; note < 60; note++) insert.run(`Inbox/note ${note}.md`, now)
 
   const sent = await sentDigest(db, [])
-  const section = sent.split('## Vault changes')[1] ?? ''
-  expect(section.split('\n').filter((line) => line.trim().startsWith('- '))).toHaveLength(40)
+  const section = sent.split('## Notes')[1] ?? ''
+  // The project summary is one line; the twelve most changed notes follow it.
+  expect(section.split('\n').filter((line) => line.includes('(+1/-0)'))).toHaveLength(12)
 })
 
 test("yesterday's headline reaches today's digest", async () => {
@@ -547,4 +564,46 @@ test('the resurface interval is spent only when the briefing succeeded', async (
   const sent = await sentDigest(db, [])
   expect(sent).toContain('## Worth revisiting')
   expect(db.prepare('SELECT path FROM resurfaced').get()).toEqual({ path: 'Inbox/Old idea.md' })
+})
+
+test('a failed verifier keeps the draft and marks it unverified', async () => {
+  const db = openDb(':memory:')
+  db.prepare(
+    `INSERT INTO vault_changes (path, detected_at, added, removed) VALUES (?, ?, 3, 0)`,
+  ).run('01 Projects/Alpha.md', new Date().toISOString())
+  let calls = 0
+  const fetchFn = (async () => {
+    calls++
+    if (calls === 1) {
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  headline: 'Alpha moved',
+                  bullets: [{ text: 'Alpha gained 3 lines', refs: [1] }],
+                  suggestion: 'Open Alpha',
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      )
+    }
+    return new Response('verifier down', { status: 400 })
+  }) as unknown as typeof fetch
+
+  const result = await createBriefing(db, [], config, { fetchFn, trigger: 'manual' })
+  expect('body' in result && result.body.bullets).toHaveLength(1)
+  const row = db.prepare('SELECT digest_meta FROM briefings').get() as { digest_meta: string }
+  const grounding = JSON.parse(row.digest_meta).grounding as {
+    dropped: number
+    verified: boolean
+    error?: string
+  }
+  expect(grounding).toMatchObject({ dropped: 0, verified: false })
+  expect(grounding.error).toContain('verifier down')
+  expect(calls).toBe(2)
 })
