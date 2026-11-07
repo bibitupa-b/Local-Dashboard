@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   api,
@@ -31,6 +31,8 @@ type ServiceDef = {
   description: string
   hint: string
   fields: FieldDef[]
+  defaultEnabled?: boolean
+  delivery?: boolean
 }
 
 const SERVICES: ServiceDef[] = [
@@ -200,6 +202,36 @@ account.`,
         optional: true,
         placeholder: 'optional',
       },
+    ],
+  },
+  {
+    service: 'smtp',
+    name: 'Email (SMTP)',
+    description: 'Emails the briefing after it is generated.',
+    hint: `Outgoing mail server details. Port 465 uses implicit TLS; other ports use StartTLS.
+The briefing is only sent while this connection is enabled.`,
+    defaultEnabled: false,
+    delivery: true,
+    fields: [
+      { key: 'host', label: 'Host', placeholder: 'smtp.example.com' },
+      { key: 'port', label: 'Port', default: '587' },
+      { key: 'from', label: 'From', placeholder: 'you@example.com' },
+      { key: 'to', label: 'To', placeholder: 'you@example.com' },
+      { key: 'user', label: 'Username', secret: true, placeholder: 'you@example.com' },
+      { key: 'password', label: 'Password', secret: true, placeholder: '...' },
+    ],
+  },
+  {
+    service: 'telegram',
+    name: 'Telegram',
+    description: 'Sends the briefing to a Telegram chat.',
+    hint: `Create a bot with @BotFather to get a token, then message the bot and read your chat id.
+The briefing is only sent while this connection is enabled.`,
+    defaultEnabled: false,
+    delivery: true,
+    fields: [
+      { key: 'chatId', label: 'Chat ID', placeholder: '123456789' },
+      { key: 'botToken', label: 'Bot token', secret: true, placeholder: '123456:ABC-DEF...' },
     ],
   },
 ]
@@ -903,10 +935,23 @@ export function SettingsPanel({
             ? 'configured'
             : 'not set - optional, enables the written briefing'}
         </p>
-        {SERVICES.map((definition) => {
+        {SERVICES.map((definition, index) => {
           const rows = connections.filter((row) => row.service === definition.service)
+          const startsDelivery = definition.delivery && !SERVICES[index - 1]?.delivery
           return (
-            <div key={definition.service} className="conn-group">
+            <Fragment key={definition.service}>
+              {startsDelivery && (
+                <div className="conn-group">
+                  <div className="conn-group-head">
+                    <h3>Delivery</h3>
+                  </div>
+                  <p className="empty">
+                    The briefing leaves this machine and includes the same subjects and snippets as
+                    the digest. It is off until you enable a channel.
+                  </p>
+                </div>
+              )}
+              <div className="conn-group">
               <div className="conn-group-head">
                 <h3>
                   {definition.name} <Hint text={definition.hint} />
@@ -999,6 +1044,7 @@ export function SettingsPanel({
                 ))
               )}
             </div>
+            </Fragment>
           )
         })}
       </section>
@@ -1698,6 +1744,17 @@ function isHealthy(connection: Connection): boolean {
       return Boolean(connection.config.url) && connection.secretsSet.includes('password')
     case 'microsoft':
       return connection.secretsSet.includes('tokens')
+    case 'smtp':
+      return Boolean(
+        connection.config.host &&
+          connection.config.port &&
+          connection.config.from &&
+          connection.config.to &&
+          connection.secretsSet.includes('user') &&
+          connection.secretsSet.includes('password'),
+      )
+    case 'telegram':
+      return Boolean(connection.config.chatId) && connection.secretsSet.includes('botToken')
     default:
       return false
   }
@@ -1737,6 +1794,10 @@ function detailOf(connection: Connection): string {
       return connection.secretsSet.includes('tokens') ? 'connected' : 'not connected'
     case 'deepseek':
       return connection.secretsSet.includes('key') ? 'key saved' : 'no key'
+    case 'smtp':
+      return `${connection.config.host ?? ''} -> ${connection.config.to ?? ''}`
+    case 'telegram':
+      return `chat ${connection.config.chatId ?? ''}`
     default:
       return ''
   }
@@ -1754,7 +1815,7 @@ function ConnectionForm({
   onSaved: (saved: Connection) => void | Promise<void>
 }) {
   const [label, setLabel] = useState(connection?.label ?? definition.name)
-  const [enabled, setEnabled] = useState(connection?.enabled ?? true)
+  const [enabled, setEnabled] = useState(connection?.enabled ?? definition.defaultEnabled ?? true)
   const [config, setConfig] = useState<Record<string, string>>(() => {
     if (connection) return connection.config
     const defaults: Record<string, string> = {}

@@ -43,6 +43,7 @@ import {
 } from './connections.js'
 import { buildSources, googleCreds, microsoftCreds, publicConnections, toPublicConnection } from './registry.js'
 import { testConnection } from './connection-test.js'
+import { deliverBriefing } from './delivery.js'
 import { exchangeGoogleCode, googleAuthUrl } from './google.js'
 import { exchangeMicrosoftCode, microsoftAuthUrl } from './microsoft.js'
 
@@ -398,6 +399,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
     setSetting(db, 'briefing_last_error', '')
     console.log('[briefing] generated')
+    // Delivery is fire-and-forget: it must never block or break the briefing that was just saved.
+    void deliverBriefing(db, box, result, kind)
     if (trigger === 'auto') {
       send(
         kind === 'weekly'

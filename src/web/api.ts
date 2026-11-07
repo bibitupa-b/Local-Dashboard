@@ -172,6 +172,8 @@ export type Service =
   | 'caldav'
   | 'microsoft'
   | 'deepseek'
+  | 'smtp'
+  | 'telegram'
 
 export type Connection = {
   id: string

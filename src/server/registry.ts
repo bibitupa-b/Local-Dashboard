@@ -171,6 +171,10 @@ export function buildSources(deps: RegistryDeps): Source[] {
         break
       case 'deepseek':
         break
+      // Delivery services are not sources; they never yield a digest row.
+      case 'smtp':
+      case 'telegram':
+        break
       case 'microsoft': {
         const creds = microsoftCreds(connection, deps)
         sources.push(

@@ -18,6 +18,8 @@ export type Service =
   | 'caldav'
   | 'microsoft'
   | 'deepseek'
+  | 'smtp'
+  | 'telegram'
 export const SERVICES: Service[] = [
   'vault',
   'google',
@@ -30,6 +32,8 @@ export const SERVICES: Service[] = [
   'caldav',
   'microsoft',
   'deepseek',
+  'smtp',
+  'telegram',
 ]
 
 export type Connection = {

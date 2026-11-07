@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { ImapFlow } from 'imapflow'
 import { createDAVClient } from 'tsdav'
+import nodemailer from 'nodemailer'
 import { hasScope, DRIVE_SCOPE, CALENDAR_SCOPE, TASKS_SCOPE } from './google.js'
 import { graph, hasMicrosoftScope, type MicrosoftCreds, type MicrosoftTokens } from './microsoft.js'
 import type { Connection } from './connections.js'
@@ -154,6 +155,33 @@ export async function testConnection(connection: Connection): Promise<TestResult
           }
         }
         return { ok: true }
+      }
+      case 'smtp': {
+        const host = connection.config.host
+        const port = Number(connection.config.port)
+        const user = connection.secret?.user
+        const password = connection.secret?.password
+        if (!host || !Number.isFinite(port) || port <= 0) {
+          return { ok: false, error: 'Host and port are required' }
+        }
+        if (!user || !password) return { ok: false, error: 'SMTP username and password are required' }
+        const transport = nodemailer.createTransport({
+          host,
+          port,
+          secure: connection.config.port === '465',
+          auth: { user, pass: password },
+        })
+        await transport.verify()
+        return { ok: true }
+      }
+      case 'telegram': {
+        const token = connection.secret?.botToken
+        if (!token) return { ok: false, error: 'Bot token is missing' }
+        const res = await fetch(`https://api.telegram.org/bot${token}/getMe`)
+        const data = (await res.json()) as { ok?: boolean; description?: string }
+        return data.ok
+          ? { ok: true }
+          : { ok: false, error: `Telegram responded ${data.description ?? res.status}` }
       }
       default:
         return { ok: false, error: 'Unknown service' }
