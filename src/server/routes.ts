@@ -32,6 +32,8 @@ import {
   groundingStrict,
   isLocalOnly,
   setLocalOnly,
+  autoUpdate,
+  setAutoUpdate,
   type Appearance,
 } from './settings.js'
 import type { ConnectionInput } from './connections.js'
@@ -693,6 +695,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       widgets: widgetLayout(db),
       groundingStrict: groundingStrict(db),
       localOnly: isLocalOnly(db),
+      autoUpdate: autoUpdate(db),
       dataDir: config.dataDir,
     }
   })
@@ -784,6 +787,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       widgets?: unknown
       groundingStrict?: boolean
       localOnly?: boolean
+      autoUpdate?: boolean
     }
     if (typeof body.briefingHour === 'number' && body.briefingHour >= 0 && body.briefingHour <= 23) {
       config.briefingHour = body.briefingHour
@@ -856,6 +860,9 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     if (typeof body.localOnly === 'boolean') {
       setLocalOnly(db, body.localOnly)
       await deps.reload?.()
+    }
+    if (typeof body.autoUpdate === 'boolean') {
+      setAutoUpdate(db, body.autoUpdate)
     }
     return { ok: true }
   })

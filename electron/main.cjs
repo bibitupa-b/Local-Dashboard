@@ -12,6 +12,8 @@ const {
 } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
+const { autoUpdater } = require('electron-updater')
+const { shouldCheckForUpdates } = require('./update-policy.cjs')
 
 app.setName('Local Dashboard')
 app.setAppUserModelId('com.bibitupa.localdashboard')
@@ -206,6 +208,66 @@ function setAutostart(enabled) {
   app.setLoginItemSettings({ openAtLogin: enabled, args: [] })
 }
 
+async function checkForUpdatesNow() {
+  if (!app.isPackaged) return
+  try {
+    const settings = await callApi('/api/settings', 'GET')
+    if (!shouldCheckForUpdates(settings.localOnly, settings.autoUpdate !== false)) {
+      console.log('[desktop] skipping update check (local only or auto-update off)')
+      return
+    }
+    await autoUpdater.checkForUpdates()
+  } catch (error) {
+    console.error('[desktop] update check failed:', error)
+  }
+}
+
+function setupUpdater() {
+  if (!app.isPackaged) return
+  autoUpdater.autoDownload = false
+
+  autoUpdater.on('update-available', (info) => {
+    if (!Notification.isSupported()) return
+    const notification = new Notification({
+      title: 'Update available',
+      body: `Local Dashboard ${info.version} is ready to download.`,
+      icon: iconPath,
+      actions: [{ type: 'button', text: 'Download' }],
+    })
+    notification.on('action', () => {
+      autoUpdater
+        .downloadUpdate()
+        .catch((error) => console.error('[desktop] update download failed:', error))
+    })
+    notification.on('click', showWindow)
+    notification.show()
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    if (!Notification.isSupported()) return
+    const notification = new Notification({
+      title: 'Update ready',
+      body: `Local Dashboard ${info.version} has downloaded. Restart to install.`,
+      icon: iconPath,
+      actions: [{ type: 'button', text: 'Restart and install' }],
+    })
+    notification.on('action', () => {
+      try {
+        autoUpdater.quitAndInstall()
+      } catch (error) {
+        console.error('[desktop] install failed:', error)
+      }
+    })
+    notification.on('click', showWindow)
+    notification.show()
+  })
+
+  autoUpdater.on('error', (error) => console.error('[desktop] update error:', error))
+
+  void checkForUpdatesNow()
+  setInterval(() => void checkForUpdatesNow(), 6 * 60 * 60 * 1000)
+}
+
 function createTray() {
   const image = nativeImage.createFromPath(trayIconPath).resize({ width: 16, height: 16 })
   tray = new Tray(image)
@@ -215,6 +277,9 @@ function createTray() {
     { type: 'separator' },
     { label: 'Briefing now', click: () => void trayBriefing() },
     { label: 'Sync sources', click: () => void traySync() },
+    ...(app.isPackaged
+      ? [{ label: 'Check for updates', click: () => void checkForUpdatesNow() }]
+      : []),
     { type: 'separator' },
     {
       label: 'Start with Windows',
@@ -338,6 +403,7 @@ async function boot() {
   baseUrl = `http://127.0.0.1:${server.port}`
   createWindow()
   createTray()
+  setupUpdater()
 
   // Enable autostart once for packaged installs.
   const marker = path.join(dataDir, '.autostart-initialized')

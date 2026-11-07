@@ -674,6 +674,11 @@ export function SettingsPanel({
   })
   const localOnlyHint = 'Local only is on. Turn it off to test or connect.'
 
+  const autoUpdate = useLiveSave(settings.autoUpdate ?? true, async (value) => {
+    await api.saveSettings({ autoUpdate: value })
+    remember({ autoUpdate: value })
+  })
+
   // Sliders preview instantly; the debounced save keeps the last value.
   function changeAppearance(patch: Partial<Settings['appearance']>): void {
     const next = { ...appearance.draft, ...patch }
@@ -1069,6 +1074,22 @@ export function SettingsPanel({
             />
             Vault and browser history still sync. Mail, calendar, GitHub, weather, news, Slack and the
             DeepSeek briefing stay paused.
+          </label>
+        </div>
+        <div className="pref">
+          <div className="pref-head">
+            <label htmlFor="pref-auto-update">Check for updates automatically</label>
+            <FieldNote receipt={autoUpdate.receipt} onRetry={autoUpdate.retry} />
+          </div>
+          <label className="check">
+            <input
+              id="pref-auto-update"
+              type="checkbox"
+              checked={autoUpdate.draft}
+              onChange={(event) => autoUpdate.edit(event.target.checked)}
+            />
+            Downloads updates in the background and asks before installing. Skipped while Local only
+            is on.
           </label>
         </div>
         <div className="row">

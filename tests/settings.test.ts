@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import { openDb } from '../src/server/db/index.js'
 import {
   LIST_KEYS,
+  autoUpdate,
   briefingLanguage,
   digestWindowHours,
   getList,
@@ -9,6 +10,7 @@ import {
   isExcludedSender,
   isExcludedVaultPath,
   isSourceEnabled,
+  setAutoUpdate,
   setList,
 } from '../src/server/settings.js'
 import { setSetting } from '../src/server/db/index.js'
@@ -61,5 +63,14 @@ test('briefing language defaults to auto and ignores anything else', () => {
   expect(briefingLanguage(db)).toBe('ru')
   setSetting(db, 'briefing_language', 'de')
   expect(briefingLanguage(db)).toBe('auto')
+})
+
+test('auto-update defaults on and can be switched off', () => {
+  const db = openDb(':memory:')
+  expect(autoUpdate(db)).toBe(true)
+  setAutoUpdate(db, false)
+  expect(autoUpdate(db)).toBe(false)
+  setAutoUpdate(db, true)
+  expect(autoUpdate(db)).toBe(true)
 })
 

@@ -157,6 +157,7 @@ export type Settings = {
   widgets: WidgetLayout[]
   groundingStrict: boolean
   localOnly: boolean
+  autoUpdate: boolean
   dataDir: string
 }
 
@@ -288,6 +289,7 @@ export const api = {
     widgets?: WidgetLayout[]
     groundingStrict?: boolean
     localOnly?: boolean
+    autoUpdate?: boolean
   }): Promise<void> => {
     await fetch('/api/settings', {
       method: 'PUT',

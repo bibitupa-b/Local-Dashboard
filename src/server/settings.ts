@@ -181,6 +181,15 @@ export function setLocalOnly(db: DatabaseSync, value: boolean): void {
   setSetting(db, 'local_only', value ? '1' : '0')
 }
 
+/** Auto-update is on unless the person turned it off; local only always skips it. */
+export function autoUpdate(db: DatabaseSync): boolean {
+  return getSetting(db, 'auto_update') !== '0'
+}
+
+export function setAutoUpdate(db: DatabaseSync, value: boolean): void {
+  setSetting(db, 'auto_update', value ? '1' : '0')
+}
+
 /** Strict grounding is on unless the person turned it off. */
 export function groundingStrict(db: DatabaseSync): boolean {
   return getSetting(db, 'grounding_strict') !== '0'
