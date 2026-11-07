@@ -16,6 +16,8 @@
     "dist": "npm run build && npm run build:server && electron-builder --win",
     "start": "tsx src/server/index.ts",
     "test": "vitest run",
+    "test:e2e": "playwright test e2e/zero-state.spec.ts e2e/local-only.spec.ts e2e/settings.spec.ts",
+    "test:visual": "playwright test e2e/visual.spec.ts",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm test && npm run build"
   },
@@ -78,6 +80,7 @@
     "tsx": "^4.23.15"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "@testing-library/react": "^16.3.3",
     "@types/mailparser": "^3.9.0",
     "@types/node": "^26.6.6",

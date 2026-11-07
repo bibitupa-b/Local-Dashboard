@@ -5,6 +5,8 @@ data/
 *.log
 .superpowers/
 release/
+test-results/
+playwright-report/
 
 # impeccable-ignore-start
 # Ephemeral output, runtime state, and per-dev overrides.
