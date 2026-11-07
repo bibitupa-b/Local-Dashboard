@@ -183,7 +183,7 @@ Only titles and short summaries reach the briefing; the feed is fetched on this 
     description: 'Outlook calendar and Teams mentions, read-only.',
     hint: `1. Azure app registration -> Mobile and desktop applications.
 2. Set the redirect URI to http://127.0.0.1:4317/api/oauth/microsoft/callback.
-3. Add the scopes Calendars.Read Chat.Read.
+3. Add the scopes offline_access User.Read Calendars.Read Chat.Read.
 4. Paste the Client ID (and optional Client secret), save, then press Connect.
 No admin consent is needed for chats; channels are not supported.`,
     fields: [
