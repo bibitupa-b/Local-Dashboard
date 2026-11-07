@@ -1,4 +1,5 @@
 import { join, resolve } from 'node:path'
+import { randomBytes } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { schedule, type ScheduledTask } from 'node-cron'
 import { buildApp } from './app.js'
@@ -38,9 +39,10 @@ import {
   saveConnection,
   type ConnectionInput,
 } from './connections.js'
-import { buildSources, googleCreds, publicConnections, toPublicConnection } from './registry.js'
+import { buildSources, googleCreds, microsoftCreds, publicConnections, toPublicConnection } from './registry.js'
 import { testConnection } from './connection-test.js'
 import { exchangeGoogleCode, googleAuthUrl } from './google.js'
+import { exchangeMicrosoftCode, microsoftAuthUrl } from './microsoft.js'
 
 export type ServerOptions = {
   dataDir?: string
@@ -55,6 +57,10 @@ export type RunningServer = {
   port: number
   close: () => Promise<void>
 }
+
+type MicrosoftOAuthState = { connectionId: string; verifier: string; expiresAt: number }
+const MICROSOFT_STATE_TTL_MS = 10 * 60_000
+const microsoftStates = new Map<string, MicrosoftOAuthState>()
 
 export async function startServer(options: ServerOptions = {}): Promise<RunningServer> {
   const envFile = options.envFile === undefined ? join(process.cwd(), '.env') : options.envFile
@@ -233,6 +239,51 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         label: connection.label,
         config: connection.config,
         secret: { ...connection.secret, tokens },
+      })
+      await reloadSources()
+    },
+    microsoftStart: (connectionId, state) => {
+      const connection = getConnection(db, box, connectionId)
+      if (!connection || connection.service !== 'microsoft') return null
+      if (!connection.config.clientId) return null
+      const verifier = randomBytes(32).toString('base64url')
+      const now = Date.now()
+      for (const [key, entry] of microsoftStates) {
+        if (entry.expiresAt <= now) microsoftStates.delete(key)
+      }
+      microsoftStates.set(state, {
+        connectionId,
+        verifier,
+        expiresAt: now + MICROSOFT_STATE_TTL_MS,
+      })
+      return microsoftAuthUrl(
+        microsoftCreds(connection, { db, box, config, dataDir: config.dataDir }),
+        state,
+        verifier,
+      )
+    },
+    microsoftComplete: async (code, state) => {
+      const entry = microsoftStates.get(state)
+      if (!entry || entry.expiresAt <= Date.now()) {
+        microsoftStates.delete(state)
+        throw new Error('Microsoft OAuth state is unknown or expired')
+      }
+      microsoftStates.delete(state)
+      const connection = getConnection(db, box, entry.connectionId)
+      if (!connection || connection.service !== 'microsoft') {
+        throw new Error('Unknown Microsoft connection')
+      }
+      const tokens = await exchangeMicrosoftCode(
+        microsoftCreds(connection, { db, box, config, dataDir: config.dataDir }),
+        code,
+        entry.verifier,
+      )
+      saveConnection(db, box, {
+        id: connection.id,
+        service: 'microsoft',
+        label: connection.label,
+        config: connection.config,
+        secret: { ...connection.secret, tokens: JSON.stringify(tokens) },
       })
       await reloadSources()
     },

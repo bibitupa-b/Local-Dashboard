@@ -16,6 +16,7 @@ export type Service =
   | 'rss'
   | 'slack'
   | 'caldav'
+  | 'microsoft'
   | 'deepseek'
 export const SERVICES: Service[] = [
   'vault',
@@ -27,6 +28,7 @@ export const SERVICES: Service[] = [
   'rss',
   'slack',
   'caldav',
+  'microsoft',
   'deepseek',
 ]
 

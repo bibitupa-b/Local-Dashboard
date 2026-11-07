@@ -26,6 +26,8 @@ export type Deps = {
   connections?: ConnectionsApi
   googleStart?: (connectionId: string, state: string) => string | null
   googleComplete?: (connectionId: string, code: string) => Promise<void>
+  microsoftStart?: (connectionId: string, state: string) => string | null
+  microsoftComplete?: (code: string, state: string) => Promise<void>
 }
 
 export function buildApp(deps: Deps): FastifyInstance {
@@ -84,6 +86,8 @@ export function buildApp(deps: Deps): FastifyInstance {
     connections: deps.connections,
     googleStart: deps.googleStart,
     googleComplete: deps.googleComplete,
+    microsoftStart: deps.microsoftStart,
+    microsoftComplete: deps.microsoftComplete,
   })
 
   const webRoot = deps.webRoot ?? join(process.cwd(), 'dist', 'web')

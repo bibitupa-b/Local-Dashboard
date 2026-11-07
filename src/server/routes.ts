@@ -71,6 +71,8 @@ export type RouteDeps = {
   connections?: ConnectionsApi
   googleStart?: (connectionId: string, state: string) => string | null
   googleComplete?: (connectionId: string, code: string) => Promise<void>
+  microsoftStart?: (connectionId: string, state: string) => string | null
+  microsoftComplete?: (code: string, state: string) => Promise<void>
 }
 
 type FeedItem = {
@@ -902,5 +904,38 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     }
     console.log('[google] oauth connected', connectionId)
     return reply.redirect('/?drive=connected')
+  })
+
+  app.get('/api/oauth/microsoft/start', async (request, reply) => {
+    if (isLocalOnly(db)) {
+      return reply
+        .code(409)
+        .send({ error: 'Local only is on. Turn it off to connect Microsoft 365.' })
+    }
+    const { connection } = request.query as { connection?: string }
+    const target =
+      connection ?? deps.connections?.list().find((row) => row.service === 'microsoft')?.id
+    if (!target) return reply.code(400).send({ error: 'No Microsoft 365 connection configured' })
+    const state = randomBytes(16).toString('hex')
+    const url = deps.microsoftStart?.(target, state)
+    if (!url) return reply.code(400).send({ error: 'Microsoft credentials are not configured' })
+    return reply.redirect(url)
+  })
+
+  app.get('/api/oauth/microsoft/callback', async (request, reply) => {
+    if (isLocalOnly(db)) {
+      return reply
+        .code(409)
+        .send({ error: 'Local only is on. Turn it off to connect Microsoft 365.' })
+    }
+    const { code, state, error } = request.query as { code?: string; state?: string; error?: string }
+    if (error || !code || !state) return reply.redirect('/?microsoft=error')
+    try {
+      await deps.microsoftComplete?.(code, state)
+    } catch (failure) {
+      console.error('[microsoft] OAuth exchange failed:', failure)
+      return reply.redirect('/?microsoft=error')
+    }
+    return reply.redirect('/?microsoft=connected')
   })
 }

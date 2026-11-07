@@ -170,6 +170,7 @@ export type Service =
   | 'rss'
   | 'slack'
   | 'caldav'
+  | 'microsoft'
   | 'deepseek'
 
 export type Connection = {

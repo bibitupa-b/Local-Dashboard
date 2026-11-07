@@ -643,6 +643,45 @@ test('connections API saves, tests and reloads sources', async () => {  const db
   await app.close()
 })
 
+test('a Microsoft connection without tokens tests as not ok', async () => {
+  const db = openDb(':memory:')
+  const config = loadConfig({ VAULT_PATH: root })
+  const { createSecretBox } = await import('../src/server/secrets.js')
+  const { saveConnection, getConnection } = await import('../src/server/connections.js')
+  const { toPublicConnection } = await import('../src/server/registry.js')
+  const { testConnection } = await import('../src/server/connection-test.js')
+  const box = createSecretBox(root)
+  const app = buildApp({
+    db,
+    config,
+    sources: [],
+    webRoot: join(root, 'no-ui'),
+    connections: {
+      list: () => [],
+      save: (input) => toPublicConnection(saveConnection(db, box, input)),
+      remove: () => {},
+      test: async (id) => {
+        const connection = getConnection(db, box, id)
+        return connection ? testConnection(connection) : { ok: false, error: 'Unknown connection' }
+      },
+    },
+  })
+
+  const created = await app.inject({
+    method: 'POST',
+    url: '/api/connections',
+    payload: { service: 'microsoft', label: 'Work', config: { tenant: 'common', clientId: 'client' } },
+  })
+  expect(created.statusCode).toBe(200)
+  const id = created.json().id as string
+
+  const tested = await app.inject({ method: 'POST', url: `/api/connections/${id}/test` })
+  expect(tested.statusCode).toBe(200)
+  expect(tested.json()).toMatchObject({ ok: false })
+  expect(tested.json().error).toBeTruthy()
+  await app.close()
+})
+
 test('local only refuses connection tests and Google OAuth without calling out', async () => {
   const db = openDb(':memory:')
   setLocalOnly(db, true)
@@ -686,6 +725,13 @@ test('local only refuses connection tests and Google OAuth without calling out',
 
   const start = await app.inject({ method: 'GET', url: '/api/oauth/google/start' })
   expect(start.statusCode).toBe(409)
+  const microsoftStart = await app.inject({ method: 'GET', url: '/api/oauth/microsoft/start' })
+  expect(microsoftStart.statusCode).toBe(409)
+  const microsoftCallback = await app.inject({
+    method: 'GET',
+    url: '/api/oauth/microsoft/callback?code=c&state=s',
+  })
+  expect(microsoftCallback.statusCode).toBe(409)
   await app.close()
 })
 

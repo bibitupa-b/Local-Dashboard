@@ -2,9 +2,21 @@ import { existsSync } from 'node:fs'
 import { ImapFlow } from 'imapflow'
 import { createDAVClient } from 'tsdav'
 import { hasScope, DRIVE_SCOPE, CALENDAR_SCOPE, TASKS_SCOPE } from './google.js'
+import { graph, hasMicrosoftScope, type MicrosoftCreds, type MicrosoftTokens } from './microsoft.js'
 import type { Connection } from './connections.js'
 
 export type TestResult = { ok: boolean; error?: string }
+
+function microsoftTokens(connection: Connection): MicrosoftTokens | null {
+  const raw = connection.secret?.tokens
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as MicrosoftTokens
+    return typeof parsed?.access_token === 'string' ? parsed : null
+  } catch {
+    return null
+  }
+}
 
 export async function testConnection(connection: Connection): Promise<TestResult> {
   try {
@@ -121,6 +133,25 @@ export async function testConnection(connection: Connection): Promise<TestResult
           !hasScope(tokens, TASKS_SCOPE)
         ) {
           return { ok: false, error: 'Token has no Drive, Calendar or Tasks scope' }
+        }
+        return { ok: true }
+      }
+      case 'microsoft': {
+        const tokens = microsoftTokens(connection)
+        if (!tokens) return { ok: false, error: 'Microsoft account is not connected yet' }
+        const creds: MicrosoftCreds = {
+          clientId: connection.config.clientId ?? '',
+          clientSecret: connection.secret?.clientSecret,
+          tenant: connection.config.tenant?.trim() || 'common',
+          port: 4317, // /me does not use the port; only the authorize/token URL does
+          tokens,
+        }
+        await graph<{ userPrincipalName?: string }>(creds, '/me?$select=userPrincipalName')
+        if (!hasMicrosoftScope(tokens, 'Chat.Read')) {
+          return {
+            ok: true,
+            error: 'Calendar is connected; Teams is skipped - add the Chat.Read scope and reconnect.',
+          }
         }
         return { ok: true }
       }

@@ -29,6 +29,9 @@ import {
   parseCalendarIds,
 } from './sources/calendar.js'
 import { createCalDavCalendarApi } from './sources/caldav.js'
+import { createMicrosoftCalendarApi } from './sources/microsoft-calendar.js'
+import { createMicrosoftTeamsApi, createTeamsSource } from './sources/teams.js'
+import { hasMicrosoftScope, type MicrosoftCreds, type MicrosoftTokens } from './microsoft.js'
 
 export type RegistryDeps = {
   db: DatabaseSync
@@ -50,6 +53,35 @@ export function googleCreds(connection: Connection, deps: RegistryDeps): GoogleC
         label: connection.label,
         config: connection.config,
         secret: { ...connection.secret, tokens },
+      })
+    },
+  }
+}
+
+function parseMicrosoftTokens(raw: string | undefined): MicrosoftTokens | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as MicrosoftTokens
+    return typeof parsed?.access_token === 'string' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+export function microsoftCreds(connection: Connection, deps: RegistryDeps): MicrosoftCreds {
+  return {
+    clientId: connection.config.clientId ?? '',
+    clientSecret: connection.secret?.clientSecret,
+    tenant: connection.config.tenant?.trim() || 'common',
+    port: deps.config.port,
+    tokens: parseMicrosoftTokens(connection.secret?.tokens),
+    onTokens: (tokens) => {
+      saveConnection(deps.db, deps.box, {
+        id: connection.id,
+        service: connection.service,
+        label: connection.label,
+        config: connection.config,
+        secret: { ...connection.secret, tokens: JSON.stringify(tokens) },
       })
     },
   }
@@ -137,6 +169,24 @@ export function buildSources(deps: RegistryDeps): Source[] {
         break
       case 'deepseek':
         break
+      case 'microsoft': {
+        const creds = microsoftCreds(connection, deps)
+        sources.push(
+          createCalendarSource(
+            createMicrosoftCalendarApi(
+              hasMicrosoftScope(creds.tokens, 'Calendars.Read') ? creds : null,
+            ),
+            meta('calendar'),
+          ),
+        )
+        sources.push(
+          createTeamsSource(
+            createMicrosoftTeamsApi(hasMicrosoftScope(creds.tokens, 'Chat.Read') ? creds : null),
+            meta('teams'),
+          ),
+        )
+        break
+      }
       case 'google': {
         const creds = googleCreds(connection, deps)
         const driveClient = hasScope(creds.tokens, DRIVE_SCOPE) ? authorizedClient(creds) : null

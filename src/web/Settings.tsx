@@ -177,6 +177,27 @@ Only titles and short summaries reach the briefing; the feed is fetched on this 
       { key: 'password', label: 'App password', secret: true, placeholder: 'xxxx-xxxx-xxxx-xxxx' },
     ],
   },
+  {
+    service: 'microsoft',
+    name: 'Microsoft 365',
+    description: 'Outlook calendar and Teams mentions, read-only.',
+    hint: `1. Azure app registration -> Mobile and desktop applications.
+2. Set the redirect URI to http://127.0.0.1:4317/api/oauth/microsoft/callback.
+3. Add the scopes Calendars.Read Chat.Read.
+4. Paste the Client ID (and optional Client secret), save, then press Connect.
+No admin consent is needed for chats; channels are not supported.`,
+    fields: [
+      { key: 'tenant', label: 'Tenant', placeholder: 'common' },
+      { key: 'clientId', label: 'Client ID', placeholder: 'Application (client) ID' },
+      {
+        key: 'clientSecret',
+        label: 'Client secret',
+        secret: true,
+        optional: true,
+        placeholder: 'optional',
+      },
+    ],
+  },
 ]
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -191,6 +212,7 @@ const SOURCE_LABELS: Record<string, string> = {
   tasks: 'google tasks',
   slack: 'slack',
   caldav: 'calendar',
+  teams: 'teams',
 }
 
 type Notice = { text: string; tone: 'info' | 'success' | 'error' }
@@ -931,7 +953,7 @@ export function SettingsPanel({
                       >
                         Edit
                       </button>
-                      {definition.service === 'google' &&
+                      {(definition.service === 'google' || definition.service === 'microsoft') &&
                         (localOnly.draft ? (
                           <span
                             className="btn btn--ghost btn--mini is-disabled"
@@ -945,7 +967,7 @@ export function SettingsPanel({
                           // so the dashboard itself never navigates away.
                           <a
                             className="btn btn--ghost btn--mini"
-                            href={`/api/oauth/google/start?connection=${row.id}`}
+                            href={`/api/oauth/${definition.service}/start?connection=${row.id}`}
                             target="_blank"
                             rel="noreferrer"
                           >
@@ -1583,7 +1605,9 @@ export function SettingsPanel({
                 text:
                   saved.service === 'google' && !saved.secretsSet.includes('tokens')
                     ? 'Saved. Press Connect next to the Google account to grant access.'
-                    : `Saved ${saved.label}.`,
+                    : saved.service === 'microsoft' && !saved.secretsSet.includes('tokens')
+                      ? 'Saved. Press Connect next to the Microsoft 365 account to grant access.'
+                      : `Saved ${saved.label}.`,
                 tone: 'success',
               })
             }}
@@ -1668,6 +1692,8 @@ function isHealthy(connection: Connection): boolean {
       return connection.secretsSet.includes('token')
     case 'caldav':
       return Boolean(connection.config.url) && connection.secretsSet.includes('password')
+    case 'microsoft':
+      return connection.secretsSet.includes('tokens')
     default:
       return false
   }
@@ -1703,6 +1729,8 @@ function detailOf(connection: Connection): string {
       })()
       return [connection.config.preset, host].filter(Boolean).join(' · ')
     }
+    case 'microsoft':
+      return connection.secretsSet.includes('tokens') ? 'connected' : 'not connected'
     case 'deepseek':
       return connection.secretsSet.includes('key') ? 'key saved' : 'no key'
     default:

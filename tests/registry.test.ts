@@ -8,6 +8,38 @@ import { createSecretBox } from '../src/server/secrets.js'
 import { saveConnection } from '../src/server/connections.js'
 import { buildSources } from '../src/server/registry.js'
 
+test('one Microsoft connection yields calendar and teams sources', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'registry-ms-'))
+  try {
+    const db = openDb(':memory:')
+    const box = createSecretBox(dir)
+    const config = loadConfig({ VAULT_PATH: 'C:/notes' })
+
+    saveConnection(db, box, {
+      service: 'microsoft',
+      label: 'Work',
+      config: { tenant: 'common', clientId: 'client' },
+      secret: {
+        tokens: JSON.stringify({
+          access_token: 'a',
+          refresh_token: 'r',
+          expires_at: Date.now() + 3600_000,
+          scope: 'Calendars.Read Chat.Read',
+        }),
+      },
+    })
+
+    const sources = buildSources({ db, box, config, dataDir: dir })
+    const kinds = sources.map((source) => source.kind)
+    expect(kinds).toContain('calendar')
+    expect(kinds).toContain('teams')
+    expect(sources.find((source) => source.kind === 'calendar')?.configured()).toBe(true)
+    expect(sources.find((source) => source.kind === 'teams')?.configured()).toBe(true)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('builds one source per connection, google yields drive and calendar', () => {
   const dir = mkdtempSync(join(tmpdir(), 'registry-'))
   try {

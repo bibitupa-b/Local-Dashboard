@@ -88,6 +88,12 @@ function SourceGlyph({ service }: { service: string }) {
           <path d="M3.5 10h17M8 3.5v4M16 3.5v4" {...common} />
         </>
       )}
+      {service === 'microsoft' && (
+        <>
+          <rect x="4" y="4" width="16" height="16" rx="3.5" {...common} />
+          <path d="M9.5 8h5M12 8v8" {...common} />
+        </>
+      )}
       {service === 'settings' && (
         <>
           <circle cx="12" cy="12" r="3" {...common} />
@@ -108,6 +114,7 @@ const SERVICE_LABELS: Record<string, string> = {
   rss: 'news',
   slack: 'slack',
   caldav: 'calendar',
+  microsoft: 'microsoft 365',
 }
 
 // A station link is named by what it opens, not only by its state.
@@ -776,8 +783,17 @@ export function App() {
   }
 
   useEffect(() => {
-    const drive = new URLSearchParams(window.location.search).get('drive')
-    if (drive === 'connected') {
+    const params = new URLSearchParams(window.location.search)
+    const microsoft = params.get('microsoft')
+    const drive = params.get('drive')
+    if (microsoft === 'connected') {
+      setNote({ text: 'Microsoft 365 connected. Sources are syncing now.', tone: 'success' })
+    } else if (microsoft === 'error') {
+      setNote({
+        text: 'Microsoft 365 authorization failed. Try connecting again from Settings.',
+        tone: 'error',
+      })
+    } else if (drive === 'connected') {
       setNote({ text: 'Google connected. Sources are syncing now.', tone: 'success' })
     } else if (drive === 'error') {
       setNote({
@@ -1271,7 +1287,7 @@ export function App() {
   )
 
   const stations = (() => {
-    const order = ['vault', 'google', 'caldav', 'imap', 'github', 'weather', 'rss', 'slack', 'browser']
+    const order = ['vault', 'google', 'caldav', 'microsoft', 'imap', 'github', 'weather', 'rss', 'slack', 'browser']
     const map = new Map<
       string,
       { service: string; total: number; configured: number; error: string | null; lastSync: string | null }
