@@ -1127,17 +1127,18 @@ test('the settings route moves focus in and returns it on the way back', async (
 
 test('the optional card stays away once a source exists', async () => {
   localStorage.setItem('dashboard.welcomed', '1')
-  const settings = {
-    ...(responses['/api/settings'] as Record<string, unknown>),
-    hasDeepSeekKey: true,
-  }
-  const briefings = {
-    items: [
+  // The only difference from the zero-state case is a non-empty sources list: no key, no briefing.
+  const status = {
+    ...(responses['/api/status'] as Record<string, unknown>),
+    sources: [
       {
-        id: 1,
-        created_at: '2026-11-01T08:00:00.000Z',
-        trigger: 'auto',
-        markdown: 'One bullet',
+        id: 'vault:default',
+        kind: 'vault',
+        service: 'vault',
+        connectionId: 'default',
+        label: 'vault',
+        configured: true,
+        lastSync: null,
       },
     ],
   }
@@ -1145,17 +1146,15 @@ test('the optional card stays away once a source exists', async () => {
     'fetch',
     vi.fn(async (url: string) => ({
       ok: true,
-      json: async () =>
-        url === '/api/settings'
-          ? settings
-          : url === '/api/briefings?limit=10'
-            ? briefings
-            : responses[url] ?? {},
+      json: async () => (url === '/api/status' ? status : responses[url] ?? {}),
     })),
   )
   const { unmount } = render(<App />)
-  await waitFor(() => expect(screen.getByText('One bullet')).toBeTruthy())
-  expect(screen.queryByText('Suggestion')).toBeNull()
+  expect(
+    await screen.findByText(
+      'No briefing yet. Generate one - without a DeepSeek key it uses local rules.',
+    ),
+  ).toBeTruthy()
   expect(screen.queryByText('Everything is optional')).toBeNull()
   unmount()
 })
