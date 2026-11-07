@@ -79,3 +79,20 @@ test('local only sends nothing', async () => {
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('a setup failure resolves to [] instead of rejecting', async () => {
+  const dir = tempDir()
+  try {
+    const box = createSecretBox(dir)
+    const db = openDb(':memory:')
+    db.close()
+    const result = await deliverBriefing(db, box, briefing, 'daily', {
+      smtp: async () => {
+        throw new Error('must not run')
+      },
+    })
+    expect(result).toEqual([])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

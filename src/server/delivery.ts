@@ -84,6 +84,7 @@ const defaultTelegramSender: TelegramSender = async (input) => {
 /**
  * Sends a saved briefing to every enabled SMTP and Telegram connection. A failing channel never
  * blocks another or throws; each outcome is returned and the error is logged by connection id only.
+ * Delivery is fire-and-forget from the briefing path, so the whole call must resolve, never reject.
  */
 export async function deliverBriefing(
   db: DatabaseSync,
@@ -92,55 +93,60 @@ export async function deliverBriefing(
   kind: string,
   deps: DeliveryDeps = {},
 ): Promise<DeliveryResult[]> {
-  if (isLocalOnly(db)) return []
-
-  const subject = `Local Dashboard - ${briefing.body.headline}`
   const results: DeliveryResult[] = []
+  try {
+    if (isLocalOnly(db)) return []
 
-  for (const connection of listConnections(db, box)) {
-    if (!connection.enabled) continue
-    if (connection.service !== 'smtp' && connection.service !== 'telegram') continue
-    try {
-      if (connection.service === 'smtp') {
-        const send = deps.smtp ?? defaultSmtpSender
-        await withTimeout(
-          send({
-            host: connection.config.host ?? '',
-            port: Number(connection.config.port),
-            secure: connection.config.port === '465',
-            user: connection.secret?.user ?? '',
-            password: connection.secret?.password ?? '',
-            from: connection.config.from ?? '',
-            to: connection.config.to ?? '',
-            subject,
-            text: briefing.markdown,
-          }),
-          `smtp ${connection.id}`,
-        )
-      } else {
-        const send = deps.telegram ?? defaultTelegramSender
-        await withTimeout(
-          send({
-            token: connection.secret?.botToken ?? '',
-            chatId: connection.config.chatId ?? '',
-            text: briefing.markdown,
-          }),
-          `telegram ${connection.id}`,
-        )
+    const subject = `Local Dashboard - ${briefing.body.headline}`
+
+    for (const connection of listConnections(db, box)) {
+      if (!connection.enabled) continue
+      if (connection.service !== 'smtp' && connection.service !== 'telegram') continue
+      try {
+        if (connection.service === 'smtp') {
+          const send = deps.smtp ?? defaultSmtpSender
+          await withTimeout(
+            send({
+              host: connection.config.host ?? '',
+              port: Number(connection.config.port),
+              secure: connection.config.port === '465',
+              user: connection.secret?.user ?? '',
+              password: connection.secret?.password ?? '',
+              from: connection.config.from ?? '',
+              to: connection.config.to ?? '',
+              subject,
+              text: briefing.markdown,
+            }),
+            `smtp ${connection.id}`,
+          )
+        } else {
+          const send = deps.telegram ?? defaultTelegramSender
+          await withTimeout(
+            send({
+              token: connection.secret?.botToken ?? '',
+              chatId: connection.config.chatId ?? '',
+              text: briefing.markdown,
+            }),
+            `telegram ${connection.id}`,
+          )
+        }
+        results.push({ connectionId: connection.id, service: connection.service, ok: true })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        // Never log secrets or message bodies: only the connection id and the error message.
+        console.error(`[delivery] ${connection.id}: ${message}`)
+        results.push({
+          connectionId: connection.id,
+          service: connection.service,
+          ok: false,
+          error: message,
+        })
       }
-      results.push({ connectionId: connection.id, service: connection.service, ok: true })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      // Never log secrets or message bodies: only the connection id and the error message.
-      console.error(`[delivery] ${connection.id}: ${message}`)
-      results.push({
-        connectionId: connection.id,
-        service: connection.service,
-        ok: false,
-        error: message,
-      })
     }
+  } catch (error) {
+    // A read failure before or between channels must not reject the fire-and-forget call.
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`[delivery] ${message}`)
   }
-
   return results
 }
