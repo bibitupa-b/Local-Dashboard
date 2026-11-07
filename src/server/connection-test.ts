@@ -165,10 +165,13 @@ export async function testConnection(connection: Connection): Promise<TestResult
           return { ok: false, error: 'Host and port are required' }
         }
         if (!user || !password) return { ok: false, error: 'SMTP username and password are required' }
+        const secure = port === 465
         const transport = nodemailer.createTransport({
           host,
           port,
-          secure: connection.config.port === '465',
+          secure,
+          // Non-465 ports must upgrade with STARTTLS; never fall back to plaintext.
+          requireTLS: !secure,
           auth: { user, pass: password },
         })
         await transport.verify()

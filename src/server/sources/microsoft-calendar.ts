@@ -52,7 +52,8 @@ function offsetMs(date: Date, timeZone: string): number {
 
 export function toMicrosoftEvents(items: MicrosoftGraphEvent[]): CalendarEvent[] {
   return items.flatMap<CalendarEvent>((item) => {
-    const id = item.iCalUId ?? item.id
+    // Each calendarView occurrence has a unique id; iCalUId is shared across the series.
+    const id = item.id ?? item.iCalUId
     if (!id) return []
     return [
       {

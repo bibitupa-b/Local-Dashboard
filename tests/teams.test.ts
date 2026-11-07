@@ -9,6 +9,8 @@ import {
   type TeamsMention,
 } from '../src/server/sources/teams.js'
 import { toMicrosoftEvents } from '../src/server/sources/microsoft-calendar.js'
+import { createCalendarSource } from '../src/server/sources/calendar.js'
+import { sourceMeta } from '../src/server/sources/types.js'
 import type { MicrosoftCreds } from '../src/server/microsoft.js'
 
 function fakeApi(mentions: TeamsMention[]): TeamsApi {
@@ -114,6 +116,30 @@ test('digest uses plurals across chats', async () => {
   ]))
   await source.sync(db)
   expect(source.digest(db, new Date()).join('\n')).toContain('Teams: 2 mentions in 2 chats')
+})
+
+test('recurring Graph occurrences sharing one iCalUId keep distinct ids', () => {
+  const events = toMicrosoftEvents([
+    { id: 'occ-1', iCalUId: 'series-uid', subject: 'Standup', start: { dateTime: '2026-11-09T09:00:00', timeZone: 'UTC' }, end: { dateTime: '2026-11-09T09:30:00', timeZone: 'UTC' } },
+    { id: 'occ-2', iCalUId: 'series-uid', subject: 'Standup', start: { dateTime: '2026-11-10T09:00:00', timeZone: 'UTC' }, end: { dateTime: '2026-11-10T09:30:00', timeZone: 'UTC' } },
+  ])
+  expect(events.map((e) => e.id)).toEqual(['occ-1', 'occ-2'])
+})
+
+test('calendar source stores both recurring occurrences from Graph', async () => {
+  const db = openDb(':memory:')
+  const api = {
+    async upcoming() {
+      return toMicrosoftEvents([
+        { id: 'occ-1', iCalUId: 'series-uid', subject: 'Standup', start: { dateTime: '2026-11-09T09:00:00', timeZone: 'UTC' }, end: { dateTime: '2026-11-09T09:30:00', timeZone: 'UTC' } },
+        { id: 'occ-2', iCalUId: 'series-uid', subject: 'Standup', start: { dateTime: '2026-11-10T09:00:00', timeZone: 'UTC' }, end: { dateTime: '2026-11-10T09:30:00', timeZone: 'UTC' } },
+      ])
+    },
+  }
+  const source = createCalendarSource(api, sourceMeta('calendar', 'microsoft', 'ms-1', 'Work'))
+  await source.sync(db)
+  const rows = db.prepare('SELECT id FROM calendar_events ORDER BY start').all() as Array<{ id: string }>
+  expect(rows.map((r) => r.id)).toEqual(['occ-1', 'occ-2'])
 })
 
 test('purgeConnectionData removes teams_mentions for the connection', () => {
