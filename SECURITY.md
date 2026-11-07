@@ -18,7 +18,7 @@ This is a personal project. Open an issue or message the maintainer privately if
 - CalDAV talks only to the server URL you configured (iCloud or a custom host), read-only, using the app password or account password stored encrypted. The server never writes to events.
 - Microsoft 365 talks only to `login.microsoftonline.com` (token exchange) and `graph.microsoft.com` (read-only). The delegated scopes are `offline_access User.Read Calendars.Read Chat.Read`: Outlook mail and Teams channels are not requested, and no admin consent is involved (if the tenant blocks user consent, an admin approves the four scopes once). Teams requests only message ids, timestamps, senders and mention flags via `$select`; message text is never stored, logged or sent.
 - **IMAP IDLE** is opt-in per Gmail connection and opens one additional read-only TLS connection to `imap.gmail.com:993`, watching `INBOX`. An `exists` event triggers the normal mail sync; no message body is sent anywhere by the watcher. The app password is the same encrypted secret as polling. Local only builds no network mail source, so no watcher runs.
-- **Delivery is opt-in outbound egress.** SMTP and Telegram connections default to disabled. When one is enabled, the saved briefing markdown leaves the machine through your SMTP server or `api.telegram.org`; it carries the same subjects and snippets as the digest. A send is limited to 20 seconds and a failure is logged by connection id only. Local only sends nothing.
+- **Delivery is opt-in outbound egress.** SMTP and Telegram connections default to disabled. When one is enabled, the saved briefing markdown leaves the machine through your SMTP server or `api.telegram.org`; it does not include the digest, though its bullets may quote subjects and snippets. SMTP uses implicit TLS on port 465 and requires STARTTLS elsewhere (no plaintext fallback). A send is limited to 20 seconds, and a failure is recorded on the connection in Settings and logged by connection id only. Local only sends nothing.
 
 ## Secrets
 
@@ -30,7 +30,7 @@ This is a personal project. Open an issue or message the maintainer privately if
 ## Accepted risks
 
 - The installer is not code-signed; Windows SmartScreen may warn about an unknown publisher.
-- An enabled delivery channel deliberately sends the briefing text off the machine to the SMTP or Telegram endpoint you configured; the Settings warning is the consent point.
+- An enabled delivery channel deliberately sends the briefing markdown off the machine to the SMTP or Telegram endpoint you configured; the Settings warning is the consent point.
 - The port is reachable by other processes running as the same user. The API has no authentication beyond the local binding and origin checks.
 - `data/server.log` may contain file paths and error messages, but never secrets.
 - Browser history of excluded domains is skipped at write time; other domains are stored locally and only aggregated domain counts reach the AI provider.

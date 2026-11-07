@@ -133,6 +133,9 @@ export function saveConnection(
   }
 
   const id = `${input.service}-${randomBytes(4).toString('hex')}`
+  // Delivery services are opt-in: without an explicit `enabled`, new SMTP/Telegram rows start off.
+  const defaultEnabled = input.service !== 'smtp' && input.service !== 'telegram'
+  const enabled = input.enabled ?? defaultEnabled
   db.prepare(
     `INSERT INTO connections (id, service, label, config, secret, enabled, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -142,7 +145,7 @@ export function saveConnection(
     input.label.trim() || input.service,
     JSON.stringify(config),
     secret ? box.encrypt(JSON.stringify(secret)) : null,
-    input.enabled === false ? 0 : 1,
+    enabled ? 1 : 0,
     now.toISOString(),
   )
   return getConnection(db, box, id)!

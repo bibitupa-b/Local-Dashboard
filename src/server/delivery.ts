@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import nodemailer from 'nodemailer'
 import type { SecretBox } from './secrets.js'
-import { listConnections } from './connections.js'
+import { listConnections, markConnectionSync } from './connections.js'
 import { isLocalOnly } from './settings.js'
 
 export type DeliveryResult = {
@@ -58,6 +58,8 @@ const defaultSmtpSender: SmtpSender = async (input) => {
     host: input.host,
     port: input.port,
     secure: input.secure,
+    // Non-465 ports must upgrade with STARTTLS; never fall back to plaintext.
+    requireTLS: !input.secure,
     auth: { user: input.user, pass: input.password },
   })
   await transport.sendMail({
@@ -131,10 +133,12 @@ export async function deliverBriefing(
           )
         }
         results.push({ connectionId: connection.id, service: connection.service, ok: true })
+        markConnectionSync(db, connection.id, null)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         // Never log secrets or message bodies: only the connection id and the error message.
         console.error(`[delivery] ${connection.id}: ${message}`)
+        markConnectionSync(db, connection.id, message)
         results.push({
           connectionId: connection.id,
           service: connection.service,

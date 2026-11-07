@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { expect, test } from 'vitest'
 import { openDb } from '../src/server/db/index.js'
 import { createSecretBox } from '../src/server/secrets.js'
-import { saveConnection } from '../src/server/connections.js'
+import { getConnection, saveConnection } from '../src/server/connections.js'
 import { setLocalOnly } from '../src/server/settings.js'
 import { deliverBriefing } from '../src/server/delivery.js'
 
@@ -43,12 +43,14 @@ test('one failing channel does not stop the other', async () => {
       label: 'mail',
       config: { host: 's', port: '587', from: 'a@b', to: 'c@d' },
       secret: { user: 'u', password: 'p' },
+      enabled: true,
     })
     saveConnection(db, box, {
       service: 'telegram',
       label: 'tg',
       config: { chatId: '1' },
       secret: { botToken: 't' },
+      enabled: true,
     })
     const result = await deliverBriefing(db, box, briefing, 'daily', {
       smtp: async () => {
@@ -92,6 +94,38 @@ test('a setup failure resolves to [] instead of rejecting', async () => {
       },
     })
     expect(result).toEqual([])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a channel outcome is recorded on the connection', async () => {
+  const dir = tempDir()
+  try {
+    const box = createSecretBox(dir)
+    const db = openDb(':memory:')
+    const smtp = saveConnection(db, box, {
+      service: 'smtp',
+      label: 'mail',
+      config: { host: 's', port: '587', from: 'a@b', to: 'c@d' },
+      secret: { user: 'u', password: 'p' },
+      enabled: true,
+    })
+    const telegram = saveConnection(db, box, {
+      service: 'telegram',
+      label: 'tg',
+      config: { chatId: '1' },
+      secret: { botToken: 't' },
+      enabled: true,
+    })
+    await deliverBriefing(db, box, briefing, 'daily', {
+      smtp: async () => {
+        throw new Error('smtp down')
+      },
+      telegram: async () => {},
+    })
+    expect(getConnection(db, box, smtp.id)?.lastError).toBe('smtp down')
+    expect(getConnection(db, box, telegram.id)?.lastError).toBeNull()
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

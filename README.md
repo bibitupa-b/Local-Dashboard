@@ -5,7 +5,8 @@
 Local Dashboard reads your notes, mail, calendar, Drive, GitHub, Teams chats and browser history,
 then reduces them to a single **Start here** number, today's calendar and a short daily briefing
 written by DeepSeek. Everything runs on your own machine. Only a compact digest leaves it when a
-briefing is generated — and the briefing itself, only if you turn on delivery.
+briefing is generated — and that digest carries the previous briefing's headline and suggestion. The
+full saved briefing leaves the machine only if you turn on delivery.
 
 ![Dashboard](docs/screenshots/current/dashboard.jpeg)
 
@@ -15,15 +16,16 @@ briefing is generated — and the briefing itself, only if you turn on delivery.
 
 - **Mail that arrives now** — opt-in IMAP IDLE on a Gmail connection watches `INBOX` and syncs as
   soon as mail lands. New mail and reply items already counted by the attention rules raise one
-  native notification each; a message never notifies twice. A dropped connection reconnects with
+  native notification each; a message does not notify twice while its id stays in the seen set
+  (bounded to 200). A dropped connection reconnects with
   backoff (1 s doubling to 5 minutes), syncs are serialized, and the existing polling still runs as
   a fallback.
 - **Delivery is opt-in** — SMTP and Telegram connections can send the saved briefing right after it
   is generated. Both are off until you enable them, each channel fails independently, and a delivery
   error never blocks the briefing from being saved.
-- **The delivery warning is explicit** — the Delivery group says the briefing leaves this machine and
-  carries the same subjects and snippets as the digest. **Local only** blocks delivery and IDLE along
-  with every other outbound request.
+- **The delivery warning is explicit** — the Delivery group says the briefing markdown leaves this
+  machine. It does not include the digest, though its bullets may quote subjects and snippets.
+  **Local only** blocks delivery and IDLE along with every other outbound request.
 
 ## What's new in 1.16.0
 
@@ -184,9 +186,10 @@ minutes.
 **Delivery** is a separate group in Settings → Connections, off by default. An SMTP connection needs
 host, port, from and to plus a username and password; a Telegram connection needs a bot token from
 @BotFather and the chat id. The briefing is sent only while that connection is enabled, and the
-Delivery group repeats the warning: **the briefing leaves this machine and includes the same subjects
-and snippets as the digest.** Each channel has a 20-second limit; one failing channel is logged and
-does not stop the other or the briefing.
+Delivery group repeats the warning: **the briefing markdown leaves this machine; it does not include
+the digest, though its bullets may quote subjects and snippets.** Each channel has a 20-second limit;
+one failing channel is recorded on the connection in Settings and does not stop the other or the
+briefing.
 
 `.env` is optional and imported once on first start. See [`.env.example`](.env.example) for the
 available keys: `PORT`, `VAULT_PATH`, `DEEPSEEK_API_KEY`, Google credentials, `GMAIL_USER`,
@@ -209,10 +212,12 @@ history reaches the model as domain counts only. There is no telemetry, no analy
 account.
 
 **Delivery is a second, explicit exit.** SMTP and Telegram are off by default, and nothing is sent
-until you enable a channel. When enabled, the saved briefing — the same subjects and snippets the
-digest already carries — is emailed through your SMTP server or posted to the Telegram Bot API
-(`api.telegram.org`). That is the only case where the briefing text itself leaves the machine. A
-delivery failure is logged by connection id and never prevents the next briefing or source sync.
+until you enable a channel. When enabled, the saved briefing markdown — its headline, bullets and
+suggestion — is emailed through your SMTP server or posted to the Telegram Bot API
+(`api.telegram.org`). It does not include the digest, though its bullets may quote subjects and
+snippets. The digest also carries the previous briefing's headline and suggestion; the full saved
+briefing markdown leaves the machine only via delivery. A delivery failure is recorded on the
+connection in Settings and never prevents the next briefing or source sync.
 
 **Local only** turns the machine into a closed box: every outbound request is blocked, including
 DeepSeek, weather, RSS, Slack, Microsoft 365, CalDAV, Gmail, GitHub, Google, IMAP IDLE and delivery.

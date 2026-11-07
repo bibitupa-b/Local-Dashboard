@@ -93,6 +93,24 @@ test('deepseek key prefers the connection over the environment', () => {
   }
 })
 
+test('delivery services default to disabled, others to enabled', () => {
+  const dir = tempDir()
+  try {
+    const box = createSecretBox(dir)
+    const db = openDb(':memory:')
+    const smtp = saveConnection(db, box, { service: 'smtp', label: 'mail', config: {} })
+    const telegram = saveConnection(db, box, { service: 'telegram', label: 'tg', config: {} })
+    const imap = saveConnection(db, box, { service: 'imap', label: 'gmail', config: {} })
+    expect(smtp.enabled).toBe(false)
+    expect(telegram.enabled).toBe(false)
+    expect(imap.enabled).toBe(true)
+    // An explicit flag still wins.
+    expect(saveConnection(db, box, { service: 'smtp', label: 'on', config: {}, enabled: true }).enabled).toBe(true)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('env credentials become connections once', () => {
   const dir = tempDir()
   try {

@@ -2259,7 +2259,7 @@ export function App() {
               {latest?.digest && (
                 <Disclosure
                   label="What it read"
-                  hint="The digest sent to DeepSeek — the only thing that leaves this machine."
+                  hint="The digest sent to DeepSeek. If delivery is on, the briefing markdown is also sent to your SMTP/Telegram endpoint."
                 >
                   <pre className="digest" lang={contentLang(latest.digest)}>{latest.digest}</pre>
                 </Disclosure>

@@ -19,8 +19,9 @@ table are the only support channel. Single user per machine; no accounts, no rol
 One quiet screen that answers two questions — where do I start today, and what happened — plus a
 2–5 bullet briefing for today written by DeepSeek, grounded in cited digest lines. The briefing owns the page; a single "start here"
 count, the connected services and today's calendar sit above it. Read-only toward every source and
-local by default; only a compact digest leaves the machine when a briefing is generated, plus the
-briefing itself only if the user enables delivery.
+local by default; only a compact digest leaves the machine when a briefing is generated (carrying the
+previous briefing's headline and suggestion), and the full saved briefing leaves only if the user
+enables delivery.
 
 Every connection is optional. The app is complete with zero connections and no DeepSeek key: the
 dashboard loads, a zero-state card explains what can be added, and the briefing runs on local rules.
@@ -84,9 +85,10 @@ Approved decisions; do not re-litigate without asking.
   reconnects with backoff and polling remains the fallback; it is off by default and inert in Local
   only.
 - **Delivery is opt-in, warned and independent.** SMTP and Telegram are disabled until enabled, sit
-  in their own Settings group, and send the saved briefing after generation. The warning states the
-  briefing leaves the machine with the same subjects and snippets as the digest. One channel failing
-  never blocks the other or the saved briefing, and Local only sends nothing.
+  in their own Settings group, and send the saved briefing markdown after generation. The warning
+  states the briefing markdown leaves the machine; it does not include the digest, though its bullets
+  may quote subjects and snippets. One channel failing never blocks the other or the saved briefing,
+  and Local only sends nothing.
 - **Windows only, permanently.** Path handling, tray, autostart and the NSIS/portable build are part
   of the product, not packaging details. No cross-platform ambition.
 - Non-goals: cloud sync, writing to services, mobile client, multi-user accounts, telemetry,

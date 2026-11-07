@@ -14,13 +14,13 @@ Mail arrives as it happens, and the briefing can leave on your terms.
   mail source is built.
 - **Opt-in delivery** — SMTP and Telegram connections send the saved briefing after a successful
   generation. Both default to `enabled: false`, live in a separate **Delivery** group, and each
-  channel fails independently: an error is logged by connection id and never blocks the briefing
-  from being saved or the next source from syncing.
-- **Delivery warns before it sends** — the Settings group states that the briefing leaves the
-  machine and carries the same subjects and snippets as the digest. **Local only** blocks delivery,
-  like every other outbound request.
+  channel fails independently: an error is recorded on the connection in Settings and logged by
+  connection id, and never blocks the briefing from being saved or the next source from syncing.
+- **Delivery warns before it sends** — the Settings group states that the briefing markdown leaves
+  the machine; it does not include the digest, though its bullets may quote subjects and snippets.
+  **Local only** blocks delivery, like every other outbound request.
 - **Bounded sends** — each SMTP or Telegram send is limited to 20 seconds. SMTP uses implicit TLS on
-  port 465 and StartTLS elsewhere through `nodemailer`; Telegram posts to `api.telegram.org`.
+  port 465 and requires StartTLS elsewhere through `nodemailer`; Telegram posts to `api.telegram.org`.
 - **Credentials stay encrypted** — SMTP username/password and the Telegram bot token are stored in
   the encrypted `connections.secret` column via `SecretBox`.
 

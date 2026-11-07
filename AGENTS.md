@@ -21,7 +21,7 @@ One Node process:
 - **Calendar source** — Google Calendar API, Microsoft Graph `/me/calendarView` or CalDAV (`tsdav` + `ical.js`), read-only, window of −1 to +7 days; one source per connected calendar account.
 - **Microsoft 365 auth** — `src/server/microsoft.ts`: PKCE authorization-code flow against `login.microsoftonline.com/{tenant}`, scopes `offline_access User.Read Calendars.Read Chat.Read`, loopback redirect `/api/oauth/microsoft/callback`, refresh 5 minutes before expiry, and `graph()` with one 401 retry and one `Retry-After` wait.
 - **Teams source** — `sources/teams.ts`: personal and group chats from the last 24 hours (one-to-one counts the other member's message, group chats count explicit mentions), capped at 50 chats. Requests only `id,createdDateTime,from,mentions` via `$select`, so message bodies are never fetched; stores `teams_mentions` (chat name, sender, time). A missing `Chat.Read` leaves calendar working and Teams inert.
-- **Delivery** — `src/server/delivery.ts`: enabled `smtp` (`nodemailer`) and `telegram` (`api.telegram.org`) connections receive the saved briefing markdown after generation. Each send has a 20 s limit, a failure is logged by connection id and never throws, and `isLocalOnly` returns before any send. Delivery connections never produce sources, and they default to `enabled: false`.
+- **Delivery** — `src/server/delivery.ts`: enabled `smtp` (`nodemailer`) and `telegram` (`api.telegram.org`) connections receive the saved briefing markdown after generation. Each send has a 20 s limit and requires STARTTLS on non-465 SMTP ports; an outcome is written back to the connection via `markConnectionSync` (so Settings shows the `lastError` dot) and logged by connection id, and never throws. `isLocalOnly` returns before any send. Delivery connections never produce sources, and they default to `enabled: false`.
 - **Scheduler** — `node-cron`, daily briefing at 08:00 with catch-up on start and retry every 15 minutes until today's briefing exists.
 - **Briefing** — POST to `https://api.deepseek.com/chat/completions`, model `deepseek-flash` (V4.1 Flash, thinking off). Strict grounding is on by default: bullets must cite a digest line, numbers must appear on that line or in the authoritative facts, and a second pass drops what the digest cannot support.
 
@@ -154,8 +154,8 @@ Desktop (done in 0.5.0): Electron shell with tray, native notifications, Windows
   never able to block the briefing from being saved. Local only sends nothing.
 
 ### v1.18.0 — Phase 4 (next)
-- Playwright e2e and visual checks, opt-in auto-update and signing configuration, then a
-  performance and docs pass.
+- Playwright e2e and visual checks, opt-in auto-update and opt-in signing configuration (still
+  unsigned by default), then a performance and docs pass.
 
 ### Earlier plans (historical)
 

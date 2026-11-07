@@ -946,8 +946,8 @@ export function SettingsPanel({
                     <h3>Delivery</h3>
                   </div>
                   <p className="empty">
-                    The briefing leaves this machine and includes the same subjects and snippets as
-                    the digest. It is off until you enable a channel.
+                    The briefing markdown leaves this machine. It does not include the digest, though
+                    its bullets may quote subjects and snippets. It is off until you enable a channel.
                   </p>
                 </div>
               )}
