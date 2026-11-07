@@ -24,7 +24,7 @@ import {
 import { dueEventNotification, dueMeetingPrep, notify } from './notify.js'
 import { todayEvents } from './sources/calendar.js'
 import { visibleAttention } from './attention.js'
-import { newMailNotifications } from './idle.js'
+import { createSerialRunner, newMailNotifications } from './idle.js'
 import { backupDb } from './backup.js'
 import { rebuildSearchIndex } from './search-index.js'
 import { applyRetention } from './retention.js'
@@ -198,6 +198,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   }
 
   let seenMessages = loadSeenMessages()
+  const sourceRunners = new Map<string, () => void>()
 
   function persistSeenMessages(): void {
     const bounded =
@@ -206,29 +207,38 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     setSetting(db, SEEN_KEY, JSON.stringify([...bounded]))
   }
 
-  async function onSourceChange(source: Source): Promise<void> {
-    const before = visibleAttention(db, new Date(), { staleDays: 14, inboxDays: 3 })
+  async function syncSource(source: Source): Promise<void> {
     try {
+      const before = visibleAttention(db, new Date(), { staleDays: 14, inboxDays: 3 })
       await withTimeout(source.sync(db, new Date()), 120_000, `sync ${source.id}`)
+      const after = visibleAttention(db, new Date(), { staleDays: 14, inboxDays: 3 })
+      const fresh = newMailNotifications(before, after, seenMessages)
+      if (fresh.length === 0) return
+      for (const item of fresh) {
+        send('New mail', item.label)
+        if (item.messageId) seenMessages.add(item.messageId)
+      }
+      persistSeenMessages()
     } catch (error) {
+      // The watcher callback is fire-and-forget; log here so nothing escapes as unhandled.
       console.error(`[${source.id}] IDLE sync failed:`, error)
-      return
     }
-    const after = visibleAttention(db, new Date(), { staleDays: 14, inboxDays: 3 })
-    const fresh = newMailNotifications(before, after, seenMessages)
-    if (fresh.length === 0) return
-    for (const item of fresh) {
-      send('New mail', item.label)
-      if (item.messageId) seenMessages.add(item.messageId)
+  }
+
+  function onSourceChange(source: Source): void {
+    let runner = sourceRunners.get(source.id)
+    if (!runner) {
+      runner = createSerialRunner(() => syncSource(source))
+      sourceRunners.set(source.id, runner)
     }
-    persistSeenMessages()
+    runner()
   }
 
   async function startSourceWatchers(): Promise<void> {
     for (const source of sources) {
       if (!source.watch) continue
       try {
-        stopWatchers.push(await source.watch(() => void onSourceChange(source)))
+        stopWatchers.push(await source.watch(() => onSourceChange(source)))
       } catch (error) {
         console.error(`[${source.id}] watch failed:`, error)
       }
@@ -239,6 +249,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if (syncing) await syncing.catch(() => {})
     await Promise.all(stopWatchers.map((stop) => stop().catch(() => {})))
     stopWatchers = []
+    sourceRunners.clear()
     applyDeepseekKey()
     sources = buildSources({ db, box, config, dataDir: config.dataDir })
     health = createHealth(sources.map((source) => source.id))

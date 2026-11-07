@@ -27,3 +27,38 @@ export function newMailNotifications(
       (item.kind === 'mail' || item.kind === 'reply') && !known.has(notificationKey(item)),
   )
 }
+
+/**
+ * Serialise an async task: at most one run in flight and at most one run queued. Events that
+ * arrive while a run is in flight coalesce into a single rerun, so the final pending change is
+ * never dropped. A throwing run clears the guard in `finally` and swallows its own error (the
+ * task is expected to log), so a failure can never wedge the runner or escape as an unhandled
+ * rejection.
+ */
+export function createSerialRunner(fn: () => Promise<void>): () => void {
+  let running = false
+  let pending = false
+
+  const run = async (): Promise<void> => {
+    if (running) {
+      pending = true
+      return
+    }
+    running = true
+    try {
+      await fn()
+    } catch {
+      // fn is responsible for logging; never let the fire-and-forget call reject.
+    } finally {
+      running = false
+      if (pending) {
+        pending = false
+        void run()
+      }
+    }
+  }
+
+  return () => {
+    void run()
+  }
+}
