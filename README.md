@@ -23,8 +23,9 @@ full saved briefing leaves the machine only if you turn on delivery.
 - **Opt-in code signing** — the build configuration supports signing through the `CSC_LINK` /
   `CSC_KEY_PASSWORD` environment variables. Builds stay **unsigned by default**, so SmartScreen
   still asks for confirmation; see [`docs/SIGNING.md`](docs/SIGNING.md).
-- **A faster first sync** — a calendar index and the confirmed Graph/Teams/CalDAV caps keep sync
-  small; a cold sync of a 300-note vault measured ~73 ms and startup-to-ready ~0.6 s.
+- **Faster startup** — a cold sync of a 300-note vault measured ~73 ms and startup-to-ready ~0.6 s.
+- **Leaner calendar queries** — a new `calendar_events (connection_id, start)` index, alongside the
+  confirmed Graph/Teams/CalDAV caps (5 pages, 50 chats, 100 recurring instances).
 
 ## What's new in 1.17.0
 

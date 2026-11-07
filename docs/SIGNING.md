@@ -56,7 +56,7 @@ is needed.
 After `npm run dist`, confirm the signature on the produced artifacts:
 
 ```powershell
-Get-AuthenticodeSignature .\release\Local-Dashboard-Setup-1.17.0.exe
+Get-AuthenticodeSignature .\release\Local-Dashboard-Setup-<version>.exe
 ```
 
 A signed build reports `Valid`. An unsigned build reports `NotSigned` — this is the default.
