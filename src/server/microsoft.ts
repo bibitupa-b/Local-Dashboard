@@ -98,6 +98,13 @@ async function refreshMicrosoftTokens(creds: MicrosoftCreds): Promise<MicrosoftT
   return toTokens(await res.json(), creds.tokens)
 }
 
+async function refreshAndPersist(creds: MicrosoftCreds): Promise<MicrosoftTokens> {
+  const tokens = await refreshMicrosoftTokens(creds)
+  creds.tokens = tokens
+  creds.onTokens?.(tokens)
+  return tokens
+}
+
 function toTokens(json: Record<string, unknown>, previous: MicrosoftTokens | null): MicrosoftTokens {
   return {
     access_token: String(json.access_token),
@@ -111,8 +118,7 @@ function toTokens(json: Record<string, unknown>, previous: MicrosoftTokens | nul
 export async function microsoftAccessToken(creds: MicrosoftCreds): Promise<string> {
   if (!creds.tokens) throw new Error('Microsoft not configured')
   if (creds.tokens.expires_at > Date.now() + 300_000) return creds.tokens.access_token
-  const tokens = await refreshMicrosoftTokens(creds)
-  creds.onTokens?.(tokens)
+  const tokens = await refreshAndPersist(creds)
   return tokens.access_token
 }
 
@@ -130,8 +136,7 @@ export async function graph<T>(creds: MicrosoftCreds, path: string): Promise<T> 
 
   let res = await graphRequest(fetcher, path, token)
   if (res.status === 401) {
-    const refreshed = await refreshMicrosoftTokens(creds)
-    creds.onTokens?.(refreshed)
+    const refreshed = await refreshAndPersist(creds)
     token = refreshed.access_token
     res = await graphRequest(fetcher, path, token)
   }

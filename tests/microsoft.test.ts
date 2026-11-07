@@ -50,6 +50,40 @@ test('fresh tokens are returned without a network call', async () => {
   expect(calls).toBe(0)
 })
 
+test('microsoftAccessToken updates creds.tokens in place after refresh', async () => {
+  const fetcher = async () => new Response(JSON.stringify({ access_token: 'new', refresh_token: 'r2', expires_in: 3600 }), { status: 200 })
+  const myCreds: MicrosoftCreds = {
+    ...creds,
+    tokens: { access_token: 'old', refresh_token: 'r1', expires_at: 0 },
+    fetcher,
+  }
+  await microsoftAccessToken(myCreds)
+  expect(myCreds.tokens?.access_token).toBe('new')
+  expect(myCreds.tokens?.refresh_token).toBe('r2')
+})
+
+test('graph 401 retry uses the rotated refresh token', async () => {
+  const refreshTokensSent: string[] = []
+  let graphCalls = 0
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = String(input)
+    if (url.includes('/token')) {
+      const body = new URLSearchParams(init?.body as string)
+      refreshTokensSent.push(body.get('refresh_token') ?? '')
+      return new Response(JSON.stringify({ access_token: 'fresh', refresh_token: 'r2', expires_in: 3600 }), { status: 200 })
+    }
+    graphCalls++
+    if (graphCalls === 1) return new Response('unauthorized', { status: 401 })
+    return new Response(JSON.stringify({ value: [{ id: 'e1' }] }), { status: 200 })
+  }
+  const result = await graph<{ value: Array<{ id: string }> }>(
+    { ...creds, tokens: { access_token: 'stale', refresh_token: 'r1', expires_at: 0 }, fetcher },
+    '/me/events',
+  )
+  expect(result.value[0]!.id).toBe('e1')
+  expect(refreshTokensSent).toEqual(['r1', 'r2'])
+})
+
 test('exchangeMicrosoftCode posts the PKCE verifier and returns tokens', async () => {
   let body: URLSearchParams | undefined
   const fetcher: typeof fetch = async (_input, init) => {
