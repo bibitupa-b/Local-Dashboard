@@ -125,6 +125,7 @@ const START_ORDER: AttentionItem['kind'][] = [
   'task',
   'google-task',
   'slack',
+  'teams',
   'github',
   'inbox',
   'stale-project',

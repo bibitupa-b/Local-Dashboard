@@ -53,6 +53,7 @@ export type AttentionItem = {
     | 'drive'
     | 'google-task'
     | 'slack'
+    | 'teams'
   label: string
   detail: string
   count?: number

@@ -11,6 +11,7 @@ export type SourceKind =
   | 'rss'
   | 'tasks'
   | 'slack'
+  | 'teams'
 export type SourceService =
   | 'vault'
   | 'google'
@@ -21,6 +22,7 @@ export type SourceService =
   | 'rss'
   | 'slack'
   | 'caldav'
+  | 'microsoft'
 
 export type SourceMeta = {
   id: string

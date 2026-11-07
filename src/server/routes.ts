@@ -206,6 +206,7 @@ const DATA_TABLES = [
   'calendar_events',
   'browser_visits',
   'github_items',
+  'teams_mentions',
   'briefings',
   'briefing_feedback',
   'resurfaced',

@@ -173,6 +173,8 @@ export function buildDigest(input: DigestInput): DigestResult {
   if (googleTasks.length > 0) sections.push({ title: 'Google Tasks', lines: googleTasks })
   const slack = extraLines('Slack')
   if (slack.length > 0) sections.push({ title: 'Slack', lines: slack })
+  const teams = extraLines('Teams')
+  if (teams.length > 0) sections.push({ title: 'Teams', lines: teams })
   const news = extraLines('News')
   if (news.length > 0) sections.push({ title: 'News', lines: news })
 

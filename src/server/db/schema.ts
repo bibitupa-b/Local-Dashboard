@@ -193,6 +193,19 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 
 CREATE INDEX IF NOT EXISTS calendar_events_start ON calendar_events (start);
 
+CREATE TABLE IF NOT EXISTS teams_mentions (
+  connection_id TEXT NOT NULL DEFAULT 'legacy',
+  message_id TEXT NOT NULL,
+  chat_id TEXT NOT NULL,
+  chat_name TEXT NOT NULL,
+  from_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  is_mention INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (connection_id, message_id)
+);
+
+CREATE INDEX IF NOT EXISTS teams_mentions_created ON teams_mentions (created_at);
+
 CREATE TABLE IF NOT EXISTS browser_visits (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   connection_id TEXT NOT NULL DEFAULT 'legacy',

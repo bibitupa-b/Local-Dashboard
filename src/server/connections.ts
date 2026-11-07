@@ -238,6 +238,7 @@ export function purgeConnectionData(db: DatabaseSync, connectionId: string): voi
     'calendar_events',
     'browser_visits',
     'github_items',
+    'teams_mentions',
   ]) {
     db.prepare(`DELETE FROM "${table}" WHERE connection_id = ?`).run(connectionId)
   }

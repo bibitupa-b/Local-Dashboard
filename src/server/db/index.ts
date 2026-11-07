@@ -18,6 +18,7 @@ const SCOPED_TABLES = [
   'calendar_events',
   'browser_visits',
   'github_items',
+  'teams_mentions',
 ]
 
 function exists(db: DatabaseSync, name: string): boolean {

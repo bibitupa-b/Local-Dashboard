@@ -15,6 +15,7 @@ export type AttentionItem = {
     | 'drive'
     | 'google-task'
     | 'slack'
+    | 'teams'
   label: string
   detail: string
   count?: number
@@ -37,6 +38,8 @@ export function sourceForKind(kind: AttentionItem['kind']): string {
       return 'tasks'
     case 'slack':
       return 'slack'
+    case 'teams':
+      return 'teams'
     case 'mail':
     case 'reply':
       return 'mail'
@@ -146,6 +149,22 @@ export function buildAttention(
       label: `Slack: ${slackCount} mentions`,
       detail: slackRows.map((row) => `#${row.channel_name} (${row.n})`).join(', '),
       count: slackCount,
+    })
+  }
+
+  const teamsRows = db
+    .prepare(
+      `SELECT chat_name, COUNT(*) AS n FROM teams_mentions
+       GROUP BY chat_name ORDER BY n DESC LIMIT 5`,
+    )
+    .all() as Array<{ chat_name: string; n: number }>
+  const teamsCount = teamsRows.reduce((sum, row) => sum + row.n, 0)
+  if (teamsCount > 0) {
+    items.push({
+      kind: 'teams',
+      label: `Teams: ${teamsCount} mentions`,
+      detail: teamsRows.map((row) => `${row.chat_name} (${row.n})`).join(', '),
+      count: teamsCount,
     })
   }
 
@@ -317,6 +336,7 @@ export function buildAttention(
     'google-task': 0,
     mail: 1,
     slack: 1,
+    teams: 1,
     reply: 2,
     browser: 3,
     github: 4,
