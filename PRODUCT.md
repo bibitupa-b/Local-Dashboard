@@ -33,9 +33,9 @@ lives in the sources, not in a second inbox.
 ## Positioning
 
 Attention, not capture. It never becomes another inbox: it reads what the user already has (vault,
-Gmail over IMAP, Drive, Calendar, GitHub notifications, browser history) and shows only the delta
-with its evidence — real line diffs — and the backlog. One local Node process, SQLite on disk, no
-cloud account behind it.
+Gmail over IMAP, Drive, Calendar, GitHub notifications, Teams chats, browser history) and shows only
+the delta with its evidence — real line diffs — and the backlog. One local Node process, SQLite on
+disk, no cloud account behind it.
 
 ## Operating Context
 
@@ -48,7 +48,8 @@ cloud account behind it.
   connections are managed in the settings screen.
 - Sources are real, user-owned accounts: an Obsidian vault with non-ASCII folder names, Gmail over
   IMAP with an app password, a self-created Google Cloud OAuth desktop client kept in Production
-  (one or more calendars and optional Google Tasks), a GitHub token with `notifications`, a local
+  (one or more calendars and optional Google Tasks), a self-created Azure app registration for
+  Microsoft 365 (Outlook Calendar and Teams chats), a GitHub token with `notifications`, a local
   Chrome/Edge/Helium history database, Open-Meteo coordinates, optional RSS/Atom feeds, and an
   optional CalDAV account (iCloud or custom) for Apple Calendar.
 - Keyboard: `/` focuses search, `b` generates a briefing, `Esc` clears results.
@@ -68,7 +69,11 @@ Approved decisions; do not re-litigate without asking.
 - Dark interface only.
 - Never sent to DeepSeek: vault note bodies, whole files, mail bodies, attachments, browser URLs or
   page titles, tokens, passwords. Mail keeps bodies for 90 days, then headers and subject only;
-  attachments are indexed by name and never downloaded.
+  attachments are indexed by name and never downloaded. Teams stores chat names, senders and
+  counts only — never message text — and reads personal and group chats only.
+- Microsoft 365 is one connection with two read-only sources: Outlook Calendar through Graph
+  (`Calendars.Read`) and Teams chats (`Chat.Read`). Channel messages are not requested, so no admin
+  consent is needed for chats; Outlook mail is not requested either, so mail stays with IMAP.
 - **Windows only, permanently.** Path handling, tray, autostart and the NSIS/portable build are part
   of the product, not packaging details. No cross-platform ambition.
 - Non-goals: cloud sync, writing to services, mobile client, multi-user accounts, telemetry,

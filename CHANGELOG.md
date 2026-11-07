@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.16.0
+
+Microsoft 365 joins the dashboard: Outlook Calendar and Teams chats through one connection.
+
+- **One Microsoft 365 connection** — an Azure app registration with the delegated scopes
+  `offline_access User.Read Calendars.Read Chat.Read` gives both sources. The redirect URI is
+  `http://127.0.0.1:4317/api/oauth/microsoft/callback`; a client secret is optional.
+- **Outlook Calendar** — events for the same −1/+7 day window as Google and CalDAV, with timezones
+  normalised to one instant, cancelled events marked, and attendees kept for meeting signals. It
+  reuses the calendar source and table, so "today" and free windows include Outlook.
+- **Teams chats** — personal and group chats from the last 24 hours. A one-to-one chat counts a
+  message from the other person as a mention; a group chat counts explicit `@` mentions. The
+  result is one `Teams: N mentions` attention item and one digest line with up to five chat names.
+- **Names and counts only** — message text is never read or stored; the database holds message ids,
+  chat ids, chat names, senders and times. `teams_mentions` is purged with its connection.
+- **Chats need no admin consent** — `Chat.Read` is delegated and consented by the user. Channel
+  messages are not requested, so no tenant-wide permission is involved.
+- **Tokens refresh once and persist** — an expired access token is refreshed with `offline_access`
+  and saved encrypted through `SecretBox`; a 401 refreshes and retries once, a 429 honours
+  `Retry-After` once. A token without `Chat.Read` leaves the calendar working and Teams inert, and
+  one unreadable chat is skipped instead of hiding the rest.
+
 ## 1.15.0
 
 The dashboard no longer requires anything: it starts empty, stays local when asked, and reads Apple

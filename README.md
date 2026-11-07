@@ -2,14 +2,24 @@
 
 **One quiet screen: where to start today, what happened, and one briefing.**
 
-Local Dashboard reads your notes, mail, calendar, Drive, GitHub and browser history, then reduces
-them to a single **Start here** number, today's calendar and a short daily briefing written by
-DeepSeek. Everything runs on your own machine. Only a compact digest leaves it, and only when a
-briefing is generated.
+Local Dashboard reads your notes, mail, calendar, Drive, GitHub, Teams chats and browser history,
+then reduces them to a single **Start here** number, today's calendar and a short daily briefing
+written by DeepSeek. Everything runs on your own machine. Only a compact digest leaves it, and only
+when a briefing is generated.
 
 ![Dashboard](docs/screenshots/current/dashboard.jpeg)
 
-`Windows` · `Local-first` · `Read-only` · `Single user` · `MIT` · `v1.15.0`
+`Windows` · `Local-first` · `Read-only` · `Single user` · `MIT` · `v1.16.0`
+
+## What's new in 1.16.0
+
+- **One Microsoft 365 connection** — Outlook Calendar and Teams chats from a single Azure app
+  registration. Outlook events join the normal calendar source and free windows; Teams mentions from
+  the last 24 hours become a `Teams: N mentions` line in the briefing and in "Start here".
+- **Chats only, never channel messages** — personal and group chats are read; channels are not
+  requested. Only chat names, senders and counts are stored, never message text.
+- **No admin consent for chats** — the delegated `Chat.Read` scope is granted by the user at first
+  sign-in. Microsoft tokens refresh automatically and stay encrypted like every other secret.
 
 ## What's new in 1.15.0
 
@@ -123,6 +133,7 @@ remove them again without losing anything else.
 | Obsidian vault | Open tasks, stale projects, Inbox backlog (feeds Start here) | One or more vault folders |
 | Google Drive, Calendar & Tasks | Drive changes, Docs text, events, due tasks | OAuth **Desktop app** client, published to Production; enable Drive, Calendar and Tasks APIs |
 | CalDAV (Apple / other) | Calendar events, today and free windows | iCloud app-specific password, or any CalDAV URL with username and password |
+| Microsoft 365 | Outlook Calendar events and Teams chat mentions | Azure app registration; Client ID, optional client secret, delegated scopes |
 | Gmail | Unread mail, awaiting reply, search | Gmail address + app password (2-Step Verification) |
 | GitHub | Notifications and review requests | Personal access token with `notifications` |
 | Slack | Mentions and DMs from the last 24 hours | User/bot token with read history scopes |
@@ -136,6 +147,13 @@ For Google, add the redirect URI
 OAuth app in **Production**; while it stays in Testing, Google expires refresh tokens after seven
 days.
 
+For Microsoft 365, create an **Azure app registration** and add the redirect URI
+`http://127.0.0.1:4317/api/oauth/microsoft/callback`. Under **API permissions**, add the delegated
+scopes `offline_access User.Read Calendars.Read Chat.Read`; no admin consent is needed for chats,
+because channels are not requested. Paste the Client ID (a client secret is optional), set the
+tenant to `common` for personal and work accounts, save, then press **Connect**. Outlook mail is not
+requested, so Gmail or another IMAP account still covers mail.
+
 `.env` is optional and imported once on first start. See [`.env.example`](.env.example) for the
 available keys: `PORT`, `VAULT_PATH`, `DEEPSEEK_API_KEY`, Google credentials, `GMAIL_USER`,
 `GMAIL_APP_PASSWORD`, `GITHUB_TOKEN`, `BROWSER_HISTORY_PATH`.
@@ -145,19 +163,21 @@ available keys: `PORT`, `VAULT_PATH`, `DEEPSEEK_API_KEY`, Google credentials, `G
 1. The digest contains note paths with line counts and up to 200 characters from the changed part of
    the five most-changed notes, task titles, project names, Drive file names, today's calendar,
    due Google Tasks, weather values, RSS headlines/summaries, Slack mention counts and channel
-   names, unread mail subjects/senders and the first ~200 characters of unread mail.
+   names, Teams mention counts and chat names, unread mail subjects/senders and the first ~200
+   characters of unread mail.
 2. It is sent to `https://api.deepseek.com` (`deepseek-flash`) only when a briefing is generated.
 3. The reply is stored in the local database and shown on the page. Earlier briefings stay available.
 
 **Never sent:** whole vault notes, full mail bodies, attachments, browser URLs, page titles, feed
-URLs, Slack message text, OAuth tokens, passwords, CalDAV credentials. Weather coordinates go only
-to Open-Meteo; RSS feeds are fetched directly from the addresses you configure. Browser history
-reaches the model as domain counts only. There is no telemetry, no analytics and no cloud account.
+URLs, Slack or Teams message text, OAuth tokens, passwords, CalDAV credentials. Weather coordinates
+go only to Open-Meteo; RSS feeds are fetched directly from the addresses you configure. Browser
+history reaches the model as domain counts only. There is no telemetry, no analytics and no cloud
+account.
 
 **Local only** turns the machine into a closed box: every outbound request is blocked, including
-DeepSeek, weather, RSS, Slack, CalDAV, Gmail, GitHub and Google. Vault and browser history still
-sync, and the briefing falls back to local rules. CalDAV passwords are encrypted with AES-256-GCM
-and are used only against the server you configured.
+DeepSeek, weather, RSS, Slack, Microsoft 365, CalDAV, Gmail, GitHub and Google. Vault and browser
+history still sync, and the briefing falls back to local rules. CalDAV passwords and Microsoft
+tokens are encrypted with AES-256-GCM and are used only against the servers you configured.
 
 ## Screens
 
@@ -170,7 +190,7 @@ and are used only against the server you configured.
 
 More screens: [`docs/screenshots/current/index.html`](docs/screenshots/current/index.html).
 
-Release notes: [`docs/releases/1.15.0.md`](docs/releases/1.15.0.md).
+Release notes: [`docs/releases/1.16.0.md`](docs/releases/1.16.0.md).
 
 ## Troubleshooting
 
@@ -180,6 +200,7 @@ Release notes: [`docs/releases/1.15.0.md`](docs/releases/1.15.0.md).
 | `Port 4317 is already in use` | Another copy or a dev server is running. Quit it, or set `PORT` for a CLI run. |
 | Google stops syncing after a week | The OAuth app is still in Testing. Publish it to Production and reconnect. |
 | Mail says sign-in failed | Create a new Gmail app password and update the connection. |
+| Microsoft 365 authorization failed | Check the Azure redirect URI `http://127.0.0.1:4317/api/oauth/microsoft/callback` and the delegated scopes, then press Connect again. |
 | Briefing fails with 402 | The DeepSeek balance is empty. Top up and press **Briefing now**. |
 | Closing the window seems to quit | It hides to the tray. Quit from the tray menu, `Ctrl+Q`, or Settings. |
 | Something else | Open **Settings → Application** and use **Copy diagnostics**, then check `data/server.log`. |
