@@ -17,10 +17,11 @@ One Node process:
 - **Storage** — SQLite through the built-in `node:sqlite`. No ORM, no native dependencies.
 - **Vault source** — `chokidar` watches `<VAULT_PATH>`, hashes changed notes, stores a snapshot plus a line diff.
 - **Drive source** — `googleapis` polls `files.list` with `modifiedTime` ordering and a stored cursor; read-only scope.
-- **Mail source** — `imapflow` + `mailparser` over Gmail IMAP: all folders except All Mail, incremental by UID, bodies kept for 90 days, attachments by name only.
+- **Mail source** — `imapflow` + `mailparser` over Gmail IMAP: all folders except All Mail, incremental by UID, bodies kept for 90 days, attachments by name only. With `idle` on, `mail-imap.ts` opens one extra IDLE connection on `INBOX`; an `exists` event runs a serialized mail sync, `newMailNotifications` notifies once per new mail/reply item (seen ids persisted, bounded at 200), and a drop reconnects with `nextIdleDelay` backoff. Overlapping events coalesce through `createSerialRunner`; polling stays as the fallback.
 - **Calendar source** — Google Calendar API, Microsoft Graph `/me/calendarView` or CalDAV (`tsdav` + `ical.js`), read-only, window of −1 to +7 days; one source per connected calendar account.
 - **Microsoft 365 auth** — `src/server/microsoft.ts`: PKCE authorization-code flow against `login.microsoftonline.com/{tenant}`, scopes `offline_access User.Read Calendars.Read Chat.Read`, loopback redirect `/api/oauth/microsoft/callback`, refresh 5 minutes before expiry, and `graph()` with one 401 retry and one `Retry-After` wait.
 - **Teams source** — `sources/teams.ts`: personal and group chats from the last 24 hours (one-to-one counts the other member's message, group chats count explicit mentions), capped at 50 chats. Requests only `id,createdDateTime,from,mentions` via `$select`, so message bodies are never fetched; stores `teams_mentions` (chat name, sender, time). A missing `Chat.Read` leaves calendar working and Teams inert.
+- **Delivery** — `src/server/delivery.ts`: enabled `smtp` (`nodemailer`) and `telegram` (`api.telegram.org`) connections receive the saved briefing markdown after generation. Each send has a 20 s limit, a failure is logged by connection id and never throws, and `isLocalOnly` returns before any send. Delivery connections never produce sources, and they default to `enabled: false`.
 - **Scheduler** — `node-cron`, daily briefing at 08:00 with catch-up on start and retry every 15 minutes until today's briefing exists.
 - **Briefing** — POST to `https://api.deepseek.com/chat/completions`, model `deepseek-flash` (V4.1 Flash, thinking off). Strict grounding is on by default: bullets must cite a digest line, numbers must appear on that line or in the authoritative facts, and a second pass drops what the digest cannot support.
 
@@ -43,6 +44,8 @@ src/
     microsoft.ts        Microsoft Graph auth, token refresh, graph()
     google.ts           shared OAuth client, scopes, token store
     briefing.ts         digest assembly + DeepSeek call
+    idle.ts             IDLE backoff, notification diff, serial runner
+    delivery.ts         opt-in SMTP and Telegram sends
     routes.ts           HTTP API
   web/                  React app
 data/                   runtime only: dashboard.db, google-token.json (gitignored)
@@ -105,7 +108,7 @@ These were agreed with the user; do not re-litigate them without asking.
 | `calendar_events` | event id (Google, Graph or CalDAV), calendar, summary, start/end, location, status, attendees |
 | `teams_mentions` | connection, message id, chat id/name, sender id, created at — no message text |
 | `connections` | service, label, config JSON, encrypted secret, enabled, last error |
-| `settings` | key/value: schedule, exclusions, enabled sources, sync cursors |
+| `settings` | key/value: schedule, exclusions, enabled sources, sync cursors, `idle_seen_messages` (bounded 200) |
 
 Snapshots are affordable: the vault is small (tens of notes). Keep them; they make diffs and "what did I write last week" work without rescanning history.
 
@@ -117,9 +120,10 @@ Keep Gmail and Calendar symmetrical with the existing sources. Each source modul
 - `configured()` — whether credentials exist, so the UI can show a connect prompt instead of an error;
 - `sync(db, now?)` — fetch since the cursor stored in `settings`, write `*_files` and `*_changes`, advance the cursor only on success;
 - `lastSync(db)` — ISO timestamp of the last successful sync;
-- `digest(db, since)` — the few lines that belong in the briefing.
+- `digest(db, since)` — the few lines that belong in the briefing;
+- optional `watch(onChange)` — a long-lived listener such as IMAP IDLE, returning a stop function. The registry attaches it only when the connection opts in.
 
-The scheduler and digest builder iterate over registered sources, so a new source needs no changes to the dashboard shell.
+The scheduler and digest builder iterate over registered sources, so a new source needs no changes to the dashboard shell. Delivery services (`smtp`, `telegram`) are connections outside the registry: they produce no source and never appear in the rail.
 
 ## Roadmap
 
@@ -143,11 +147,15 @@ Desktop (done in 0.5.0): Electron shell with tray, native notifications, Windows
 - Calendar reuses `createCalendarSource` through a Graph adapter; Teams is a separate source with
   its own `teams_mentions` table and one counted attention item.
 
-### v1.17.0 — IMAP IDLE and delivery (next)
-- Opt-in IMAP IDLE with reconnect and polling fallback, reusing the existing mail and attention
-  rules.
-- SMTP and Telegram delivery after a successful briefing, disabled by default and never able to
-  block the briefing from being saved.
+### v1.17.0 — IMAP IDLE and delivery (done)
+- Opt-in IMAP IDLE with reconnect backoff, serialized syncs, persisted dedupe and polling fallback,
+  reusing the existing mail and attention rules. Local only builds no watcher.
+- SMTP and Telegram delivery after a successful briefing, disabled by default, 20 s per send, and
+  never able to block the briefing from being saved. Local only sends nothing.
+
+### v1.18.0 — Phase 4 (next)
+- Playwright e2e and visual checks, opt-in auto-update and signing configuration, then a
+  performance and docs pass.
 
 ### Earlier plans (historical)
 

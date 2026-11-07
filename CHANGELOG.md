@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.17.0
+
+Mail arrives as it happens, and the briefing can leave on your terms.
+
+- **Opt-in IMAP IDLE** — a checkbox on the Gmail connection opens one extra read-only connection and
+  watches `INBOX`. When mail lands, the normal mail sync runs and new mail/reply attention items
+  raise one native notification each, deduplicated by message id. The seen set is persisted and
+  bounded to 200 entries.
+- **Reconnect with backoff** — a dropped IDLE connection reconnects after 1 s, 2 s, 4 s … capped at
+  five minutes; a settled sync is serialized so overlapping events coalesce into one rerun, and the
+  existing 15-minute polling remains the fallback. IDLE is off in **Local only**, because no network
+  mail source is built.
+- **Opt-in delivery** — SMTP and Telegram connections send the saved briefing after a successful
+  generation. Both default to `enabled: false`, live in a separate **Delivery** group, and each
+  channel fails independently: an error is logged by connection id and never blocks the briefing
+  from being saved or the next source from syncing.
+- **Delivery warns before it sends** — the Settings group states that the briefing leaves the
+  machine and carries the same subjects and snippets as the digest. **Local only** blocks delivery,
+  like every other outbound request.
+- **Bounded sends** — each SMTP or Telegram send is limited to 20 seconds. SMTP uses implicit TLS on
+  port 465 and StartTLS elsewhere through `nodemailer`; Telegram posts to `api.telegram.org`.
+- **Credentials stay encrypted** — SMTP username/password and the Telegram bot token are stored in
+  the encrypted `connections.secret` column via `SecretBox`.
+
 ## 1.16.0
 
 Microsoft 365 joins the dashboard: Outlook Calendar and Teams chats through one connection.

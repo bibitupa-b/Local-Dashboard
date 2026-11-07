@@ -19,7 +19,8 @@ table are the only support channel. Single user per machine; no accounts, no rol
 One quiet screen that answers two questions — where do I start today, and what happened — plus a
 2–5 bullet briefing for today written by DeepSeek, grounded in cited digest lines. The briefing owns the page; a single "start here"
 count, the connected services and today's calendar sit above it. Read-only toward every source and
-local by default; only a compact digest leaves the machine, and only when a briefing is generated.
+local by default; only a compact digest leaves the machine when a briefing is generated, plus the
+briefing itself only if the user enables delivery.
 
 Every connection is optional. The app is complete with zero connections and no DeepSeek key: the
 dashboard loads, a zero-state card explains what can be added, and the briefing runs on local rules.
@@ -50,8 +51,9 @@ disk, no cloud account behind it.
   IMAP with an app password, a self-created Google Cloud OAuth desktop client kept in Production
   (one or more calendars and optional Google Tasks), a self-created Azure app registration for
   Microsoft 365 (Outlook Calendar and Teams chats), a GitHub token with `notifications`, a local
-  Chrome/Edge/Helium history database, Open-Meteo coordinates, optional RSS/Atom feeds, and an
-  optional CalDAV account (iCloud or custom) for Apple Calendar.
+  Chrome/Edge/Helium history database, Open-Meteo coordinates, optional RSS/Atom feeds, an
+  optional CalDAV account (iCloud or custom) for Apple Calendar, and optional SMTP or Telegram
+  delivery targets.
 - Keyboard: `/` focuses search, `b` generates a briefing, `Esc` clears results.
 - Recovery tools the user is expected to use: **Copy diagnostics**, `data/server.log`, daily
   backups in `data/backups/`.
@@ -77,6 +79,14 @@ Approved decisions; do not re-litigate without asking.
   consent is needed for chats; if the tenant blocks user consent, an admin approves the four
   delegated scopes once. Outlook Calendar works with personal and work accounts; Teams chats need a
   work or school account. Outlook mail is not requested either, so mail stays with IMAP.
+- **Real-time mail is opt-in and derived from the same rules.** IMAP IDLE watches `INBOX` only,
+  runs the existing mail sync on arrival, and notifies once per new mail/reply attention item. It
+  reconnects with backoff and polling remains the fallback; it is off by default and inert in Local
+  only.
+- **Delivery is opt-in, warned and independent.** SMTP and Telegram are disabled until enabled, sit
+  in their own Settings group, and send the saved briefing after generation. The warning states the
+  briefing leaves the machine with the same subjects and snippets as the digest. One channel failing
+  never blocks the other or the saved briefing, and Local only sends nothing.
 - **Windows only, permanently.** Path handling, tray, autostart and the NSIS/portable build are part
   of the product, not packaging details. No cross-platform ambition.
 - Non-goals: cloud sync, writing to services, mobile client, multi-user accounts, telemetry,
@@ -85,9 +95,9 @@ Approved decisions; do not re-litigate without asking.
   code signing (SmartScreen warning is expected and documented).
 - Briefing budget is roughly a few thousand tokens; long notes truncate to a sentence or two.
 
-Open: browser history is Chromium-based only; Google Docs content is exported to a 20 KB cap; IMAP
-IDLE and vault write-back are roadmap items. Weekly review is implemented as a `weekly` briefing
-kind; a failed strict-grounding check is surfaced as `unverified`.
+Open: browser history is Chromium-based only; Google Docs content is exported to a 20 KB cap; vault
+write-back is a roadmap item. Weekly review is implemented as a `weekly` briefing kind; a failed
+strict-grounding check is surfaced as `unverified`.
 
 ## Brand Commitments
 

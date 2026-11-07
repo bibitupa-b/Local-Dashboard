@@ -4,12 +4,26 @@
 
 Local Dashboard reads your notes, mail, calendar, Drive, GitHub, Teams chats and browser history,
 then reduces them to a single **Start here** number, today's calendar and a short daily briefing
-written by DeepSeek. Everything runs on your own machine. Only a compact digest leaves it, and only
-when a briefing is generated.
+written by DeepSeek. Everything runs on your own machine. Only a compact digest leaves it when a
+briefing is generated — and the briefing itself, only if you turn on delivery.
 
 ![Dashboard](docs/screenshots/current/dashboard.jpeg)
 
-`Windows` · `Local-first` · `Read-only` · `Single user` · `MIT` · `v1.16.0`
+`Windows` · `Local-first` · `Read-only` · `Single user` · `MIT` · `v1.17.0`
+
+## What's new in 1.17.0
+
+- **Mail that arrives now** — opt-in IMAP IDLE on a Gmail connection watches `INBOX` and syncs as
+  soon as mail lands. New mail and reply items already counted by the attention rules raise one
+  native notification each; a message never notifies twice. A dropped connection reconnects with
+  backoff (1 s doubling to 5 minutes), syncs are serialized, and the existing polling still runs as
+  a fallback.
+- **Delivery is opt-in** — SMTP and Telegram connections can send the saved briefing right after it
+  is generated. Both are off until you enable them, each channel fails independently, and a delivery
+  error never blocks the briefing from being saved.
+- **The delivery warning is explicit** — the Delivery group says the briefing leaves this machine and
+  carries the same subjects and snippets as the digest. **Local only** blocks delivery and IDLE along
+  with every other outbound request.
 
 ## What's new in 1.16.0
 
@@ -137,6 +151,8 @@ remove them again without losing anything else.
 | CalDAV (Apple / other) | Calendar events, today and free windows | iCloud app-specific password, or any CalDAV URL with username and password |
 | Microsoft 365 | Outlook Calendar events and Teams chat mentions | Azure app registration; Client ID, optional client secret, delegated scopes |
 | Gmail | Unread mail, awaiting reply, search | Gmail address + app password (2-Step Verification) |
+| IMAP IDLE | A sync and a notification as new mail arrives | A Gmail connection with **Watch for new mail (IMAP IDLE)** checked; off by default |
+| Delivery (SMTP / Telegram) | Emails or messages the saved briefing | SMTP host, port and password, or a Telegram bot token and chat id; off until enabled |
 | GitHub | Notifications and review requests | Personal access token with `notifications` |
 | Slack | Mentions and DMs from the last 24 hours | User/bot token with read history scopes |
 | Weather | Today's range, conditions and rain chance | Latitude + longitude; Open-Meteo needs no key |
@@ -158,6 +174,20 @@ then press **Connect**. Outlook Calendar works with personal and work accounts; 
 work or school account. Outlook mail is not requested, so Gmail or another IMAP account still covers
 mail.
 
+**IMAP IDLE** is a checkbox on the Gmail connection, off by default. It opens one extra read-only
+connection to `imap.gmail.com`, watches `INBOX` only, and runs the normal mail sync when a message
+arrives. New mail and reply items that the attention rules already counted become a native
+notification, once per message; the rest of the mail folders keep their 15-minute polling. If Gmail
+drops the IDLE connection, the watcher reconnects after 1 s, 2 s, 4 s and so on, capped at five
+minutes.
+
+**Delivery** is a separate group in Settings → Connections, off by default. An SMTP connection needs
+host, port, from and to plus a username and password; a Telegram connection needs a bot token from
+@BotFather and the chat id. The briefing is sent only while that connection is enabled, and the
+Delivery group repeats the warning: **the briefing leaves this machine and includes the same subjects
+and snippets as the digest.** Each channel has a 20-second limit; one failing channel is logged and
+does not stop the other or the briefing.
+
 `.env` is optional and imported once on first start. See [`.env.example`](.env.example) for the
 available keys: `PORT`, `VAULT_PATH`, `DEEPSEEK_API_KEY`, Google credentials, `GMAIL_USER`,
 `GMAIL_APP_PASSWORD`, `GITHUB_TOKEN`, `BROWSER_HISTORY_PATH`.
@@ -178,10 +208,17 @@ go only to Open-Meteo; RSS feeds are fetched directly from the addresses you con
 history reaches the model as domain counts only. There is no telemetry, no analytics and no cloud
 account.
 
+**Delivery is a second, explicit exit.** SMTP and Telegram are off by default, and nothing is sent
+until you enable a channel. When enabled, the saved briefing — the same subjects and snippets the
+digest already carries — is emailed through your SMTP server or posted to the Telegram Bot API
+(`api.telegram.org`). That is the only case where the briefing text itself leaves the machine. A
+delivery failure is logged by connection id and never prevents the next briefing or source sync.
+
 **Local only** turns the machine into a closed box: every outbound request is blocked, including
-DeepSeek, weather, RSS, Slack, Microsoft 365, CalDAV, Gmail, GitHub and Google. Vault and browser
-history still sync, and the briefing falls back to local rules. CalDAV passwords and Microsoft
-tokens are encrypted with AES-256-GCM and are used only against the servers you configured.
+DeepSeek, weather, RSS, Slack, Microsoft 365, CalDAV, Gmail, GitHub, Google, IMAP IDLE and delivery.
+Vault and browser history still sync, and the briefing falls back to local rules. CalDAV passwords,
+Microsoft tokens, SMTP credentials and Telegram bot tokens are encrypted with AES-256-GCM and are
+used only against the servers you configured.
 
 ## Screens
 
@@ -194,7 +231,7 @@ tokens are encrypted with AES-256-GCM and are used only against the servers you 
 
 More screens: [`docs/screenshots/current/index.html`](docs/screenshots/current/index.html).
 
-Release notes: [`docs/releases/1.16.0.md`](docs/releases/1.16.0.md).
+Release notes: [`docs/releases/1.17.0.md`](docs/releases/1.17.0.md).
 
 ## Troubleshooting
 
