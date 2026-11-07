@@ -706,6 +706,13 @@ export function App() {
       return false
     }
   })
+  const [optionalDismissed, setOptionalDismissed] = useState(() => {
+    try {
+      return localStorage.getItem('dashboard.optional-dismissed') === '1'
+    } catch {
+      return false
+    }
+  })
   const [syncOutcome, setSyncOutcome] = useState<'ok' | 'error' | null>(null)
   const wasRunning = useRef(false)
   const [query, setQuery] = useState('')
@@ -989,6 +996,15 @@ export function App() {
       // private mode: the welcome returns next launch, which is harmless
     }
     setWelcome(false)
+  }
+
+  function dismissOptional(): void {
+    setOptionalDismissed(true)
+    try {
+      localStorage.setItem('dashboard.optional-dismissed', '1')
+    } catch {
+      // private mode: the card returns next launch, which is harmless
+    }
   }
 
   async function vote(id: number, value: 'useful' | 'miss') {
@@ -1288,16 +1304,6 @@ export function App() {
   // At rest the rail is a track; only a running sync (or its outcome) fills it.
   const fill = running || syncOutcome ? progress : 0
 
-  const setupSteps = [
-    {
-      label: 'Connect a vault',
-      done: status?.sources.some((source) => source.kind === 'vault' && source.configured) ?? false,
-    },
-    { label: 'Add a DeepSeek key', done: settings?.hasDeepSeekKey ?? false },
-    { label: 'Generate the first briefing', done: (briefings?.length ?? 0) > 0 },
-  ]
-  const setupDone = setupSteps.every((step) => step.done)
-
   const first = START_ORDER.map((kind) => attention?.find((item) => item.kind === kind)).find(
     (item): item is AttentionItem => Boolean(item),
   )
@@ -1528,7 +1534,9 @@ export function App() {
         ? `${errorCount} ${errorCount === 1 ? 'source needs' : 'sources need'} attention`
         : stations.length > 0
           ? `${stations.length} ${stations.length === 1 ? 'source' : 'sources'} up to date`
-          : 'No sources connected'
+          : settings?.localOnly
+            ? 'Local only'
+            : 'No sources yet'
     const brand = (
       <button
         type="button"
@@ -1980,23 +1988,29 @@ export function App() {
           </div>
         )}
 
-        {settings && status && !setupDone && (
-          <section className="setup enter-item" aria-label="Setup progress">
-            <span className="label label--mint">Get started</span>
-            <div className="setup__steps">
-              {setupSteps.map((step) => (
-                <span key={step.label} className={`setup__step${step.done ? ' is-done' : ''}`}>
-                  <span
-                    className={`status-dot status-dot--${step.done ? 'ok' : 'hollow'}`}
-                    aria-hidden="true"
-                  />
-                  {step.label}
-                </span>
-              ))}
+        {settings && status && status.sources.length === 0 && !optionalDismissed && (
+          <section
+            className="optional enter-item"
+            aria-labelledby="optional-label"
+            style={{ '--i': 1 } as React.CSSProperties}
+          >
+            <div className="optional__copy">
+              <h2 className="label label--mint" id="optional-label">
+                Everything is optional
+              </h2>
+              <p>
+                Connect a vault, mail, calendar or another source when you want. The dashboard
+                works locally, and a briefing uses local rules until you add a DeepSeek key.
+              </p>
             </div>
-            <button className="btn btn--mini btn--ghost" onClick={toggleSettings}>
-              Open settings
-            </button>
+            <div className="optional__actions">
+              <button type="button" className="btn btn--mini btn--ghost" onClick={toggleSettings}>
+                Connections
+              </button>
+              <button type="button" className="btn btn--mini btn--ghost" onClick={dismissOptional}>
+                Dismiss
+              </button>
+            </div>
           </section>
         )}
 
@@ -2136,9 +2150,7 @@ export function App() {
               briefings?.length === 0 &&
               loaded && (
                 <p className="empty">
-                  {settings && !settings.hasDeepSeekKey
-                    ? 'Add a DeepSeek key to get your first briefing.'
-                    : 'No briefing yet. Generate one whenever you are ready.'}
+                  No briefing yet. Generate one - without a DeepSeek key it uses local rules.
                 </p>
               )
             )}
@@ -2271,9 +2283,8 @@ export function App() {
           >
             <h2>Welcome to Local Dashboard</h2>
             <p>
-              Your notes, mail, calendar and Drive stay on this machine. Only a short digest —
-              subjects, senders, the first lines of unread mail, and one line from an old note on
-              quiet days — is sent to DeepSeek when you ask for a briefing.
+              Everything is optional. Connect only what you want; nothing leaves this machine
+              except what you explicitly enable.
             </p>
             <div className="row">
               <button

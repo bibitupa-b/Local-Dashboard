@@ -105,7 +105,11 @@ test('renders the briefing, the services line and their empty states', async () 
 
   await waitFor(() => {
     expect(screen.getByText('Nothing needs attention.')).toBeTruthy()
-    expect(screen.getByText('Add a DeepSeek key to get your first briefing.')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'No briefing yet. Generate one - without a DeepSeek key it uses local rules.',
+      ),
+    ).toBeTruthy()
     expect(screen.getByRole('heading', { level: 2, name: 'Focus' })).toBeTruthy()
     expect(container.querySelector('.station')?.getAttribute('title')).toBe(
       'Waiting for the first sync',
@@ -701,15 +705,17 @@ test('the last suggestion row and Ctrl/Cmd+Enter both run the full search', asyn
   unmount()
 })
 
-test('first visit explains what leaves the machine', async () => {
+test('first visit says everything is optional', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => ({ ok: true, json: async () => responses[url] ?? {} })),
   )
   const { unmount } = render(<App />)
   expect(await screen.findByText('Welcome to Local Dashboard')).toBeTruthy()
-  expect(screen.getByText(/Only a short digest/i)).toBeTruthy()
-  expect(screen.getByText(/one line from an old note/i)).toBeTruthy()
+  expect(
+    screen.getByText(/Everything is optional\. Connect only what you want;/),
+  ).toBeTruthy()
+  expect(screen.getByText(/nothing leaves this machine except what you explicitly enable/i)).toBeTruthy()
   unmount()
 })
 
@@ -739,15 +745,45 @@ test('the welcome dialog plays its exit before it unmounts', async () => {
   unmount()
 })
 
-test('setup checklist names the missing steps', async () => {
+test('zero connections says everything is optional and offers rules briefing', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const status = { ...(responses['/api/status'] as Record<string, unknown>), sources: [] }
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string) => ({ ok: true, json: async () => responses[url] ?? {} })),
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url === '/api/status'
+          ? status
+          : url === '/api/connections'
+            ? { items: [] }
+            : responses[url] ?? {},
+    })),
   )
   const { unmount } = render(<App />)
-  await waitFor(() => expect(screen.getByText('Get started')).toBeTruthy())
-  expect(screen.getByText('Add a DeepSeek key')).toBeTruthy()
-  expect(screen.getByText('Generate the first briefing')).toBeTruthy()
+  const card = await screen.findByRole('region', { name: 'Everything is optional' })
+  expect(within(card).getByText(/uses local rules/i)).toBeTruthy()
+
+  // The card is the way into an empty dashboard: its button opens the Connections route.
+  fireEvent.click(screen.getByRole('button', { name: 'Connections' }))
+  expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeTruthy()
+  unmount()
+})
+
+test('optional card can be dismissed', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
+  const status = { ...(responses['/api/status'] as Record<string, unknown>), sources: [] }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => (url === '/api/status' ? status : responses[url] ?? {}),
+    })),
+  )
+  const { unmount } = render(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: /dismiss/i }))
+  expect(screen.queryByText(/everything is optional/i)).toBeNull()
+  expect(localStorage.getItem('dashboard.optional-dismissed')).toBe('1')
   unmount()
 })
 
@@ -1089,7 +1125,8 @@ test('the settings route moves focus in and returns it on the way back', async (
   unmount()
 })
 
-test('setup checklist disappears when everything is configured', async () => {
+test('the optional card stays away once a source exists', async () => {
+  localStorage.setItem('dashboard.welcomed', '1')
   const settings = {
     ...(responses['/api/settings'] as Record<string, unknown>),
     hasDeepSeekKey: true,
@@ -1119,7 +1156,7 @@ test('setup checklist disappears when everything is configured', async () => {
   const { unmount } = render(<App />)
   await waitFor(() => expect(screen.getByText('One bullet')).toBeTruthy())
   expect(screen.queryByText('Suggestion')).toBeNull()
-  expect(screen.queryByText('Get started')).toBeNull()
+  expect(screen.queryByText('Everything is optional')).toBeNull()
   unmount()
 })
 
@@ -1256,7 +1293,11 @@ test('one failed endpoint leaves the rest of the page intact', async () => {
   const { unmount } = render(<App />)
   expect(await screen.findByText(/today's calendar/)).toBeTruthy()
   expect(screen.getByText('Nothing needs attention.')).toBeTruthy()
-  expect(screen.getByText('Add a DeepSeek key to get your first briefing.')).toBeTruthy()
+  expect(
+    screen.getByText(
+      'No briefing yet. Generate one - without a DeepSeek key it uses local rules.',
+    ),
+  ).toBeTruthy()
   expect(screen.queryByText('Calendar not connected')).toBeNull()
   unmount()
 })

@@ -1231,41 +1231,40 @@ button.brand:hover {
   color: var(--ink);
 }
 
-/* Setup strip */
+/* Optional connections card */
 
-.setup {
+.optional {
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: space-between;
+  gap: 20px;
   min-height: 56px;
-  padding: 0 20px;
+  padding: 16px 20px;
   border-radius: 16px;
   background: var(--raised);
   border: 1px solid var(--edge-hairline);
   flex-wrap: wrap;
 }
 
-.setup__steps {
-  display: flex;
-  align-items: center;
-  gap: 20px;
+.optional__copy {
+  display: grid;
+  gap: 6px;
   flex: 1;
-  flex-wrap: wrap;
-  padding: 8px 0;
+  min-width: 260px;
 }
 
-.setup__step {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.4;
+.optional__copy p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--mist);
+  max-width: 62ch;
 }
 
-.setup__step.is-done {
-  color: var(--ink);
+.optional__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* Briefing */

@@ -850,8 +850,12 @@ export function SettingsPanel({
 
       <section className="card" id="section-connections">
         <h2 className="card__title">Connections</h2>
+        <p className="card__sub">Everything here is optional. Add only what you want.</p>
         <p className="card__sub">
-          DeepSeek key: {settings.hasDeepSeekKey ? 'configured' : 'not set — add it under DeepSeek API'}
+          DeepSeek key:{' '}
+          {settings.hasDeepSeekKey
+            ? 'configured'
+            : 'not set - optional, enables the written briefing'}
         </p>
         {SERVICES.map((definition) => {
           const rows = connections.filter((row) => row.service === definition.service)
