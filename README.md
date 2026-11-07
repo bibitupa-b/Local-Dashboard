@@ -10,7 +10,21 @@ full saved briefing leaves the machine only if you turn on delivery.
 
 ![Dashboard](docs/screenshots/current/dashboard.jpeg)
 
-`Windows` · `Local-first` · `Read-only` · `Single user` · `MIT` · `v1.17.0`
+`Windows` · `Local-first` · `Read-only` · `Single user` · `MIT` · `v1.18.0`
+
+## What's new in 1.18.0
+
+- **Playwright e2e and visual checks** — the zero-state, local-only and settings flows run under
+  Playwright (`npm run test:e2e`), and the dashboard, settings and search screens are pinned by
+  visual baselines (`npm run test:visual`).
+- **Opt-in auto-update** — the packaged build checks GitHub Releases for updates, downloads in the
+  background and asks before installing. It is off while **Local only** is on, can be disabled under
+  **Settings → Application → Check for updates automatically**, and never runs in a source build.
+- **Opt-in code signing** — the build configuration supports signing through the `CSC_LINK` /
+  `CSC_KEY_PASSWORD` environment variables. Builds stay **unsigned by default**, so SmartScreen
+  still asks for confirmation; see [`docs/SIGNING.md`](docs/SIGNING.md).
+- **A faster first sync** — a calendar index and the confirmed Graph/Teams/CalDAV caps keep sync
+  small; a cold sync of a 300-note vault measured ~73 ms and startup-to-ready ~0.6 s.
 
 ## What's new in 1.17.0
 
@@ -124,6 +138,15 @@ full saved briefing leaves the machine only if you turn on delivery.
 The packaged app needs no Node.js installation. Data lives in
 `%APPDATA%\Local Dashboard\data`.
 
+### Updates
+
+The packaged build checks [GitHub Releases](https://github.com/bibitupa-b/Local-Dashboard/releases)
+for a newer version at startup and every six hours, downloads it in the background, and asks before
+installing. Auto-update is opt-in and can be turned off under **Settings → Application → Check for
+updates automatically**; it is skipped entirely while **Local only** is on, and it never runs in a
+source build (`npm run dev` / `electron:dev`). Updates are unsigned, like the installer, so the
+same SmartScreen confirmation applies to a downloaded update.
+
 ### From source
 
 ```powershell
@@ -236,7 +259,7 @@ used only against the servers you configured.
 
 More screens: [`docs/screenshots/current/index.html`](docs/screenshots/current/index.html).
 
-Release notes: [`docs/releases/1.17.0.md`](docs/releases/1.17.0.md).
+Release notes: [`docs/releases/1.18.0.md`](docs/releases/1.18.0.md).
 
 ## Troubleshooting
 
@@ -254,6 +277,15 @@ Release notes: [`docs/releases/1.17.0.md`](docs/releases/1.17.0.md).
 Backups are taken daily into `data/backups/` and kept for seven days. Backups include the database
 but **not** `data/secret.key`; copy that file separately if you want to restore encrypted
 connection secrets on another machine.
+
+## Known limits
+
+- The build is **not code-signed**; SmartScreen warns on first run and on each downloaded update.
+- Auto-update is verified against the release metadata and checks, not with a live install smoke
+  test on a clean machine.
+- Visual baselines are generated on Windows; a different OS or font rendering may show false
+  diffs in `npm run test:visual`.
+- The installer and portable build are packaged but not exercised on a clean VM in this cycle.
 
 ## Development
 

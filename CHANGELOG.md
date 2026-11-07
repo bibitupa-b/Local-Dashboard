@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.18.0
+
+The Phase 4 release: Playwright e2e and visual checks, opt-in auto-update, opt-in signing
+configuration, and a performance and docs pass.
+
+- **Playwright e2e** — the zero-state, local-only and settings flows run under Playwright
+  (`npm run test:e2e`), each isolated from shared state so one run does not leak into the next.
+- **Visual regression** — the dashboard, settings and search screens are pinned by screenshots
+  (`npm run test:visual`) under a fixed clock and reduced motion, so an unintended UI drift fails
+  the run.
+- **Opt-in auto-update** — the packaged build checks GitHub Releases at startup and every six hours,
+  downloads in the background and asks before installing. It is skipped in **Local only**, can be
+  turned off under **Settings → Application → Check for updates automatically**, and never runs in a
+  source build. The decision is a pure `shouldCheckForUpdates(localOnly, autoUpdate)` policy, tested
+  without Electron.
+- **Opt-in code signing** — `electron-builder` is configured with a trusted RFC 3161 timestamp server
+  and SHA-256; setting `CSC_LINK` / `CSC_KEY_PASSWORD` signs the build, and nothing is signed unless
+  a certificate is present. `docs/SIGNING.md` documents the flow and how to verify a build.
+- **Performance** — added a `calendar_events (connection_id, start)` index (the
+  `teams_mentions_created` index was already present), confirmed the Graph (5 pages), Teams (50
+  chats) and CalDAV (100 recurring instances) caps, and measured a 300-note vault cold sync at
+  ~73 ms with startup-to-ready around 0.6 s (see `docs/releases/1.18.0.md`).
+
 ## 1.17.0
 
 Mail arrives as it happens, and the briefing can leave on your terms.

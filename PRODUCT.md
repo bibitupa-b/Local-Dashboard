@@ -89,6 +89,11 @@ Approved decisions; do not re-litigate without asking.
   states the briefing markdown leaves the machine; it does not include the digest, though its bullets
   may quote subjects and snippets. One channel failing never blocks the other or the saved briefing,
   and Local only sends nothing.
+- **Auto-update is opt-in and packaging-only.** The packaged build checks GitHub Releases for a newer
+  version, downloads in the background and asks before installing. It is skipped in Local only,
+  disabled under Settings → Application, and absent from source builds. Signing is opt-in too: builds
+  stay unsigned unless `CSC_LINK` / `CSC_KEY_PASSWORD` are set, so SmartScreen remains the default
+  first-run experience.
 - **Windows only, permanently.** Path handling, tray, autostart and the NSIS/portable build are part
   of the product, not packaging details. No cross-platform ambition.
 - Non-goals: cloud sync, writing to services, mobile client, multi-user accounts, telemetry,

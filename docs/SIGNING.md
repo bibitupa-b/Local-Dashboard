@@ -41,8 +41,10 @@ trusted RFC 3161 timestamp and signs with SHA-256:
 
 ```json
 "win": {
-  "rfc3161TimeStampServer": "http://timestamp.digicert.com",
-  "signingHashAlgorithms": ["sha256"]
+  "signtoolOptions": {
+    "rfc3161TimeStampServer": "http://timestamp.digicert.com",
+    "signingHashAlgorithms": ["sha256"]
+  }
 }
 ```
 

@@ -192,6 +192,7 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 );
 
 CREATE INDEX IF NOT EXISTS calendar_events_start ON calendar_events (start);
+CREATE INDEX IF NOT EXISTS calendar_events_connection_start ON calendar_events (connection_id, start);
 
 CREATE TABLE IF NOT EXISTS teams_mentions (
   connection_id TEXT NOT NULL DEFAULT 'legacy',

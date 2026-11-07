@@ -22,6 +22,18 @@ One Node process:
 - **Microsoft 365 auth** — `src/server/microsoft.ts`: PKCE authorization-code flow against `login.microsoftonline.com/{tenant}`, scopes `offline_access User.Read Calendars.Read Chat.Read`, loopback redirect `/api/oauth/microsoft/callback`, refresh 5 minutes before expiry, and `graph()` with one 401 retry and one `Retry-After` wait.
 - **Teams source** — `sources/teams.ts`: personal and group chats from the last 24 hours (one-to-one counts the other member's message, group chats count explicit mentions), capped at 50 chats. Requests only `id,createdDateTime,from,mentions` via `$select`, so message bodies are never fetched; stores `teams_mentions` (chat name, sender, time). A missing `Chat.Read` leaves calendar working and Teams inert.
 - **Delivery** — `src/server/delivery.ts`: enabled `smtp` (`nodemailer`) and `telegram` (`api.telegram.org`) connections receive the saved briefing markdown after generation. Each send has a 20 s limit and requires STARTTLS on non-465 SMTP ports; an outcome is written back to the connection via `markConnectionSync` (so Settings shows the `lastError` dot) and logged by connection id, and never throws. `isLocalOnly` returns before any send. Delivery connections never produce sources, and they default to `enabled: false`.
+- **Auto-update** — `electron/main.cjs` wires `electron-updater` to the GitHub Releases provider in
+  `package.json`. A pure `electron/update-policy.cjs` (`shouldCheckForUpdates(localOnly, autoUpdate)`)
+  decides whether to check, so the truth table is testable without Electron. Checks run at startup and
+  every six hours, download in the background (`autoDownload: false`) and ask before installing.
+  Auto-update is skipped while Local only is on, is absent in source builds (`app.isPackaged`), and is
+  toggled under Settings → Application → **Check for updates automatically** (`auto_update` setting).
+- **Code signing** — opt-in. `electron-builder` reads `CSC_LINK` / `CSC_KEY_PASSWORD`; the build
+  config sets a trusted RFC 3161 timestamp server and SHA-256. Nothing is signed unless a certificate
+  is present, so builds stay unsigned by default. See `docs/SIGNING.md`.
+- **e2e / visual** — Playwright under `e2e/`: `zero-state`, `local-only` and `settings` flows plus a
+  `visual` spec that pins dashboard/settings/search screenshots on a fixed clock and reduced motion.
+  Baselines live in `e2e/__screenshots__/`; `npm run test:e2e` and `npm run test:visual` run them.
 - **Scheduler** — `node-cron`, daily briefing at 08:00 with catch-up on start and retry every 15 minutes until today's briefing exists.
 - **Briefing** — POST to `https://api.deepseek.com/chat/completions`, model `deepseek-flash` (V4.1 Flash, thinking off). Strict grounding is on by default: bullets must cite a digest line, numbers must appear on that line or in the authoritative facts, and a second pass drops what the digest cannot support.
 
@@ -153,9 +165,21 @@ Desktop (done in 0.5.0): Electron shell with tray, native notifications, Windows
 - SMTP and Telegram delivery after a successful briefing, disabled by default, 20 s per send, and
   never able to block the briefing from being saved. Local only sends nothing.
 
-### v1.18.0 — Phase 4 (next)
-- Playwright e2e and visual checks, opt-in auto-update and opt-in signing configuration (still
-  unsigned by default), then a performance and docs pass.
+### v1.18.0 — Phase 4 (done)
+- Playwright e2e and visual checks (`npm run test:e2e`, `npm run test:visual`), with baselines in
+  `e2e/__screenshots__/`.
+- Opt-in auto-update through `electron-updater` against GitHub Releases, skipped in Local only and
+  off in source builds; opt-in signing via `CSC_LINK` / `CSC_KEY_PASSWORD`, still unsigned by
+  default. See `docs/SIGNING.md`.
+- Performance and docs pass: a `calendar_events (connection_id, start)` index, the confirmed
+  Graph/Teams/CalDAV caps, and measured sync and startup times recorded in
+  `docs/releases/1.18.0.md`.
+
+### Next
+
+The phase plan is complete. Remaining ideas — a live update-install smoke test on a clean VM, a
+code-signing certificate for release builds — are tracked as known limits in
+`docs/releases/1.18.0.md`, not planned releases.
 
 ### Earlier plans (historical)
 

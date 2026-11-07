@@ -1,6 +1,6 @@
 {
   "name": "local-dashboard",
-  "version": "1.17.0",
+  "version": "1.18.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -49,10 +49,12 @@
         "portable"
       ],
       "icon": "assets/icon.ico",
-      "rfc3161TimeStampServer": "http://timestamp.digicert.com",
-      "signingHashAlgorithms": [
-        "sha256"
-      ]
+      "signtoolOptions": {
+        "rfc3161TimeStampServer": "http://timestamp.digicert.com",
+        "signingHashAlgorithms": [
+          "sha256"
+        ]
+      }
     },
     "nsis": {
       "oneClick": false,
