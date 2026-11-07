@@ -173,6 +173,14 @@ export function setWidgetLayout(db: DatabaseSync, value: unknown): void {
   setSetting(db, 'widget_layout', JSON.stringify(normalizeWidgetLayout(value)))
 }
 
+export function isLocalOnly(db: DatabaseSync): boolean {
+  return getSetting(db, 'local_only') === '1'
+}
+
+export function setLocalOnly(db: DatabaseSync, value: boolean): void {
+  setSetting(db, 'local_only', value ? '1' : '0')
+}
+
 /** Strict grounding is on unless the person turned it off. */
 export function groundingStrict(db: DatabaseSync): boolean {
   return getSetting(db, 'grounding_strict') !== '0'

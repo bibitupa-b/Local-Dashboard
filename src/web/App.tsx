@@ -969,6 +969,13 @@ export function App() {
     dismissGrounding()
   }
 
+  function toggleLocalOnly(): void {
+    const next = !(settings?.localOnly ?? false)
+    setSettings((current) => (current ? { ...current, localOnly: next } : current))
+    // The server rebuilds its sources on save, so reload the status to match.
+    void api.saveSettings({ localOnly: next }).then(load).catch(() => {})
+  }
+
   function closeSettings(): void {
     const stage = document.getElementById('stage')
     if (stage) stage.scrollTop = 0
@@ -1660,6 +1667,16 @@ export function App() {
         </div>
 
         <div className="topbar__right">
+          {settings?.localOnly && (
+            <button
+              type="button"
+              className="btn btn--ghost btn--mini"
+              onClick={toggleLocalOnly}
+              title="Local only — network sources and the DeepSeek briefing are paused"
+            >
+              Local only
+            </button>
+          )}
           <button
             type="button"
             className={`sync${running ? ' is-running' : ''}${failed ? ' is-failed' : ''}`}

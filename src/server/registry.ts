@@ -3,6 +3,7 @@ import type { Config } from './config.js'
 import type { SecretBox } from './secrets.js'
 import { listConnections, saveConnection, type Connection } from './connections.js'
 import { sourceMeta, type Source, type SourceKind, type SourceService } from './sources/types.js'
+import { isLocalOnly } from './settings.js'
 import { createVaultSource } from './sources/vault/index.js'
 import { createBrowserSource } from './sources/browser.js'
 import { createChromiumBrowserReader } from './sources/browser-chromium.js'
@@ -56,9 +57,12 @@ export function googleCreds(connection: Connection, deps: RegistryDeps): GoogleC
 /** Builds one source per enabled connection; Google yields a drive and a calendar source. */
 export function buildSources(deps: RegistryDeps): Source[] {
   const sources: Source[] = []
+  const localOnly = isLocalOnly(deps.db)
 
   for (const connection of listConnections(deps.db, deps.box)) {
     if (!connection.enabled) continue
+    // Local only keeps the vault and the browser history; every outbound service is skipped.
+    if (localOnly && connection.service !== 'vault' && connection.service !== 'browser') continue
     const meta = (kind: SourceKind) =>
       sourceMeta(kind, connection.service as SourceService, connection.id, connection.label)
 

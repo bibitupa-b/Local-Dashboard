@@ -20,6 +20,7 @@ export type SourceService =
   | 'weather'
   | 'rss'
   | 'slack'
+  | 'caldav'
 
 export type SourceMeta = {
   id: string
@@ -27,6 +28,7 @@ export type SourceMeta = {
   service: SourceService
   connectionId: string
   label: string
+  network: boolean
 }
 
 export function sourceMeta(
@@ -35,7 +37,14 @@ export function sourceMeta(
   connectionId = 'default',
   label: string = kind,
 ): SourceMeta {
-  return { id: `${kind}:${connectionId}`, kind, service, connectionId, label }
+  return {
+    id: `${kind}:${connectionId}`,
+    kind,
+    service,
+    connectionId,
+    label,
+    network: kind !== 'vault' && kind !== 'browser',
+  }
 }
 
 export type Source = SourceMeta & {

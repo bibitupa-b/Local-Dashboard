@@ -591,6 +591,11 @@ export function SettingsPanel({
     remember({ groundingStrict: value })
   })
 
+  const localOnly = useLiveSave(settings.localOnly ?? false, async (value) => {
+    await api.saveSettings({ localOnly: value })
+    remember({ localOnly: value })
+  })
+
   // Sliders preview instantly; the debounced save keeps the last value.
   function changeAppearance(patch: Partial<Settings['appearance']>): void {
     const next = { ...appearance.draft, ...patch }
@@ -939,6 +944,22 @@ export function SettingsPanel({
           Database, logs and backups live in{' '}
           <span className="detail" lang={contentLang(settings.dataDir)}>{settings.dataDir}</span>.
         </p>
+        <div className="pref">
+          <div className="pref-head">
+            <label htmlFor="pref-local-only">Local only - block all network access</label>
+            <FieldNote receipt={localOnly.receipt} onRetry={localOnly.retry} />
+          </div>
+          <label className="check">
+            <input
+              id="pref-local-only"
+              type="checkbox"
+              checked={localOnly.draft}
+              onChange={(event) => localOnly.edit(event.target.checked)}
+            />
+            Vault and browser history still sync. Mail, calendar, GitHub, weather, news, Slack and the
+            DeepSeek briefing stay paused.
+          </label>
+        </div>
         <div className="row">
           {window.dashboard && (
             <button

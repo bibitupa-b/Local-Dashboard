@@ -30,6 +30,8 @@ import {
   widgetLayout,
   setWidgetLayout,
   groundingStrict,
+  isLocalOnly,
+  setLocalOnly,
   type Appearance,
 } from './settings.js'
 import type { ConnectionInput } from './connections.js'
@@ -231,6 +233,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     ]
     return {
       version: process.env.APP_VERSION ?? process.env.npm_package_version ?? '',
+      localOnly: isLocalOnly(db),
       sources: sourceList().map((source) => ({
         id: source.id,
         kind: source.kind,
@@ -686,6 +689,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       appearance: appearance(db),
       widgets: widgetLayout(db),
       groundingStrict: groundingStrict(db),
+      localOnly: isLocalOnly(db),
       dataDir: config.dataDir,
     }
   })
@@ -773,6 +777,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       appearance?: Partial<Appearance>
       widgets?: unknown
       groundingStrict?: boolean
+      localOnly?: boolean
     }
     if (typeof body.briefingHour === 'number' && body.briefingHour >= 0 && body.briefingHour <= 23) {
       config.briefingHour = body.briefingHour
@@ -841,6 +846,10 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     if (body.widgets !== undefined) setWidgetLayout(db, body.widgets)
     if (typeof body.groundingStrict === 'boolean') {
       setSetting(db, 'grounding_strict', body.groundingStrict ? '1' : '0')
+    }
+    if (typeof body.localOnly === 'boolean') {
+      setLocalOnly(db, body.localOnly)
+      await deps.reload?.()
     }
     return { ok: true }
   })

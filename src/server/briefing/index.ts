@@ -18,6 +18,7 @@ import {
   isExcludedVaultPath,
   isSourceEnabled,
   groundingStrict,
+  isLocalOnly,
 } from '../settings.js'
 
 export type BriefingTrigger = 'auto' | 'manual'
@@ -255,7 +256,7 @@ export async function createBriefing(
   opts: Options = {},
 ): Promise<BriefingResult> {
   const now = opts.now ?? new Date()
-  if (!config.deepseekKey) return rulesBriefing(db, now, opts)
+  if (isLocalOnly(db) || !config.deepseekKey) return rulesBriefing(db, now, opts)
 
   const last = db.prepare('SELECT created_at, digest_meta FROM briefings ORDER BY id DESC LIMIT 1').get() as
     | { created_at: string; digest_meta: string }

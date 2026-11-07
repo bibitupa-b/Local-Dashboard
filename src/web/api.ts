@@ -155,6 +155,7 @@ export type Settings = {
   appearance: Appearance
   widgets: WidgetLayout[]
   groundingStrict: boolean
+  localOnly: boolean
   dataDir: string
 }
 
@@ -281,6 +282,7 @@ export const api = {
     appearance?: Partial<Appearance>
     widgets?: WidgetLayout[]
     groundingStrict?: boolean
+    localOnly?: boolean
   }): Promise<void> => {
     await fetch('/api/settings', {
       method: 'PUT',
