@@ -20,6 +20,8 @@ type FieldDef = {
   secret?: boolean
   placeholder?: string
   optional?: boolean
+  options?: string[]
+  default?: string
 }
 
 type ServiceDef = {
@@ -159,6 +161,22 @@ Only titles and short summaries reach the briefing; the feed is fetched on this 
 4. Top up the balance under Billing, otherwise requests return 402.`,
     fields: [{ key: 'key', label: 'API key', secret: true, placeholder: 'sk-...' }],
   },
+  {
+    service: 'caldav',
+    name: 'CalDAV calendar',
+    description: 'Apple iCloud or any CalDAV server, read-only.',
+    hint: `iCloud needs an app-specific password from appleid.apple.com.
+1. Sign in at appleid.apple.com -> Sign-In and Security -> App-Specific Passwords.
+2. Create one named "Local Dashboard" and copy the xxxx-xxxx-xxxx-xxxx value.
+3. For another server choose Custom and paste its CalDAV URL.`,
+    fields: [
+      { key: 'preset', label: 'Preset', options: ['iCloud', 'Custom'], default: 'iCloud' },
+      { key: 'url', label: 'Server URL', default: 'https://caldav.icloud.com' },
+      { key: 'username', label: 'Username', placeholder: 'you@icloud.com' },
+      { key: 'calendarIds', label: 'Calendar IDs', optional: true, placeholder: 'Home, Work' },
+      { key: 'password', label: 'App password', secret: true, placeholder: 'xxxx-xxxx-xxxx-xxxx' },
+    ],
+  },
 ]
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -172,6 +190,7 @@ const SOURCE_LABELS: Record<string, string> = {
   rss: 'rss',
   tasks: 'google tasks',
   slack: 'slack',
+  caldav: 'calendar',
 }
 
 type Notice = { text: string; tone: 'info' | 'success' | 'error' }
@@ -1631,6 +1650,8 @@ function isHealthy(connection: Connection): boolean {
       return Boolean(connection.config.feeds?.trim())
     case 'slack':
       return connection.secretsSet.includes('token')
+    case 'caldav':
+      return Boolean(connection.config.url) && connection.secretsSet.includes('password')
     default:
       return false
   }
@@ -1656,6 +1677,16 @@ function detailOf(connection: Connection): string {
       return connection.config.feeds ? `${connection.config.feeds.split(',').length} feeds` : 'no feeds'
     case 'slack':
       return connection.secretsSet.includes('token') ? 'token set' : 'no token'
+    case 'caldav': {
+      const host = (() => {
+        try {
+          return new URL(connection.config.url ?? '').host
+        } catch {
+          return connection.config.url ?? ''
+        }
+      })()
+      return [connection.config.preset, host].filter(Boolean).join(' · ')
+    }
     case 'deepseek':
       return connection.secretsSet.includes('key') ? 'key saved' : 'no key'
     default:
@@ -1676,7 +1707,14 @@ function ConnectionForm({
 }) {
   const [label, setLabel] = useState(connection?.label ?? definition.name)
   const [enabled, setEnabled] = useState(connection?.enabled ?? true)
-  const [config, setConfig] = useState<Record<string, string>>(connection?.config ?? {})
+  const [config, setConfig] = useState<Record<string, string>>(() => {
+    if (connection) return connection.config
+    const defaults: Record<string, string> = {}
+    for (const field of definition.fields) {
+      if (field.default !== undefined) defaults[field.key] = field.default
+    }
+    return defaults
+  })
   const [secret, setSecret] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const { leaving, close } = useLeaving()
@@ -1728,18 +1766,34 @@ function ConnectionForm({
                   {field.label}
                   {field.optional && !/optional/i.test(field.label) ? ' (optional)' : ''}
                 </label>
-                <input
-                  id={fieldId}
-                  type={field.secret ? 'password' : 'text'}
-                  placeholder={field.placeholder}
-                  aria-describedby={saved ? noteId : undefined}
-                  value={field.secret ? (secret[field.key] ?? '') : (config[field.key] ?? '')}
-                  onChange={(event) =>
-                    field.secret
-                      ? setSecret((current) => ({ ...current, [field.key]: event.target.value }))
-                      : setConfig((current) => ({ ...current, [field.key]: event.target.value }))
-                  }
-                />
+                {field.options ? (
+                  <select
+                    id={fieldId}
+                    value={config[field.key] ?? ''}
+                    onChange={(event) =>
+                      setConfig((current) => ({ ...current, [field.key]: event.target.value }))
+                    }
+                  >
+                    {field.options.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id={fieldId}
+                    type={field.secret ? 'password' : 'text'}
+                    placeholder={field.placeholder}
+                    aria-describedby={saved ? noteId : undefined}
+                    value={field.secret ? (secret[field.key] ?? '') : (config[field.key] ?? '')}
+                    onChange={(event) =>
+                      field.secret
+                        ? setSecret((current) => ({ ...current, [field.key]: event.target.value }))
+                        : setConfig((current) => ({ ...current, [field.key]: event.target.value }))
+                    }
+                  />
+                )}
                 {saved && (
                   <span className="hint-text" id={noteId}>
                     already saved — leave empty to keep it

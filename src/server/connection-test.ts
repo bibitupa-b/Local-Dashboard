@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { ImapFlow } from 'imapflow'
+import { createDAVClient } from 'tsdav'
 import { hasScope, DRIVE_SCOPE, CALENDAR_SCOPE, TASKS_SCOPE } from './google.js'
 import type { Connection } from './connections.js'
 
@@ -86,6 +87,22 @@ export async function testConnection(connection: Connection): Promise<TestResult
         return data.ok
           ? { ok: true }
           : { ok: false, error: `Slack responded ${data.error ?? response.status}` }
+      }
+      case 'caldav': {
+        const url = connection.config.url
+        const username = connection.config.username
+        const password = connection.secret?.password
+        if (!url || !username || !password) {
+          return { ok: false, error: 'Server URL, username and password are required' }
+        }
+        const client = await createDAVClient({
+          serverUrl: url,
+          credentials: { username, password },
+          authMethod: 'Basic',
+          defaultAccountType: 'caldav',
+        })
+        await client.fetchCalendars()
+        return { ok: true }
       }
       case 'deepseek': {
         const key = connection.secret?.key

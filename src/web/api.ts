@@ -168,6 +168,7 @@ export type Service =
   | 'weather'
   | 'rss'
   | 'slack'
+  | 'caldav'
   | 'deepseek'
 
 export type Connection = {

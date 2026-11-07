@@ -82,6 +82,12 @@ function SourceGlyph({ service }: { service: string }) {
           <path d="M3.5 10h17M8 3.5v4M16 3.5v4" {...common} />
         </>
       )}
+      {service === 'caldav' && (
+        <>
+          <rect x="3.5" y="5.5" width="17" height="15" rx="2" {...common} />
+          <path d="M3.5 10h17M8 3.5v4M16 3.5v4" {...common} />
+        </>
+      )}
       {service === 'settings' && (
         <>
           <circle cx="12" cy="12" r="3" {...common} />
@@ -101,6 +107,7 @@ const SERVICE_LABELS: Record<string, string> = {
   weather: 'weather',
   rss: 'news',
   slack: 'slack',
+  caldav: 'calendar',
 }
 
 // A station link is named by what it opens, not only by its state.
@@ -1263,7 +1270,7 @@ export function App() {
   )
 
   const stations = (() => {
-    const order = ['vault', 'google', 'imap', 'github', 'weather', 'rss', 'slack', 'browser']
+    const order = ['vault', 'google', 'caldav', 'imap', 'github', 'weather', 'rss', 'slack', 'browser']
     const map = new Map<
       string,
       { service: string; total: number; configured: number; error: string | null; lastSync: string | null }

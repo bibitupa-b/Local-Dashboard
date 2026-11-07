@@ -28,6 +28,7 @@ import {
   createGoogleCalendarApi,
   parseCalendarIds,
 } from './sources/calendar.js'
+import { createCalDavCalendarApi } from './sources/caldav.js'
 
 export type RegistryDeps = {
   db: DatabaseSync
@@ -115,6 +116,22 @@ export function buildSources(deps: RegistryDeps): Source[] {
           createSlackSource(
             createSlackApi(connection.secret?.token ?? null, connection.config.userId),
             meta('slack'),
+          ),
+        )
+        break
+      case 'caldav':
+        sources.push(
+          createCalendarSource(
+            createCalDavCalendarApi({
+              url: connection.config.url ?? '',
+              username: connection.config.username ?? '',
+              password: connection.secret?.password ?? '',
+              calendarIds: (connection.config.calendarIds ?? '')
+                .split(',')
+                .map((id) => id.trim())
+                .filter(Boolean),
+            }),
+            meta('calendar'),
           ),
         )
         break

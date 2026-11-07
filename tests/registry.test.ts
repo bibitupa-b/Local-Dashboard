@@ -37,11 +37,18 @@ test('builds one source per connection, google yields drive and calendar', () =>
         }),
       },
     })
+    saveConnection(db, box, {
+      service: 'caldav',
+      label: 'iCloud',
+      config: { preset: 'iCloud', url: 'https://caldav.icloud.com', username: 'me@icloud.com' },
+      secret: { password: 'x' },
+    })
 
     const sources = buildSources({ db, box, config, dataDir: dir })
     const kinds = sources.map((source) => source.kind).sort()
     expect(kinds).toEqual([
       'browser',
+      'calendar',
       'calendar',
       'drive',
       'github',
@@ -52,6 +59,7 @@ test('builds one source per connection, google yields drive and calendar', () =>
     ])
     expect(new Set(sources.map((source) => source.id)).size).toBe(sources.length)
     expect(sources.find((source) => source.kind === 'drive')?.configured()).toBe(true)
+    expect(sources.filter((source) => source.kind === 'calendar')).toHaveLength(2)
     expect(sources.find((source) => source.kind === 'calendar')?.configured()).toBe(true)
     // The test token was granted before the Tasks scope existed.
     expect(sources.find((source) => source.kind === 'tasks')?.configured()).toBe(false)
@@ -64,7 +72,7 @@ test('builds one source per connection, google yields drive and calendar', () =>
       enabled: false,
     })
     expect(disabled.enabled).toBe(false)
-    expect(buildSources({ db, box, config, dataDir: dir })).toHaveLength(8)
+    expect(buildSources({ db, box, config, dataDir: dir })).toHaveLength(9)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
