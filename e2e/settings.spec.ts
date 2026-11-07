@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test'
-import { clearConnections, dismissWelcome, listConnections, openSettings, serviceGroup, toggleCheckbox } from './helpers.js'
+import { dismissWelcome, listConnections, openSettings, resetServerState, serviceGroup, toggleCheckbox } from './helpers.js'
 
 test.describe('settings connections', () => {
   test.beforeEach(async ({ page, request }) => {
     await dismissWelcome(page)
-    await clearConnections(request)
+    await resetServerState(request)
   })
 
   test('add, disable and remove a Weather connection', async ({ page, request }) => {

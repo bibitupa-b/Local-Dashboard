@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test'
-import { clearConnections, dismissWelcome } from './helpers.js'
+import { dismissWelcome, resetServerState } from './helpers.js'
 
 test.describe('zero connections', () => {
   test.beforeEach(async ({ page, request }) => {
     await dismissWelcome(page)
-    await clearConnections(request)
+    await resetServerState(request)
   })
 
   test('shows the optional card and writes a rules briefing', async ({ page }) => {

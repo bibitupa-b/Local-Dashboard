@@ -36,6 +36,16 @@ export async function clearConnections(request: APIRequestContext): Promise<void
 }
 
 /**
+ * The web server is a single shared process: a spec that turns `localOnly` on must not leak that
+ * into the next spec. Reset every mutable setting the specs touch and drop all connections, so each
+ * test starts from a known state even though `workers: 1` runs them serially.
+ */
+export async function resetServerState(request: APIRequestContext): Promise<void> {
+  await request.put(`${BASE}/api/settings`, { data: { localOnly: false } })
+  await clearConnections(request)
+}
+
+/**
  * A fresh server seeds a vault + browser connection and, once its startup sync finishes, writes a
  * one-shot "Quiet day" catch-up briefing. For a visual baseline we need neither: wait for that
  * briefing to land, then wipe data and connections. This only runs in `test:visual`, a single-test

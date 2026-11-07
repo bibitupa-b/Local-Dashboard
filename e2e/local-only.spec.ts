@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test'
-import { addConnection, clearConnections, dismissWelcome, openSettings, toggleCheckbox } from './helpers.js'
+import { addConnection, dismissWelcome, openSettings, resetServerState, toggleCheckbox } from './helpers.js'
 
 test.describe('local only', () => {
   test.beforeEach(async ({ page, request }) => {
     await dismissWelcome(page)
-    await clearConnections(request)
+    await resetServerState(request)
   })
 
   test('disables connection test buttons and OAuth links', async ({ page, request }) => {
@@ -37,17 +37,13 @@ test.describe('local only', () => {
     })
     await request.put('http://127.0.0.1:4318/api/settings', { data: { localOnly: true } })
 
-    let deepseekRequests = 0
-    await page.route('https://api.deepseek.com/**', (route) => {
-      deepseekRequests++
-      void route.abort()
-    })
-
     await page.goto('/')
     await page.getByRole('button', { name: /briefing now|refresh/i }).click()
 
+    // The briefing call is made server-side, so a browser route can't observe it. The real proof of
+    // no egress is that local-only short-circuits to the deterministic rules path: a "Quiet day"
+    // headline and the "· rules" stamp (digest_meta.model === 'rules'), never a deepseek-flash result.
     await expect(page.getByText('Quiet day')).toBeVisible()
     await expect(page.locator('.briefing__stamp').filter({ hasText: 'rules' })).toBeVisible()
-    expect(deepseekRequests).toBe(0)
   })
 })
