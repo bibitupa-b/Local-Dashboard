@@ -8,8 +8,9 @@ calendars.
 - **Everything is optional** — a fresh install with no connections and no DeepSeek key is a valid
   state: the dashboard loads, the zero-state card explains what can be added, and the briefing uses
   local rules and says so instead of failing.
-- **Local only** — a settings toggle (and a topbar badge) blocks every outbound request: DeepSeek,
-  weather, RSS, Slack and CalDAV. Vault and browser history keep syncing.
+- **Local only** — a settings toggle (and a topbar badge) blocks every outbound request, including
+  DeepSeek, weather, RSS, Slack, CalDAV, Gmail, GitHub and Google. Vault and browser history keep
+  syncing.
 - **Apple and generic CalDAV** — a read-only calendar source through `tsdav` and `ical.js`, with an
   iCloud preset and a Custom server. It reuses the calendar table and the normal calendar source.
 - **Recurring events** — RRULE/EXDATE instances are expanded inside the calendar window, capped at

@@ -1735,6 +1735,12 @@ button.chip:hover {
   transform: none;
 }
 
+.btn.is-disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
 .mini {
   height: 28px;
   padding: 0 10px;

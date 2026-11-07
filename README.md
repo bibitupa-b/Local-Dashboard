@@ -16,8 +16,9 @@ briefing is generated.
 - **Everything is optional** — the app starts without a vault, a connection or a DeepSeek key. A
   fresh install opens on a quiet dashboard with a dismissible note; the briefing uses local rules
   until you add a key.
-- **Local only** — one toggle in Settings, also in the topbar, blocks every outbound request:
-  DeepSeek, weather, RSS, Slack and CalDAV. Vault and browser history keep syncing.
+- **Local only** — one toggle in Settings, also in the topbar, blocks every outbound request,
+  including DeepSeek, weather, RSS, Slack, CalDAV, Gmail, GitHub and Google. Vault and browser
+  history keep syncing.
 - **Apple and generic CalDAV** — read-only calendar events from iCloud or any CalDAV server, beside
   the Google calendar. Credentials stay encrypted and events reuse the normal calendar source.
 
@@ -154,9 +155,9 @@ to Open-Meteo; RSS feeds are fetched directly from the addresses you configure. 
 reaches the model as domain counts only. There is no telemetry, no analytics and no cloud account.
 
 **Local only** turns the machine into a closed box: every outbound request is blocked, including
-DeepSeek, weather, RSS, Slack and CalDAV. Vault and browser history still sync, and
-the briefing falls back to local rules. CalDAV passwords are encrypted with AES-256-GCM and are
-used only against the server you configured.
+DeepSeek, weather, RSS, Slack, CalDAV, Gmail, GitHub and Google. Vault and browser history still
+sync, and the briefing falls back to local rules. CalDAV passwords are encrypted with AES-256-GCM
+and are used only against the server you configured.
 
 ## Screens
 

@@ -18,7 +18,7 @@ One Node process:
 - **Vault source** — `chokidar` watches `<VAULT_PATH>`, hashes changed notes, stores a snapshot plus a line diff.
 - **Drive source** — `googleapis` polls `files.list` with `modifiedTime` ordering and a stored cursor; read-only scope.
 - **Mail source** — `imapflow` + `mailparser` over Gmail IMAP: all folders except All Mail, incremental by UID, bodies kept for 90 days, attachments by name only.
-- **Calendar source** — `googleapis` Calendar API, primary calendar, window of −1 to +7 days.
+- **Calendar source** — Google Calendar API or CalDAV (`tsdav` + `ical.js`), read-only, window of −1 to +7 days; one source per connected calendar account.
 - **Scheduler** — `node-cron`, daily briefing at 08:00 with catch-up on start and retry every 15 minutes until today's briefing exists.
 - **Briefing** — POST to `https://api.deepseek.com/chat/completions`, model `deepseek-flash` (V4.1 Flash, thinking off). Strict grounding is on by default: bullets must cite a digest line, numbers must appear on that line or in the authoritative facts, and a second pass drops what the digest cannot support.
 
@@ -96,7 +96,7 @@ These were agreed with the user; do not re-litigate them without asking.
 | `briefings` | created at, trigger (auto/manual), markdown, digest metadata |
 | `mail_folders` | folder path, UIDVALIDITY, last synced UID, last sync time |
 | `mail_messages` | folder, UID, sender, subject, date, seen/starred, snippet, body (90 days), attachment names |
-| `calendar_events` | Google event id, calendar, summary, start/end, location, status |
+| `calendar_events` | event id (Google or CalDAV), calendar, summary, start/end, location, status |
 | `connections` | service, label, config JSON, encrypted secret, enabled, last error |
 | `settings` | key/value: schedule, exclusions, enabled sources, sync cursors |
 
@@ -130,6 +130,10 @@ Desktop (done in 0.5.0): Electron shell with tray, native notifications, Windows
 ### v1.16.0 — Microsoft 365 (next)
 - One Microsoft 365 connection yields Outlook Calendar and Teams chats; Teams stores chat names and
   counts only.
+
+### Earlier plans (historical)
+
+The milestones below predate 1.0 and are kept for context; several items shipped in later releases.
 
 ### v0.4.0 — New signals
 - Browser history: read a copy of the Chromium History DB (Chrome, then Edge), store domain/title/visited time, skip excluded domains. Digest gets aggregates only, never page URLs.

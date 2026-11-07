@@ -5,6 +5,7 @@ import { afterAll, beforeAll, expect, test } from 'vitest'
 import { buildApp } from '../src/server/app.js'
 import { loadConfig } from '../src/server/config.js'
 import { openDb, setSetting } from '../src/server/db/index.js'
+import { setLocalOnly } from '../src/server/settings.js'
 import { createDriveSource } from '../src/server/sources/drive.js'
 import { createVaultSource } from '../src/server/sources/vault/index.js'
 
@@ -639,6 +640,52 @@ test('connections API saves, tests and reloads sources', async () => {  const db
     payload: { label: 'no service' },
   })
   expect(invalid.statusCode).toBe(400)
+  await app.close()
+})
+
+test('local only refuses connection tests and Google OAuth without calling out', async () => {
+  const db = openDb(':memory:')
+  setLocalOnly(db, true)
+  const config = loadConfig({ VAULT_PATH: root })
+  let tests = 0
+  const app = buildApp({
+    db,
+    config,
+    sources: [],
+    webRoot: join(root, 'no-ui'),
+    connections: {
+      list: () => [],
+      save: (input) => ({
+        id: 'any',
+        service: input.service,
+        label: input.label,
+        config: input.config,
+        enabled: true,
+        lastError: null,
+        createdAt: '2026-11-01T00:00:00.000Z',
+        secretsSet: [],
+      }),
+      remove: () => {},
+      test: async () => {
+        tests++
+        return { ok: true }
+      },
+    },
+    googleStart: () => {
+      throw new Error('must not start OAuth in local only')
+    },
+  })
+
+  const tested = await app.inject({ method: 'POST', url: '/api/connections/any/test' })
+  expect(tested.statusCode).toBe(200)
+  expect(tested.json()).toEqual({
+    ok: false,
+    error: 'Local only is on. Turn it off to test this connection.',
+  })
+  expect(tests).toBe(0)
+
+  const start = await app.inject({ method: 'GET', url: '/api/oauth/google/start' })
+  expect(start.statusCode).toBe(409)
   await app.close()
 })
 

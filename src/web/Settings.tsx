@@ -614,6 +614,7 @@ export function SettingsPanel({
     await api.saveSettings({ localOnly: value })
     remember({ localOnly: value })
   })
+  const localOnlyHint = 'Local only is on. Turn it off to test or connect.'
 
   // Sliders preview instantly; the debounced save keeps the last value.
   function changeAppearance(patch: Partial<Settings['appearance']>): void {
@@ -914,7 +915,13 @@ export function SettingsPanel({
                         : ''}
                     </span>
                     <span className="conn-actions">
-                      <button type="button" className="btn btn--ghost btn--mini" onClick={() => void test(row)}>
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--mini"
+                        onClick={() => void test(row)}
+                        disabled={localOnly.draft}
+                        title={localOnly.draft ? localOnlyHint : undefined}
+                      >
                         Test
                       </button>
                       <button
@@ -924,18 +931,27 @@ export function SettingsPanel({
                       >
                         Edit
                       </button>
-                      {definition.service === 'google' && (
-                        // A new window is intercepted by Electron and opened in the system browser,
-                        // so the dashboard itself never navigates away.
-                        <a
-                          className="btn btn--ghost btn--mini"
-                          href={`/api/oauth/google/start?connection=${row.id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {row.secretsSet.includes('tokens') ? 'Reconnect' : 'Connect'}
-                        </a>
-                      )}
+                      {definition.service === 'google' &&
+                        (localOnly.draft ? (
+                          <span
+                            className="btn btn--ghost btn--mini is-disabled"
+                            aria-disabled="true"
+                            title={localOnlyHint}
+                          >
+                            {row.secretsSet.includes('tokens') ? 'Reconnect' : 'Connect'}
+                          </span>
+                        ) : (
+                          // A new window is intercepted by Electron and opened in the system browser,
+                          // so the dashboard itself never navigates away.
+                          <a
+                            className="btn btn--ghost btn--mini"
+                            href={`/api/oauth/google/start?connection=${row.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {row.secretsSet.includes('tokens') ? 'Reconnect' : 'Connect'}
+                          </a>
+                        ))}
                       <button
                         type="button"
                         className="btn btn--danger btn--mini"

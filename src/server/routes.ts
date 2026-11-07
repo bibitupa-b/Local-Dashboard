@@ -751,6 +751,9 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
 
   app.post('/api/connections/:id/test', async (request, reply) => {
     if (!deps.connections) return reply.code(503).send({ error: 'connections are not available' })
+    if (isLocalOnly(db)) {
+      return { ok: false, error: 'Local only is on. Turn it off to test this connection.' }
+    }
     const { id } = request.params as { id: string }
     return deps.connections.test(id)
   })
@@ -855,6 +858,11 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   })
 
   app.get('/api/oauth/google/start', async (request, reply) => {
+    if (isLocalOnly(db)) {
+      return reply
+        .code(409)
+        .send({ error: 'Local only is on. Turn it off to connect Google.' })
+    }
     const { connection } = request.query as { connection?: string }
     const target =
       connection ?? deps.connections?.list().find((row) => row.service === 'google')?.id
@@ -868,6 +876,11 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   })
 
   app.get('/api/oauth/google/callback', async (request, reply) => {
+    if (isLocalOnly(db)) {
+      return reply
+        .code(409)
+        .send({ error: 'Local only is on. Turn it off to connect Google.' })
+    }
     const { code, state, error } = request.query as { code?: string; state?: string; error?: string }
     const expected = getSetting(db, 'google_oauth_state') ?? ''
     const [expectedState, connectionId] = expected.split('|')
