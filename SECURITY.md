@@ -16,7 +16,7 @@ This is a personal project. Open an issue or message the maintainer privately if
 - Weather coordinates go only to `api.open-meteo.com`; RSS feed URLs are fetched directly from the configured addresses. Neither goes to DeepSeek.
 - **Local only** blocks every outbound request, including DeepSeek, weather, RSS, Slack, Microsoft 365, CalDAV, Gmail, GitHub and Google. Only the local vault and browser history keep syncing, and the briefing is generated from local rules. Network data already in the database stays visible; the topbar marks Local only.
 - CalDAV talks only to the server URL you configured (iCloud or a custom host), read-only, using the app password or account password stored encrypted. The server never writes to events.
-- Microsoft 365 talks only to `login.microsoftonline.com` (token exchange) and `graph.microsoft.com` (read-only). The delegated scopes are `offline_access User.Read Calendars.Read Chat.Read`: Outlook mail and Teams channels are not requested, and no admin consent is involved. Teams stores chat names, senders and counts; message text is never read or written to the database.
+- Microsoft 365 talks only to `login.microsoftonline.com` (token exchange) and `graph.microsoft.com` (read-only). The delegated scopes are `offline_access User.Read Calendars.Read Chat.Read`: Outlook mail and Teams channels are not requested, and no admin consent is involved (if the tenant blocks user consent, an admin approves the four scopes once). Teams requests only message ids, timestamps, senders and mention flags via `$select`; message text is never stored, logged or sent.
 
 ## Secrets
 

@@ -13,10 +13,13 @@ Microsoft 365 joins the dashboard: Outlook Calendar and Teams chats through one 
 - **Teams chats** — personal and group chats from the last 24 hours. A one-to-one chat counts a
   message from the other person as a mention; a group chat counts explicit `@` mentions. The
   result is one `Teams: N mentions` attention item and one digest line with up to five chat names.
-- **Names and counts only** — message text is never read or stored; the database holds message ids,
-  chat ids, chat names, senders and times. `teams_mentions` is purged with its connection.
+- **Names and counts only** — message bodies are never fetched (`$select`), and message text is
+  never stored, logged or sent. The database holds message ids, chat ids, chat names, senders and
+  times; `teams_mentions` is purged with its connection.
 - **Chats need no admin consent** — `Chat.Read` is delegated and consented by the user. Channel
-  messages are not requested, so no tenant-wide permission is involved.
+  messages are not requested, so no tenant-wide permission is involved. If the tenant blocks user
+  consent, an admin approves the four delegated scopes once. Outlook Calendar works with personal
+  and work accounts; Teams chats need a work or school account.
 - **Tokens refresh once and persist** — an expired access token is refreshed with `offline_access`
   and saved encrypted through `SecretBox`; a 401 refreshes and retries once, a 429 honours
   `Retry-After` once. A token without `Chat.Read` leaves the calendar working and Teams inert, and

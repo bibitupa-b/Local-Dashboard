@@ -17,9 +17,11 @@ when a briefing is generated.
   registration. Outlook events join the normal calendar source and free windows; Teams mentions from
   the last 24 hours become a `Teams: N mentions` line in the briefing and in "Start here".
 - **Chats only, never channel messages** — personal and group chats are read; channels are not
-  requested. Only chat names, senders and counts are stored, never message text.
+  requested. Message bodies are never fetched (`$select`); only chat names, senders, timestamps and
+  mention flags are stored, and message text is never stored, logged or sent.
 - **No admin consent for chats** — the delegated `Chat.Read` scope is granted by the user at first
-  sign-in. Microsoft tokens refresh automatically and stay encrypted like every other secret.
+  sign-in; if the tenant blocks user consent, an admin approves the four delegated scopes once.
+  Microsoft tokens refresh automatically and stay encrypted like every other secret.
 
 ## What's new in 1.15.0
 
@@ -150,9 +152,11 @@ days.
 For Microsoft 365, create an **Azure app registration** and add the redirect URI
 `http://127.0.0.1:4317/api/oauth/microsoft/callback`. Under **API permissions**, add the delegated
 scopes `offline_access User.Read Calendars.Read Chat.Read`; no admin consent is needed for chats,
-because channels are not requested. Paste the Client ID (a client secret is optional), set the
-tenant to `common` for personal and work accounts, save, then press **Connect**. Outlook mail is not
-requested, so Gmail or another IMAP account still covers mail.
+because channels are not requested (if the tenant blocks user consent, an admin approves the four
+scopes once). Paste the Client ID (a client secret is optional), keep the tenant at `common`, save,
+then press **Connect**. Outlook Calendar works with personal and work accounts; Teams chats need a
+work or school account. Outlook mail is not requested, so Gmail or another IMAP account still covers
+mail.
 
 `.env` is optional and imported once on first start. See [`.env.example`](.env.example) for the
 available keys: `PORT`, `VAULT_PATH`, `DEEPSEEK_API_KEY`, Google credentials, `GMAIL_USER`,

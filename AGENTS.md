@@ -20,7 +20,7 @@ One Node process:
 - **Mail source** — `imapflow` + `mailparser` over Gmail IMAP: all folders except All Mail, incremental by UID, bodies kept for 90 days, attachments by name only.
 - **Calendar source** — Google Calendar API, Microsoft Graph `/me/calendarView` or CalDAV (`tsdav` + `ical.js`), read-only, window of −1 to +7 days; one source per connected calendar account.
 - **Microsoft 365 auth** — `src/server/microsoft.ts`: PKCE authorization-code flow against `login.microsoftonline.com/{tenant}`, scopes `offline_access User.Read Calendars.Read Chat.Read`, loopback redirect `/api/oauth/microsoft/callback`, refresh 5 minutes before expiry, and `graph()` with one 401 retry and one `Retry-After` wait.
-- **Teams source** — `sources/teams.ts`: personal and group chats from the last 24 hours (one-to-one counts the other member's message, group chats count explicit mentions), capped at 50 chats. Stores `teams_mentions` (chat name, sender, time) only — message text is never read. A missing `Chat.Read` leaves calendar working and Teams inert.
+- **Teams source** — `sources/teams.ts`: personal and group chats from the last 24 hours (one-to-one counts the other member's message, group chats count explicit mentions), capped at 50 chats. Requests only `id,createdDateTime,from,mentions` via `$select`, so message bodies are never fetched; stores `teams_mentions` (chat name, sender, time). A missing `Chat.Read` leaves calendar working and Teams inert.
 - **Scheduler** — `node-cron`, daily briefing at 08:00 with catch-up on start and retry every 15 minutes until today's briefing exists.
 - **Briefing** — POST to `https://api.deepseek.com/chat/completions`, model `deepseek-flash` (V4.1 Flash, thinking off). Strict grounding is on by default: bullets must cite a digest line, numbers must appear on that line or in the authoritative facts, and a second pass drops what the digest cannot support.
 
@@ -102,8 +102,8 @@ These were agreed with the user; do not re-litigate them without asking.
 | `briefings` | created at, trigger (auto/manual), markdown, digest metadata |
 | `mail_folders` | folder path, UIDVALIDITY, last synced UID, last sync time |
 | `mail_messages` | folder, UID, sender, subject, date, seen/starred, snippet, body (90 days), attachment names |
-| `calendar_events` | event id (Google, Graph or CalDAV), calendar, summary, start/end, location, status |
-| `teams_mentions` | connection, message id, chat id/name, sender id, created at — never message text |
+| `calendar_events` | event id (Google, Graph or CalDAV), calendar, summary, start/end, location, status, attendees |
+| `teams_mentions` | connection, message id, chat id/name, sender id, created at — no message text |
 | `connections` | service, label, config JSON, encrypted secret, enabled, last error |
 | `settings` | key/value: schedule, exclusions, enabled sources, sync cursors |
 

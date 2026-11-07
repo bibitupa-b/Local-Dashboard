@@ -69,11 +69,14 @@ Approved decisions; do not re-litigate without asking.
 - Dark interface only.
 - Never sent to DeepSeek: vault note bodies, whole files, mail bodies, attachments, browser URLs or
   page titles, tokens, passwords. Mail keeps bodies for 90 days, then headers and subject only;
-  attachments are indexed by name and never downloaded. Teams stores chat names, senders and
-  counts only — never message text — and reads personal and group chats only.
+  attachments are indexed by name and never downloaded. Teams requests only message ids, timestamps,
+  senders and mention flags (`$select`) and stores chat names, senders and times — message text is
+  never stored, logged or sent. It reads personal and group chats only.
 - Microsoft 365 is one connection with two read-only sources: Outlook Calendar through Graph
   (`Calendars.Read`) and Teams chats (`Chat.Read`). Channel messages are not requested, so no admin
-  consent is needed for chats; Outlook mail is not requested either, so mail stays with IMAP.
+  consent is needed for chats; if the tenant blocks user consent, an admin approves the four
+  delegated scopes once. Outlook Calendar works with personal and work accounts; Teams chats need a
+  work or school account. Outlook mail is not requested either, so mail stays with IMAP.
 - **Windows only, permanently.** Path handling, tray, autostart and the NSIS/portable build are part
   of the product, not packaging details. No cross-platform ambition.
 - Non-goals: cloud sync, writing to services, mobile client, multi-user accounts, telemetry,

@@ -185,7 +185,9 @@ Only titles and short summaries reach the briefing; the feed is fetched on this 
 2. Set the redirect URI to http://127.0.0.1:4317/api/oauth/microsoft/callback.
 3. Add the scopes offline_access User.Read Calendars.Read Chat.Read.
 4. Paste the Client ID (and optional Client secret), save, then press Connect.
-No admin consent is needed for chats; channels are not supported.`,
+No admin consent is needed for chats; channels are not supported. If your tenant blocks user
+consent, an admin must approve the four delegated scopes once. Teams chats need a work or school
+account.`,
     fields: [
       { key: 'tenant', label: 'Tenant', placeholder: 'common' },
       { key: 'clientId', label: 'Client ID', placeholder: 'Application (client) ID' },

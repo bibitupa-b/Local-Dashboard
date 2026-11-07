@@ -40,8 +40,8 @@ function otherMemberName(chat: MicrosoftChat, me: string): string {
 
 /**
  * Personal and group chats only. Mentions come from explicit `mentions` in group chats; a
- * one-on-one chat treats every message from the other member as a mention. Message text is
- * never read: only ids, names, sender and time are returned.
+ * one-on-one chat treats every message from the other member as a mention. Message bodies are
+ * never requested: the `$select` keeps only ids, timestamps, senders and mention flags.
  */
 export function createMicrosoftTeamsApi(creds: MicrosoftCreds | null, selfId?: string): TeamsApi | null {
   if (!creds?.tokens) return null
@@ -57,7 +57,7 @@ export function createMicrosoftTeamsApi(creds: MicrosoftCreds | null, selfId?: s
           const chatName = chat.topic?.trim() || otherMemberName(chat, me) || chat.id
           const page = await graph<{ value?: MicrosoftChatMessage[] }>(
             creds,
-            `/me/chats/${chat.id}/messages?$top=50`,
+            `/me/chats/${chat.id}/messages?$top=50&$select=id,createdDateTime,from,mentions`,
           )
           for (const message of page.value ?? []) {
             if (!message.id || !message.createdDateTime) continue
