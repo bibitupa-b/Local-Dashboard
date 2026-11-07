@@ -65,14 +65,19 @@ export function toCalDavEvents(
 
           if (event.isRecurring()) {
             const duration = event.duration ? event.duration.toSeconds() : 0
+            // Iterate from DTSTART so COUNT/UNTIL stay anchored to the real start; skip
+            // pre-window occurrences without counting them toward the cap, which is only
+            // meant to bound how many events we emit inside the requested window.
             const iterator = event.iterator()
             let next: ICAL.Time | null = iterator.next()
-            let count = 0
-            while (next && count < MAX_INSTANCES) {
+            let emitted = 0
+            while (next) {
               const start = next.toJSDate()
               if (start.getTime() >= toMs) break
               const end = new Date(start.getTime() + duration * 1000)
               if (end.getTime() > fromMs) {
+                if (emitted >= MAX_INSTANCES) break
+                emitted++
                 events.push({
                   ...base,
                   id: `${uid}#${start.getTime()}`,
@@ -80,7 +85,6 @@ export function toCalDavEvents(
                   end: end.toISOString(),
                 })
               }
-              count++
               try {
                 next = iterator.next()
               } catch {

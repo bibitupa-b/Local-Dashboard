@@ -60,3 +60,23 @@ test('expands recurring events inside the window', () => {
   )
   expect(events.map((event) => event.start)).toContain('2026-11-09T09:00:00.000Z')
 })
+
+test('long-running recurrence still yields the in-window occurrence', () => {
+  const from = new Date('2026-11-07T00:00:00Z')
+  const to = new Date('2026-11-10T00:00:00Z')
+  // 200 days before the window: enough to exhaust a DTSTART-anchored 100 cap.
+  const start = new Date(from.getTime() - 200 * 86_400_000 + 9 * 3_600_000)
+  const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.000Z$/, 'Z')
+  const daily = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:4
+DTSTART:${stamp(start)}
+DTEND:${stamp(new Date(start.getTime() + 30 * 60_000))}
+RRULE:FREQ=DAILY
+SUMMARY:Daily standup
+END:VEVENT
+END:VCALENDAR`
+  const events = toCalDavEvents([{ url: 'd', data: daily }], from, to)
+  expect(events.map((event) => event.start)).toContain('2026-11-09T09:00:00.000Z')
+})
