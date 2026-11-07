@@ -54,4 +54,6 @@ export type Source = SourceMeta & {
   sync(db: DatabaseSync, now?: Date, progress?: (done: number, total: number) => void): Promise<void>
   lastSync(db: DatabaseSync): string | null
   digest(db: DatabaseSync, since: Date): string[]
+  /** Start a push watcher (e.g. IMAP IDLE); returns an idempotent stop function. */
+  watch?(onChange: () => void): Promise<() => Promise<void>>
 }

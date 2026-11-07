@@ -31,6 +31,8 @@ export type MailApi = {
   ): Promise<{ messages: MailMessage[]; uidValidity: string; flags: MailFlags[] }>
   /** Current UIDs and flags for a recent window, so moved/deleted mail can be reconciled. */
   recent?(folder: string, days: number): Promise<{ uids: number[]; flags: MailFlags[] }>
+  /** Start a push watcher (IMAP IDLE); returns an idempotent stop function. */
+  watch?(onChange: () => void): Promise<() => Promise<void>>
 }
 
 const IGNORED_FOLDER = /all mail/i
@@ -67,6 +69,7 @@ export function createMailSource(api: MailApi | null, meta: SourceMeta = sourceM
   return {
     ...meta,
     configured: () => api !== null,
+    watch: api?.watch,
     async sync(db, now = new Date(), progress) {
       if (!api) return
       const folders = (await api.folders()).filter(

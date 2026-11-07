@@ -22,6 +22,7 @@ type FieldDef = {
   optional?: boolean
   options?: string[]
   default?: string
+  checkbox?: boolean
 }
 
 type ServiceDef = {
@@ -80,6 +81,7 @@ Only .md files are read; the app never writes to the vault.`,
     fields: [
       { key: 'user', label: 'Gmail address', placeholder: 'you@gmail.com' },
       { key: 'password', label: 'App password', secret: true, placeholder: 'xxxxxxxxxxxxxxxx' },
+      { key: 'idle', label: 'Watch for new mail (IMAP IDLE)', checkbox: true },
     ],
   },
   {
@@ -1806,6 +1808,24 @@ function ConnectionForm({
             const fieldId = `${formId}-${field.key}`
             const noteId = `${fieldId}-note`
             const saved = field.secret && connection?.secretsSet.includes(field.key)
+            if (field.checkbox) {
+              return (
+                <label className="check" key={field.key}>
+                  <input
+                    id={fieldId}
+                    type="checkbox"
+                    checked={config[field.key] === 'true'}
+                    onChange={(event) =>
+                      setConfig((current) => ({
+                        ...current,
+                        [field.key]: event.target.checked ? 'true' : 'false',
+                      }))
+                    }
+                  />
+                  {field.label}
+                </label>
+              )
+            }
             return (
               <div className="modal-field" key={field.key}>
                 <label htmlFor={fieldId}>

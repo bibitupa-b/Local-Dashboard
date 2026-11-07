@@ -119,17 +119,19 @@ export function buildSources(deps: RegistryDeps): Source[] {
       case 'github':
         sources.push(createGithubSource(createGithubApi(connection.secret?.token ?? null), meta('github')))
         break
-      case 'imap':
-        sources.push(
-          createMailSource(
-            createImapMailApi({
-              user: connection.config.user ?? null,
-              password: connection.secret?.password ?? null,
-            }),
-            meta('mail'),
-          ),
+      case 'imap': {
+        const source = createMailSource(
+          createImapMailApi({
+            user: connection.config.user ?? null,
+            password: connection.secret?.password ?? null,
+          }),
+          meta('mail'),
         )
+        // IDLE is opt-in per connection; polling remains the fallback when it is off.
+        if (connection.config.idle !== 'true') delete source.watch
+        sources.push(source)
         break
+      }
       case 'weather':
         sources.push(
           createWeatherSource(createOpenMeteoApi(connection.config), meta('weather')),

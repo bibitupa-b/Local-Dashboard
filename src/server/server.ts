@@ -23,6 +23,8 @@ import {
 } from './health.js'
 import { dueEventNotification, dueMeetingPrep, notify } from './notify.js'
 import { todayEvents } from './sources/calendar.js'
+import { visibleAttention } from './attention.js'
+import { newMailNotifications } from './idle.js'
 import { backupDb } from './backup.js'
 import { rebuildSearchIndex } from './search-index.js'
 import { applyRetention } from './retention.js'
@@ -179,18 +181,74 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
   }
 
+  const SEEN_KEY = 'idle_seen_messages'
+  const SEEN_MAX = 200
+
+  function loadSeenMessages(): Set<string> {
+    const raw = getSetting(db, SEEN_KEY)
+    if (!raw) return new Set()
+    try {
+      const parsed = JSON.parse(raw)
+      return new Set(
+        Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [],
+      )
+    } catch {
+      return new Set()
+    }
+  }
+
+  let seenMessages = loadSeenMessages()
+
+  function persistSeenMessages(): void {
+    const bounded =
+      seenMessages.size > SEEN_MAX ? new Set([...seenMessages].slice(-SEEN_MAX)) : seenMessages
+    seenMessages = bounded
+    setSetting(db, SEEN_KEY, JSON.stringify([...bounded]))
+  }
+
+  async function onSourceChange(source: Source): Promise<void> {
+    const before = visibleAttention(db, new Date(), { staleDays: 14, inboxDays: 3 })
+    try {
+      await withTimeout(source.sync(db, new Date()), 120_000, `sync ${source.id}`)
+    } catch (error) {
+      console.error(`[${source.id}] IDLE sync failed:`, error)
+      return
+    }
+    const after = visibleAttention(db, new Date(), { staleDays: 14, inboxDays: 3 })
+    const fresh = newMailNotifications(before, after, seenMessages)
+    if (fresh.length === 0) return
+    for (const item of fresh) {
+      send('New mail', item.label)
+      if (item.messageId) seenMessages.add(item.messageId)
+    }
+    persistSeenMessages()
+  }
+
+  async function startSourceWatchers(): Promise<void> {
+    for (const source of sources) {
+      if (!source.watch) continue
+      try {
+        stopWatchers.push(await source.watch(() => void onSourceChange(source)))
+      } catch (error) {
+        console.error(`[${source.id}] watch failed:`, error)
+      }
+    }
+  }
+
   async function reloadSources(): Promise<void> {
     if (syncing) await syncing.catch(() => {})
-    await Promise.all(stopWatchers.map((stop) => stop()))
+    await Promise.all(stopWatchers.map((stop) => stop().catch(() => {})))
     stopWatchers = []
     applyDeepseekKey()
     sources = buildSources({ db, box, config, dataDir: config.dataDir })
     health = createHealth(sources.map((source) => source.id))
     watchVaults()
+    await startSourceWatchers()
     void syncAll()
   }
 
   watchVaults()
+  void startSourceWatchers()
 
   const app = buildApp({
     db,

@@ -1,6 +1,7 @@
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import { threadKeyOf, type MailApi, type MailFlags, type MailMessage } from './mail.js'
+import { nextIdleDelay } from '../idle.js'
 
 const BODY_DAYS = 90
 const INITIAL_LIMIT = 2000
@@ -226,6 +227,85 @@ export function createImapMailApi(creds: {
         return { uids, flags }
       } finally {
         lock.release()
+      }
+    },
+
+    /** A dedicated IDLE connection: reconnects with backoff when the server drops it. */
+    async watch(onChange: () => void): Promise<() => Promise<void>> {
+      let stopped = false
+      let timer: NodeJS.Timeout | null = null
+      let idleClient: ImapFlow | null = null
+      let attempt = 0
+
+      const clearTimer = () => {
+        if (timer) {
+          clearTimeout(timer)
+          timer = null
+        }
+      }
+
+      const reconnect = () => {
+        if (stopped) return
+        clearTimer()
+        timer = setTimeout(() => void run(), nextIdleDelay(attempt++))
+      }
+
+      async function run(): Promise<void> {
+        if (stopped) return
+        // Close the previous IDLE connection before opening a fresh one.
+        if (idleClient) {
+          const previous = idleClient
+          idleClient = null
+          try {
+            await previous.logout()
+          } catch {
+            // already closed
+          }
+        }
+        if (stopped) return
+        const client = new ImapFlow({
+          host: 'imap.gmail.com',
+          port: 993,
+          secure: true,
+          auth: { user, pass },
+          logger: false,
+        })
+        idleClient = client
+        // Without listeners a post-connect error or drop becomes an uncaught exception or a gap.
+        client.on('error', (error) => console.error('[mail] IDLE error:', error))
+        client.on('close', () => {
+          if (idleClient === client && !stopped) {
+            idleClient = null
+            reconnect()
+          }
+        })
+        client.on('exists', () => onChange())
+        try {
+          await client.connect()
+          await client.mailboxOpen('INBOX')
+          attempt = 0
+          await client.idle()
+        } catch (error) {
+          if (!stopped) console.warn('[mail] IDLE ended:', error)
+        }
+        if (idleClient === client && !stopped) reconnect()
+      }
+
+      void run()
+
+      return async () => {
+        if (stopped) return
+        stopped = true
+        clearTimer()
+        const client = idleClient
+        idleClient = null
+        if (client) {
+          try {
+            await client.logout()
+          } catch {
+            // already closed
+          }
+        }
       }
     },
   }
