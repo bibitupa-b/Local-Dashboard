@@ -43,6 +43,8 @@ let tray = null
 let quitting = false
 let hideNoticeShown = false
 let baseUrl = ''
+const updateNotifications = new Set()
+let updateCheckTimer = null
 
 function showWindow() {
   if (!win) return
@@ -222,50 +224,61 @@ async function checkForUpdatesNow() {
   }
 }
 
+/**
+ * Shows an update notification and holds a reference to it until it closes, so the action handler
+ * (the only path to downloadUpdate/quitAndInstall) is not garbage-collected on Windows.
+ */
+function showUpdateNotification({ title, body, actionLabel, onAction }) {
+  if (!Notification.isSupported()) return
+  const notification = new Notification({
+    title,
+    body,
+    icon: iconPath,
+    actions: [{ type: 'button', text: actionLabel }],
+  })
+  updateNotifications.add(notification)
+  notification.on('close', () => updateNotifications.delete(notification))
+  notification.on('action', () => {
+    try {
+      onAction()
+    } catch (error) {
+      console.error('[desktop] update action failed:', error)
+    }
+  })
+  notification.on('click', showWindow)
+  notification.show()
+}
+
 function setupUpdater() {
   if (!app.isPackaged) return
   autoUpdater.autoDownload = false
 
   autoUpdater.on('update-available', (info) => {
-    if (!Notification.isSupported()) return
-    const notification = new Notification({
+    showUpdateNotification({
       title: 'Update available',
       body: `Local Dashboard ${info.version} is ready to download.`,
-      icon: iconPath,
-      actions: [{ type: 'button', text: 'Download' }],
+      actionLabel: 'Download',
+      onAction: () => {
+        autoUpdater
+          .downloadUpdate()
+          .catch((error) => console.error('[desktop] update download failed:', error))
+      },
     })
-    notification.on('action', () => {
-      autoUpdater
-        .downloadUpdate()
-        .catch((error) => console.error('[desktop] update download failed:', error))
-    })
-    notification.on('click', showWindow)
-    notification.show()
   })
 
   autoUpdater.on('update-downloaded', (info) => {
-    if (!Notification.isSupported()) return
-    const notification = new Notification({
+    showUpdateNotification({
       title: 'Update ready',
       body: `Local Dashboard ${info.version} has downloaded. Restart to install.`,
-      icon: iconPath,
-      actions: [{ type: 'button', text: 'Restart and install' }],
+      actionLabel: 'Restart and install',
+      onAction: () => autoUpdater.quitAndInstall(),
     })
-    notification.on('action', () => {
-      try {
-        autoUpdater.quitAndInstall()
-      } catch (error) {
-        console.error('[desktop] install failed:', error)
-      }
-    })
-    notification.on('click', showWindow)
-    notification.show()
   })
 
   autoUpdater.on('error', (error) => console.error('[desktop] update error:', error))
 
   void checkForUpdatesNow()
-  setInterval(() => void checkForUpdatesNow(), 6 * 60 * 60 * 1000)
+  updateCheckTimer = setInterval(() => void checkForUpdatesNow(), 6 * 60 * 60 * 1000)
 }
 
 function createTray() {
@@ -431,6 +444,7 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   closeSplash()
+  if (updateCheckTimer) clearInterval(updateCheckTimer)
 })
 
 app.on('activate', showWindow)
