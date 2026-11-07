@@ -9,7 +9,17 @@ briefing is generated.
 
 ![Dashboard](docs/screenshots/current/dashboard.jpeg)
 
-`Windows` · `Local-first` · `Read-only` · `Single user` · `MIT` · `v1.14.0`
+`Windows` · `Local-first` · `Read-only` · `Single user` · `MIT` · `v1.15.0`
+
+## What's new in 1.15.0
+
+- **Everything is optional** — the app starts without a vault, a connection or a DeepSeek key. A
+  fresh install opens on a quiet dashboard with a dismissible note; the briefing uses local rules
+  until you add a key.
+- **Local only** — one toggle in Settings, also in the topbar, blocks every outbound request:
+  DeepSeek, weather, RSS, Slack and CalDAV. Vault and browser history keep syncing.
+- **Apple and generic CalDAV** — read-only calendar events from iCloud or any CalDAV server, beside
+  the Google calendar. Credentials stay encrypted and events reuse the normal calendar source.
 
 ## What's new in 1.14.0
 
@@ -76,11 +86,11 @@ briefing is generated.
 
 ### Windows installer (recommended)
 
-1. Download the latest `Local Dashboard Setup <version>.exe` from
+1. Download the latest `Local-Dashboard-Setup-<version>.exe` from
    [Releases](https://github.com/bibitupa-b/Local-Dashboard/releases/latest).
 2. Run it. The build is not code-signed, so SmartScreen may ask you to confirm the publisher.
-3. Start the app and connect at least one source. The dashboard shows a **Get started** checklist
-   until a vault and a DeepSeek key are in place.
+3. Start the app. Nothing is required: connect a source when you want one, and add a DeepSeek key
+   only if you want the written briefing instead of local rules.
 
 The packaged app needs no Node.js installation. Data lives in
 `%APPDATA%\Local Dashboard\data`.
@@ -104,10 +114,14 @@ step. `npm run dist` produces a Windows installer and portable exe in `release/`
 Everything is configured in **Settings → Connections**. Each service has a `?` hint with exact
 steps. Multiple accounts per service are supported.
 
+Every row is optional. The dashboard runs with none of them connected; add only what you want, and
+remove them again without losing anything else.
+
 | Source | What you get | What it needs |
 | --- | --- | --- |
 | Obsidian vault | Open tasks, stale projects, Inbox backlog (feeds Start here) | One or more vault folders |
 | Google Drive, Calendar & Tasks | Drive changes, Docs text, events, due tasks | OAuth **Desktop app** client, published to Production; enable Drive, Calendar and Tasks APIs |
+| CalDAV (Apple / other) | Calendar events, today and free windows | iCloud app-specific password, or any CalDAV URL with username and password |
 | Gmail | Unread mail, awaiting reply, search | Gmail address + app password (2-Step Verification) |
 | GitHub | Notifications and review requests | Personal access token with `notifications` |
 | Slack | Mentions and DMs from the last 24 hours | User/bot token with read history scopes |
@@ -135,9 +149,14 @@ available keys: `PORT`, `VAULT_PATH`, `DEEPSEEK_API_KEY`, Google credentials, `G
 3. The reply is stored in the local database and shown on the page. Earlier briefings stay available.
 
 **Never sent:** whole vault notes, full mail bodies, attachments, browser URLs, page titles, feed
-URLs, Slack message text, OAuth tokens, passwords. Weather coordinates go only to Open-Meteo; RSS feeds are fetched
-directly from the addresses you configure. Browser history reaches the model as domain counts only.
-There is no telemetry, no analytics and no cloud account.
+URLs, Slack message text, OAuth tokens, passwords, CalDAV credentials. Weather coordinates go only
+to Open-Meteo; RSS feeds are fetched directly from the addresses you configure. Browser history
+reaches the model as domain counts only. There is no telemetry, no analytics and no cloud account.
+
+**Local only** turns the machine into a closed box: every outbound request is blocked, including
+DeepSeek, weather, RSS, Slack and CalDAV. Vault and browser history still sync, and
+the briefing falls back to local rules. CalDAV passwords are encrypted with AES-256-GCM and are
+used only against the server you configured.
 
 ## Screens
 
@@ -150,7 +169,7 @@ There is no telemetry, no analytics and no cloud account.
 
 More screens: [`docs/screenshots/current/index.html`](docs/screenshots/current/index.html).
 
-Release notes: [`docs/releases/1.14.0.md`](docs/releases/1.14.0.md).
+Release notes: [`docs/releases/1.15.0.md`](docs/releases/1.15.0.md).
 
 ## Troubleshooting
 

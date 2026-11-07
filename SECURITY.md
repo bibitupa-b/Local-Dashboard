@@ -14,10 +14,12 @@ This is a personal project. Open an issue or message the maintainer privately if
 - Access to services is read-only: notes, mail, calendar and Drive are never modified.
 - The briefing sends a compact digest to `https://api.deepseek.com` (`deepseek-flash`). The digest carries note paths, five short excerpts (up to 200 characters) from changed notes, mail subjects/senders with the first ~200 characters of unread messages, calendar events, due Google Tasks, weather values, RSS headlines/summaries, Slack channel names/counts and domain counts. Whole notes, full mail bodies, attachments, browser URLs, page titles, feed URLs and Slack message text are never included. A strict check re-reads every point against the digest.
 - Weather coordinates go only to `api.open-meteo.com`; RSS feed URLs are fetched directly from the configured addresses. Neither goes to DeepSeek.
+- **Local only** blocks every outbound request: DeepSeek, weather, RSS, Slack and CalDAV. Only the local vault and browser history keep syncing, and the briefing is generated from local rules. Network data already in the database stays visible and is marked paused.
+- CalDAV talks only to the server URL you configured (iCloud or a custom host), read-only, using the app password or account password stored encrypted. The server never writes to events.
 
 ## Secrets
 
-- Connection secrets (Google tokens, IMAP passwords, GitHub token, DeepSeek key) are encrypted with AES-256-GCM using `data/secret.key`.
+- Connection secrets (Google tokens, IMAP passwords, GitHub token, DeepSeek key, CalDAV password) are encrypted with AES-256-GCM using `data/secret.key`.
 - `.env` and `data/` are gitignored. The repository contains no live credentials.
 - `data/secret.key` is created with user-only permissions (mode `0600`). On Windows this maps to the current user's profile ACL.
 - Backups copy the database but not `secret.key`. To restore on another machine, copy the key file too; without it encrypted values cannot be decrypted.

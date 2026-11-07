@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.15.0
+
+The dashboard no longer requires anything: it starts empty, stays local when asked, and reads Apple
+calendars.
+
+- **Everything is optional** — a fresh install with no connections and no DeepSeek key is a valid
+  state: the dashboard loads, the zero-state card explains what can be added, and the briefing uses
+  local rules and says so instead of failing.
+- **Local only** — a settings toggle (and a topbar badge) blocks every outbound request: DeepSeek,
+  weather, RSS, Slack and CalDAV. Vault and browser history keep syncing.
+- **Apple and generic CalDAV** — a read-only calendar source through `tsdav` and `ical.js`, with an
+  iCloud preset and a Custom server. It reuses the calendar table and the normal calendar source.
+- **Recurring events** — RRULE/EXDATE instances are expanded inside the calendar window, capped at
+  100 per event; all-day events keep their calendar day.
+- **Broken data stays local** — a malformed event or an unreachable calendar is logged and skipped;
+  the other calendars still appear.
+- **CalDAV credentials** are encrypted with AES-256-GCM like every other secret.
+
 ## 1.14.0
 
 Work chat joins the morning screen.

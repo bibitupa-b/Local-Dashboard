@@ -120,6 +120,17 @@ Core mechanics (done): sync health and logging, mail filters and reply detection
 
 Desktop (done in 0.5.0): Electron shell with tray, native notifications, Windows autostart, NSIS installer and portable build; server bundled with esbuild.
 
+### v1.15.0 — Optional by default and CalDAV (done)
+- Every connection is optional: zero sources and no DeepSeek key is a valid first run, with a
+  dismissible zero-state card and a rules briefing.
+- `local_only` blocks all outbound network; vault and browser history keep syncing.
+- Apple and generic CalDAV calendars through `tsdav` + `ical.js`, read-only, reusing the calendar
+  source and table.
+
+### v1.16.0 — Microsoft 365 (next)
+- One Microsoft 365 connection yields Outlook Calendar and Teams chats; Teams stores chat names and
+  counts only.
+
 ### v0.4.0 — New signals
 - Browser history: read a copy of the Chromium History DB (Chrome, then Edge), store domain/title/visited time, skip excluded domains. Digest gets aggregates only, never page URLs.
 - GitHub: `GITHUB_TOKEN` (scope `notifications`), unread notifications and review requests in the attention queue and digest.

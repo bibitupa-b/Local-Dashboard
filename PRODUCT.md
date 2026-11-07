@@ -21,6 +21,10 @@ One quiet screen that answers two questions — where do I start today, and what
 count, the connected services and today's calendar sit above it. Read-only toward every source and
 local by default; only a compact digest leaves the machine, and only when a briefing is generated.
 
+Every connection is optional. The app is complete with zero connections and no DeepSeek key: the
+dashboard loads, a zero-state card explains what can be added, and the briefing runs on local rules.
+Local only mode blocks all outbound network while the vault and browser history keep syncing.
+
 Success, on a normal morning: the user opens it once, reads one number and one briefing, and knows
 the machine is in order. No clicking through tabs, and no backlog to scroll. The activity feed and
 the attention queue are gone from the screen by the user's own decision (2026-11-03): the backlog
@@ -45,7 +49,8 @@ cloud account behind it.
 - Sources are real, user-owned accounts: an Obsidian vault with non-ASCII folder names, Gmail over
   IMAP with an app password, a self-created Google Cloud OAuth desktop client kept in Production
   (one or more calendars and optional Google Tasks), a GitHub token with `notifications`, a local
-  Chrome/Edge/Helium history database, Open-Meteo coordinates, and optional RSS/Atom feeds.
+  Chrome/Edge/Helium history database, Open-Meteo coordinates, optional RSS/Atom feeds, and an
+  optional CalDAV account (iCloud or custom) for Apple Calendar.
 - Keyboard: `/` focuses search, `b` generates a briefing, `Esc` clears results.
 - Recovery tools the user is expected to use: **Copy diagnostics**, `data/server.log`, daily
   backups in `data/backups/`.
@@ -57,6 +62,9 @@ Approved decisions; do not re-litigate without asking.
 - Read-only everywhere. Never write to notes, the vault, Drive or mail.
 - Single user, local-only surface: binds `127.0.0.1`, rejects foreign `Host` headers and
   cross-origin writes, sets CSP and security headers.
+- **Every source is optional, and none is required for a first run.** No vault, connection or
+  DeepSeek key; the briefing degrades to local rules. **Local only** is a first-class setting that
+  blocks all outbound calls, not a hint.
 - Dark interface only.
 - Never sent to DeepSeek: vault note bodies, whole files, mail bodies, attachments, browser URLs or
   page titles, tokens, passwords. Mail keeps bodies for 90 days, then headers and subject only;
